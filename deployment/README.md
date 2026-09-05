@@ -28,7 +28,7 @@ APP_VERSION=0.1.0 ./deployment/build-api.sh
 
 ## Docker Compose
 
-Compose only runs the API image. It does not build `api-base`, so it will not pull `insurance-core-api-base` from Docker Hub.
+Compose runs the API image and a PostgreSQL service. It does not build `api-base`, so it will not pull `insurance-core-api-base` from Docker Hub.
 
 ```bash
 docker compose -f deployment/docker-compose.yaml up
@@ -43,3 +43,21 @@ docker compose -f deployment/docker-compose.yaml up
 ```
 
 If only source code changes, rerun `./deployment/build-api.sh`. If dependencies change, rerun both build scripts.
+
+## PostgreSQL with pgvector
+
+Docker Compose includes a PostgreSQL 16 service with pgvector for local development.
+
+```bash
+docker compose -f deployment/docker-compose.yaml up -d postgres
+```
+
+Default credentials:
+
+```env
+POSTGRES_DB=insurance_core
+POSTGRES_USER=insurance
+POSTGRES_PASSWORD=insurance
+```
+
+The API container connects to PostgreSQL using the internal Compose hostname `postgres`.

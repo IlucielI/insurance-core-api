@@ -50,9 +50,26 @@ APP_ENV=development
 APP_VERSION=0.1.0
 GIT_HASH=dev
 HTTP_PORT=8080
+DATABASE_URL=postgres://insurance:insurance@localhost:5432/insurance_core?sslmode=disable
 ```
 
 `APP_VERSION` and `GIT_HASH` can be injected during Docker build. Remove them from `.env` if you want the binary build metadata to be used instead of runtime overrides.
+
+## Database
+
+For Docker development, PostgreSQL with pgvector is included in `deployment/docker-compose.yaml`.
+
+When running the API locally with Go, start PostgreSQL from Compose first:
+
+```bash
+docker compose -f deployment/docker-compose.yaml up -d postgres
+```
+
+The default local connection string is:
+
+```env
+DATABASE_URL=postgres://insurance:insurance@localhost:5432/insurance_core?sslmode=disable
+```
 
 ## Run Locally with Go
 

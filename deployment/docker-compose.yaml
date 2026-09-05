@@ -4,10 +4,30 @@ services:
     container_name: insurance-core-api
     env_file:
       - ../.env
-    environment:
-      APP_NAME: insurance-core-api
-      APP_ENV: development
-      HTTP_PORT: 8080
     ports:
       - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: insurance-core-postgres
+    environment:
+      POSTGRES_DB: insurance_core
+      POSTGRES_USER: insurance
+      POSTGRES_PASSWORD: insurance
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insurance -d insurance_core"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
