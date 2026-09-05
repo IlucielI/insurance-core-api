@@ -18,3 +18,10 @@ func TestTableNames(t *testing.T) {
 		t.Fatalf("ApplicationReviewCheck.TableName() = %q, want application_review_checks", reviewCheck.TableName())
 	}
 }
+
+func TestKnowledgeChunkTableName(t *testing.T) {
+	chunk := KnowledgeChunk{}
+	if chunk.TableName() != "knowledge_chunks" {
+		t.Fatalf("KnowledgeChunk.TableName() = %q, want knowledge_chunks", chunk.TableName())
+	}
+}

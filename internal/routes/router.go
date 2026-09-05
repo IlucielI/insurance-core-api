@@ -13,7 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository) *fiber.App {
+func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
 	})
@@ -27,6 +27,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	productController := controllers.NewProductController(productService)
 	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService)
 	applicationController := controllers.NewApplicationController(applicationService)
+	assistantController := controllers.NewAssistantController(assistantService)
 
 	app.Get("/health", healthController.Check)
 
@@ -40,6 +41,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api.Patch("/applications/:id/status", applicationController.UpdateStatus)
 	api.Get("/applications/:id/review-checks", applicationController.ListReviewChecks)
 	api.Patch("/applications/:id/review-checks/:check_type", applicationController.UpdateReviewCheck)
+	api.Post("/assistant/chat", assistantController.Chat)
 
 	return app
 }
