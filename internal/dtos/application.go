@@ -25,3 +25,10 @@ func ProductQuoteRequestToInput(request ProductQuoteRequest) CreateProductQuoteI
 		HealthRisk:       request.HealthRisk,
 	}
 }
+
+
+type UpdateApplicationStatusRequest struct {
+	Status          models.ApplicationStatus `json:"status"`
+	ReviewedBy      string                   `json:"reviewed_by"`
+	RejectionReason string                   `json:"rejection_reason"`
+}

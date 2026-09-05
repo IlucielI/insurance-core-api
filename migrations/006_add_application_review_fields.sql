@@ -1,0 +1,4 @@
+ALTER TABLE applications
+    ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS rejection_reason VARCHAR(500);

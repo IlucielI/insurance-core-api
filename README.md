@@ -212,3 +212,26 @@ Get an application by ID:
 ```bash
 curl http://localhost:8080/api/v1/applications/{application_id}
 ```
+
+Update application status during underwriting:
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/applications/{application_id}/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "under_review",
+    "reviewed_by": "underwriter@example.com"
+  }'
+```
+
+Reject an application with a reason:
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/applications/{application_id}/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "rejected",
+    "reviewed_by": "underwriter@example.com",
+    "rejection_reason": "Additional medical review is required."
+  }'
+```

@@ -30,6 +30,9 @@ type Application struct {
 	Status            ApplicationStatus `gorm:"type:varchar(32);not null;index" json:"status"`
 	CreatedAt         time.Time         `json:"created_at"`
 	UpdatedAt         time.Time         `json:"updated_at"`
+	ReviewedAt        *time.Time        `json:"reviewed_at,omitempty"`
+	ReviewedBy        string            `json:"reviewed_by,omitempty"`
+	RejectionReason   string            `json:"rejection_reason,omitempty"`
 }
 
 func (Application) TableName() string { return "applications" }
