@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 
+	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
 	"gorm.io/gorm"
 )
 
-var ErrProductNotFound = errors.New("product not found")
+var ErrProductNotFound = errors.New(constants.ErrProductNotFound)
 
 type ProductRepository interface {
 	FindAll(ctx context.Context, filter ProductFilter) ([]models.Product, error)

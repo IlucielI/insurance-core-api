@@ -1,11 +1,41 @@
 package constants
 
+import "errors"
+
 const (
 	ErrProductSlugRequired    = "product slug is required"
 	ErrProductCategoryInvalid = "category must be one of: life, health, vehicle"
 	ErrProductFeaturedInvalid = "featured must be true or false"
 	ErrProductLimitInvalid    = "limit must be a positive integer"
 	ErrProductLimitTooHigh    = "limit must be less than or equal to 50"
-	ErrProductListFailed     = "failed to list products"
-	ErrProductDetailFailed   = "failed to get product"
+	ErrProductNotFound        = "product not found"
+	ErrProductListFailed      = "failed to list products"
+	ErrProductDetailFailed    = "failed to get product"
+	ErrProductQuoteFailed     = "failed to create product quote"
+	ErrProductQuoteBodyInvalid = "invalid product quote request body"
 )
+
+const (
+	ErrQuoteAgeInvalid              = "age must be between 18 and 60"
+	ErrQuoteGenderInvalid           = "gender must be male or female"
+	ErrQuoteSmokerInvalid           = "smoker must be yes or no"
+	ErrQuoteOccupationInvalid       = "occupation_class must be one of: low, standard, high"
+	ErrQuoteHealthRiskInvalid       = "health_risk must be one of: low, medium, high"
+	ErrQuotePaymentFrequencyInvalid = "payment_frequency must be one of: annual, semi_annual, quarterly, monthly"
+	ErrQuoteSumAssuredInvalid       = "sum_assured must be greater than zero"
+	ErrQuotePaymentTermInvalid      = "payment_term must be greater than zero"
+	ErrQuoteSumAssuredOutOfRange    = "sum_assured is outside product allowed range"
+	ErrQuotePaymentTermOutOfRange   = "payment_term is outside product allowed range"
+	ErrQuotePricingRulesInvalid     = "product pricing rules are incomplete"
+)
+
+var (
+	QuoteSumAssuredOutOfRangeError  = errors.New(ErrQuoteSumAssuredOutOfRange)
+	QuotePaymentTermOutOfRangeError = errors.New(ErrQuotePaymentTermOutOfRange)
+	QuotePricingRulesInvalidError   = errors.New(ErrQuotePricingRulesInvalid)
+)
+
+func IsQuoteValidationError(err error) bool {
+	return errors.Is(err, QuoteSumAssuredOutOfRangeError) ||
+		errors.Is(err, QuotePaymentTermOutOfRangeError)
+}

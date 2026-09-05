@@ -23,6 +23,7 @@ type Product struct {
 	MinPaymentTerm   int             `gorm:"not null" json:"min_payment_term"`
 	MaxPaymentTerm   int             `gorm:"not null" json:"max_payment_term"`
 	StartingPremium  int64           `gorm:"not null" json:"starting_premium"`
+	PricingRules     PricingRules    `gorm:"type:jsonb;serializer:json" json:"pricing_rules"`
 	Benefits         []string        `gorm:"type:jsonb;serializer:json" json:"benefits"`
 	Exclusions       []string        `gorm:"type:jsonb;serializer:json" json:"exclusions"`
 	IsFeatured       bool            `gorm:"not null;default:false;index" json:"is_featured"`
