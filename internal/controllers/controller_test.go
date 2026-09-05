@@ -60,6 +60,13 @@ func (repository *controllerApplicationRepository) UpdateStatus(ctx context.Cont
 	return repository.err
 }
 
+func (repository *controllerApplicationRepository) List(ctx context.Context, filter repositories.ApplicationListFilter) ([]models.Application, int64, error) {
+	if repository.err != nil {
+		return nil, 0, repository.err
+	}
+	return []models.Application{repository.application}, 1, nil
+}
+
 type controllerReviewCheckRepository struct {
 	checks []models.ApplicationReviewCheck
 	err    error

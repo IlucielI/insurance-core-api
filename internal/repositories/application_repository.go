@@ -14,8 +14,16 @@ var ErrApplicationNotFound = errors.New(constants.ErrApplicationNotFound)
 
 type ApplicationRepository interface {
 	Create(context.Context, *models.Application) error
+	List(context.Context, ApplicationListFilter) ([]models.Application, int64, error)
 	FindByID(context.Context, string) (models.Application, error)
 	UpdateStatus(context.Context, string, models.ApplicationStatus, string, string, time.Time) error
+}
+
+type ApplicationListFilter struct {
+	Status    string
+	ProductID string
+	Page      int
+	Limit     int
 }
 
 type PostgresApplicationRepository struct {
@@ -30,6 +38,36 @@ func (repository *PostgresApplicationRepository) Create(ctx context.Context, app
 	return repository.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return tx.Create(application).Error
 	})
+}
+
+func (repository *PostgresApplicationRepository) List(ctx context.Context, filter ApplicationListFilter) ([]models.Application, int64, error) {
+	baseQuery := repository.db.WithContext(ctx).Model(&models.Application{})
+	query := baseQuery.Preload("Product").Preload("ReviewChecks").Order("created_at DESC")
+	if filter.Status != "" {
+		baseQuery = baseQuery.Where("status = ?", filter.Status)
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.ProductID != "" {
+		baseQuery = baseQuery.Where("product_id = ?", filter.ProductID)
+		query = query.Where("product_id = ?", filter.ProductID)
+	}
+
+	var total int64
+	if err := baseQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if filter.Limit > 0 {
+		offset := (filter.Page - 1) * filter.Limit
+		query = query.Offset(offset).Limit(filter.Limit)
+	}
+
+	var applications []models.Application
+	if err := query.Find(&applications).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return applications, total, nil
 }
 
 func (repository *PostgresApplicationRepository) FindByID(ctx context.Context, id string) (models.Application, error) {

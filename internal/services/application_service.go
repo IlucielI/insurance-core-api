@@ -77,6 +77,24 @@ func (service *ApplicationService) Get(ctx context.Context, id string) (models.A
 	return service.applications.FindByID(ctx, id)
 }
 
+func (service *ApplicationService) List(ctx context.Context, query dtos.ApplicationListQuery) ([]models.Application, int64, error) {
+	if service.applications == nil {
+		return nil, 0, errors.New(constants.ErrApplicationServiceUnavailable)
+	}
+
+	applications, total, err := service.applications.List(ctx, repositories.ApplicationListFilter{
+		Status:    query.Status,
+		ProductID: query.ProductID,
+		Page:      query.Page,
+		Limit:     query.Limit,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return applications, total, nil
+}
+
 func (service *ApplicationService) ListReviewChecks(ctx context.Context, applicationID string) ([]models.ApplicationReviewCheck, error) {
 	if service.applications == nil || service.reviewChecks == nil {
 		return nil, errors.New(constants.ErrApplicationServiceUnavailable)

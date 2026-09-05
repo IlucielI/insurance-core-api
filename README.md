@@ -213,6 +213,19 @@ Get an application by ID:
 curl http://localhost:8080/api/v1/applications/{application_id}
 ```
 
+List applications for admin review:
+
+```bash
+curl "http://localhost:8080/api/v1/applications?status=submitted&page=1&limit=20"
+```
+
+Available filters:
+
+- `status`: `submitted`, `under_review`, `approved`, `rejected`
+- `product_id`: product ID
+- `page`: defaults to `1`
+- `limit`: defaults to `20`, max `50`
+
 Update application status during underwriting:
 
 ```bash
