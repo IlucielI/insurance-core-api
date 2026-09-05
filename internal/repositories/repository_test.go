@@ -136,7 +136,7 @@ func sqliteDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v", err)
 	}
-	if err := db.AutoMigrate(&models.Product{}, &models.Application{}, &models.ApplicationReviewCheck{}); err != nil {
+	if err := db.AutoMigrate(&models.Product{}, &models.Application{}, &models.ApplicationReviewCheck{}, &models.KnowledgeChunk{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}
 	return db
@@ -154,5 +154,37 @@ func seedProduct(t *testing.T, db *gorm.DB, product models.Product) {
 	product.StartingPremium = 100000
 	if err := db.Create(&product).Error; err != nil {
 		t.Fatalf("seed product error = %v", err)
+	}
+}
+
+func TestKnowledgeRepository(t *testing.T) {
+	db := sqliteDB(t)
+	repository := NewPostgresKnowledgeRepository(db)
+	chunks := []models.KnowledgeChunk{{ID: "k1", SourceType: "faq", Title: "FAQ", Content: "hello", ChunkIndex: 0}}
+	if err := repository.ReplaceAll(context.Background(), chunks); err != nil {
+		t.Fatalf("ReplaceAll() error = %v", err)
+	}
+	count, err := repository.Count(context.Background())
+	if err != nil || count != 1 {
+		t.Fatalf("Count() = %d, error = %v", count, err)
+	}
+	if _, err := repository.Search(context.Background(), nil, 1); err == nil {
+		t.Fatal("Search() accepted empty embedding")
+	}
+	if _, err := repository.Search(context.Background(), []float32{1}, 1); err == nil {
+		t.Fatal("Search() accepted invalid embedding dimension")
+	}
+	if _, err := repository.Search(context.Background(), make([]float32, 1024), 0); err == nil {
+		t.Fatal("Search() accepted zero limit")
+	}
+	if err := repository.ReplaceAll(context.Background(), nil); err != nil {
+		t.Fatalf("ReplaceAll(empty) error = %v", err)
+	}
+	count, err = repository.Count(context.Background())
+	if err != nil {
+		t.Fatalf("Count() after replace error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("Count() = %d after replace, want 0", count)
 	}
 }

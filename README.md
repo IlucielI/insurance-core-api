@@ -282,3 +282,13 @@ Available review check statuses:
 - `not_needed`
 
 Applications can only be approved after every review check is either `passed` or `not_needed`.
+
+Assistant chat (RAG):
+
+```bash
+curl -X POST http://localhost:8080/api/v1/assistant/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Bagaimana cara mengajukan aplikasi asuransi?"}'
+```
+
+Assistant membutuhkan `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_COMPLETION_MODEL`, dan `LLM_EMBEDDING_MODEL`. Knowledge awal masih dummy dan hanya digunakan sebagai konteks RAG.

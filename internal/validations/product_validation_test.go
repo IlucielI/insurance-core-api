@@ -192,3 +192,32 @@ func productQuoteRequestFixture() dtos.ProductQuoteRequest {
 		HealthRisk:       " low ",
 	}
 }
+
+func TestValidateApplicationListQuery(t *testing.T) {
+	cases := []struct{ name, status, product, page, limit, want string }{
+		{"defaults", "", "", "", "", ""},
+		{"status", "submitted", " product-1 ", "2", "10", ""},
+		{"bad status", "unknown", "", "", "", constants.ErrApplicationStatusInvalid},
+		{"bad product", "", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "", "", constants.ErrApplicationListFilterInvalid},
+		{"bad page", "", "", "x", "", constants.ErrApplicationPageInvalid},
+		{"bad limit", "", "", "", "0", constants.ErrApplicationLimitInvalid},
+		{"large limit", "", "", "", "51", constants.ErrApplicationListLimitTooHigh},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			q, err := ValidateApplicationListQuery(tc.status, tc.product, tc.page, tc.limit)
+			if tc.want != "" {
+				if err == nil || err.Error() != tc.want {
+					t.Fatalf("error=%v want=%s", err, tc.want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if q.Limit == 0 {
+				t.Fatal("default limit missing")
+			}
+		})
+	}
+}

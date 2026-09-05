@@ -50,7 +50,7 @@ func (repository routeReviewCheckRepository) UpdateStatus(ctx context.Context, a
 }
 
 func TestNewRouter(t *testing.T) {
-	app := NewRouter(config.Config{AppName: "test", Version: "1.0.0", GitHash: "abc123"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{})
+	app := NewRouter(config.Config{AppName: "test", Version: "1.0.0", GitHash: "abc123"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil)
 	if app == nil {
 		t.Fatal("NewRouter() = nil")
 	}
