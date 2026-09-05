@@ -184,3 +184,31 @@ curl -X POST http://localhost:8080/api/v1/products/secure-life-plus/quotes \
 ```
 
 The quote is rule-based and returns premium breakdown factors so the calculation remains explainable.
+
+## Policy Applications
+
+Submit an application using a product slug:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/products/secure-life-plus/applications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "full_name": "Budi Santoso",
+    "email": "budi@example.com",
+    "phone": "+628123456789",
+    "age": 32,
+    "gender": "male",
+    "sum_assured": 500000000,
+    "payment_term": 10,
+    "payment_frequency": "monthly",
+    "smoker": "no",
+    "occupation_class": "standard",
+    "health_risk": "low"
+  }'
+```
+
+Get an application by ID:
+
+```bash
+curl http://localhost:8080/api/v1/applications/{application_id}
+```

@@ -114,3 +114,25 @@ func contains(value string, allowedValues ...string) bool {
 
 	return validation.Validate(value, validation.In(values...)) == nil
 }
+
+func ValidateApplicationRequest(request dtos.CreateApplicationRequest) (dtos.CreateApplicationRequest, error) {
+	request.FullName = strings.TrimSpace(request.FullName)
+	request.Email = strings.TrimSpace(request.Email)
+	request.Phone = strings.TrimSpace(request.Phone)
+	if validation.Validate(request.FullName, validation.Required, validation.Length(2, 120)) != nil {
+		return dtos.CreateApplicationRequest{}, errors.New(constants.ErrApplicationFullNameInvalid)
+	}
+	if validation.Validate(request.Email, validation.Required, validation.Length(3, 255), validation.IsEmail) != nil {
+		return dtos.CreateApplicationRequest{}, errors.New(constants.ErrApplicationEmailInvalid)
+	}
+	if validation.Validate(request.Phone, validation.Required, validation.Length(7, 32)) != nil {
+		return dtos.CreateApplicationRequest{}, errors.New(constants.ErrApplicationPhoneInvalid)
+	}
+
+	quote, err := ValidateProductQuoteRequest(request.ProductQuoteRequest)
+	if err != nil {
+		return dtos.CreateApplicationRequest{}, err
+	}
+	request.ProductQuoteRequest = quote
+	return request, nil
+}

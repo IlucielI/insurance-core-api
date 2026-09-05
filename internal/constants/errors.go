@@ -3,7 +3,7 @@ package constants
 import "errors"
 
 const (
-	ErrProductSlugRequired    = "product slug is required"
+	ErrProductSlugRequired     = "product slug is required"
 	ErrProductCategoryInvalid = "category must be one of: life, health, vehicle"
 	ErrProductFeaturedInvalid = "featured must be true or false"
 	ErrProductLimitInvalid    = "limit must be a positive integer"
@@ -12,7 +12,7 @@ const (
 	ErrProductListFailed      = "failed to list products"
 	ErrProductDetailFailed    = "failed to get product"
 	ErrProductQuoteFailed     = "failed to create product quote"
-	ErrProductQuoteBodyInvalid = "invalid product quote request body"
+	ErrProductQuoteBodyInvalid  = "invalid product quote request body"
 )
 
 const (
@@ -39,3 +39,15 @@ func IsQuoteValidationError(err error) bool {
 	return errors.Is(err, QuoteSumAssuredOutOfRangeError) ||
 		errors.Is(err, QuotePaymentTermOutOfRangeError)
 }
+
+const (
+	ErrApplicationBodyInvalid   = "invalid application request body"
+	ErrApplicationRequired      = "application fields are invalid"
+	ErrApplicationFullNameInvalid = "full_name is invalid"
+	ErrApplicationEmailInvalid = "email is invalid"
+	ErrApplicationPhoneInvalid = "phone is invalid"
+	ErrApplicationServiceUnavailable = "application service is unavailable"
+	ErrApplicationCreateFailed  = "failed to create application"
+	ErrApplicationNotFound      = "application not found"
+	ErrApplicationGetFailed     = "failed to get application"
+)
