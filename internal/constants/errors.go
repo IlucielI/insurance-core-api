@@ -4,14 +4,14 @@ import "errors"
 
 const (
 	ErrProductSlugRequired     = "product slug is required"
-	ErrProductCategoryInvalid = "category must be one of: life, health, vehicle"
-	ErrProductFeaturedInvalid = "featured must be true or false"
-	ErrProductLimitInvalid    = "limit must be a positive integer"
-	ErrProductLimitTooHigh    = "limit must be less than or equal to 50"
-	ErrProductNotFound        = "product not found"
-	ErrProductListFailed      = "failed to list products"
-	ErrProductDetailFailed    = "failed to get product"
-	ErrProductQuoteFailed     = "failed to create product quote"
+	ErrProductCategoryInvalid  = "category must be one of: life, health, vehicle"
+	ErrProductFeaturedInvalid  = "featured must be true or false"
+	ErrProductLimitInvalid     = "limit must be a positive integer"
+	ErrProductLimitTooHigh     = "limit must be less than or equal to 50"
+	ErrProductNotFound         = "product not found"
+	ErrProductListFailed       = "failed to list products"
+	ErrProductDetailFailed     = "failed to get product"
+	ErrProductQuoteFailed      = "failed to create product quote"
 	ErrProductQuoteBodyInvalid = "invalid product quote request body"
 )
 
@@ -30,11 +30,13 @@ const (
 )
 
 var (
-	ErrApplicationStatusTransitionInvalidError = errors.New(ErrApplicationStatusTransitionInvalid)
-	ErrApplicationRejectionReasonRequiredError = errors.New(ErrApplicationRejectionReasonRequired)
-	QuoteSumAssuredOutOfRangeError  = errors.New(ErrQuoteSumAssuredOutOfRange)
-	QuotePaymentTermOutOfRangeError = errors.New(ErrQuotePaymentTermOutOfRange)
-	QuotePricingRulesInvalidError   = errors.New(ErrQuotePricingRulesInvalid)
+	ErrApplicationStatusTransitionInvalidError     = errors.New(ErrApplicationStatusTransitionInvalid)
+	ErrApplicationRejectionReasonRequiredError     = errors.New(ErrApplicationRejectionReasonRequired)
+	ErrApplicationApprovalChecklistIncompleteError = errors.New(ErrApplicationApprovalChecklistIncomplete)
+	ErrApplicationReviewCheckInvalidError          = errors.New(ErrApplicationReviewCheckInvalid)
+	QuoteSumAssuredOutOfRangeError                 = errors.New(ErrQuoteSumAssuredOutOfRange)
+	QuotePaymentTermOutOfRangeError                = errors.New(ErrQuotePaymentTermOutOfRange)
+	QuotePricingRulesInvalidError                  = errors.New(ErrQuotePricingRulesInvalid)
 )
 
 func IsQuoteValidationError(err error) bool {
@@ -43,20 +45,24 @@ func IsQuoteValidationError(err error) bool {
 }
 
 const (
-	ErrApplicationBodyInvalid   = "invalid application request body"
-	ErrApplicationRequired      = "application fields are invalid"
-	ErrApplicationFullNameInvalid = "full_name is invalid"
-	ErrApplicationEmailInvalid = "email is invalid"
-	ErrApplicationPhoneInvalid = "phone is invalid"
+	ErrApplicationBodyInvalid        = "invalid application request body"
+	ErrApplicationRequired           = "application fields are invalid"
+	ErrApplicationFullNameInvalid    = "full_name is invalid"
+	ErrApplicationEmailInvalid       = "email is invalid"
+	ErrApplicationPhoneInvalid       = "phone is invalid"
 	ErrApplicationServiceUnavailable = "application service is unavailable"
-	ErrApplicationCreateFailed  = "failed to create application"
-	ErrApplicationNotFound      = "application not found"
-	ErrApplicationGetFailed     = "failed to get application"
+	ErrApplicationCreateFailed       = "failed to create application"
+	ErrApplicationNotFound           = "application not found"
+	ErrApplicationGetFailed          = "failed to get application"
 )
 
 const (
-	ErrApplicationStatusInvalid = "application status is invalid"
-	ErrApplicationStatusTransitionInvalid = "application status transition is invalid"
-	ErrApplicationRejectionReasonRequired = "rejection_reason is required when rejecting"
-	ErrApplicationStatusUpdateFailed = "failed to update application status"
+	ErrApplicationStatusInvalid               = "application status is invalid"
+	ErrApplicationStatusTransitionInvalid     = "application status transition is invalid"
+	ErrApplicationRejectionReasonRequired     = "rejection_reason is required when rejecting"
+	ErrApplicationStatusUpdateFailed          = "failed to update application status"
+	ErrApplicationReviewCheckNotFound         = "application review check not found"
+	ErrApplicationReviewCheckInvalid          = "application review check is invalid"
+	ErrApplicationReviewCheckUpdateFailed     = "failed to update application review check"
+	ErrApplicationApprovalChecklistIncomplete = "application review checklist is incomplete"
 )

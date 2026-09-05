@@ -27,12 +27,14 @@ func NewPostgresApplicationRepository(db *gorm.DB) *PostgresApplicationRepositor
 }
 
 func (repository *PostgresApplicationRepository) Create(ctx context.Context, application *models.Application) error {
-	return repository.db.WithContext(ctx).Create(application).Error
+	return repository.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return tx.Create(application).Error
+	})
 }
 
 func (repository *PostgresApplicationRepository) FindByID(ctx context.Context, id string) (models.Application, error) {
 	var application models.Application
-	err := repository.db.WithContext(ctx).Preload("Product").First(&application, "id = ?", id).Error
+	err := repository.db.WithContext(ctx).Preload("Product").Preload("ReviewChecks").First(&application, "id = ?", id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return models.Application{}, ErrApplicationNotFound
 	}

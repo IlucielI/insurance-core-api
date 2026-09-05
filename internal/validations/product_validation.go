@@ -137,3 +137,52 @@ func ValidateApplicationRequest(request dtos.CreateApplicationRequest) (dtos.Cre
 	request.ProductQuoteRequest = quote
 	return request, nil
 }
+
+func ValidateApplicationReviewCheckRequest(request dtos.UpdateApplicationReviewCheckRequest) (dtos.UpdateApplicationReviewCheckRequest, error) {
+	request.Status = models.ApplicationReviewCheckStatus(strings.TrimSpace(string(request.Status)))
+	request.Notes = strings.TrimSpace(request.Notes)
+	request.ReviewedBy = strings.TrimSpace(request.ReviewedBy)
+
+	if !validApplicationReviewCheckStatus(request.Status) || validation.Validate(request.ReviewedBy, validation.Required, validation.Length(2, 120)) != nil {
+		return dtos.UpdateApplicationReviewCheckRequest{}, constants.ErrApplicationReviewCheckInvalidError
+	}
+
+	if validation.Validate(request.Notes, validation.Length(0, 500)) != nil {
+		return dtos.UpdateApplicationReviewCheckRequest{}, constants.ErrApplicationReviewCheckInvalidError
+	}
+
+	return request, nil
+}
+
+func ValidateApplicationReviewCheckType(value string) (models.ApplicationReviewCheckType, error) {
+	checkType := models.ApplicationReviewCheckType(strings.TrimSpace(value))
+	if !validApplicationReviewCheckType(checkType) {
+		return "", constants.ErrApplicationReviewCheckInvalidError
+	}
+
+	return checkType, nil
+}
+
+func validApplicationReviewCheckType(checkType models.ApplicationReviewCheckType) bool {
+	switch checkType {
+	case models.ApplicationReviewCheckTypeIdentityVerified,
+		models.ApplicationReviewCheckTypeIncomeVerified,
+		models.ApplicationReviewCheckTypeDocumentsComplete,
+		models.ApplicationReviewCheckTypeMedicalRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+func validApplicationReviewCheckStatus(status models.ApplicationReviewCheckStatus) bool {
+	switch status {
+	case models.ApplicationReviewCheckStatusPending,
+		models.ApplicationReviewCheckStatusPassed,
+		models.ApplicationReviewCheckStatusFailed,
+		models.ApplicationReviewCheckStatusNotNeeded:
+		return true
+	default:
+		return false
+	}
+}

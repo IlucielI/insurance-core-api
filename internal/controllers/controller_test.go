@@ -60,8 +60,24 @@ func (repository *controllerApplicationRepository) UpdateStatus(ctx context.Cont
 	return repository.err
 }
 
+type controllerReviewCheckRepository struct {
+	checks []models.ApplicationReviewCheck
+	err    error
+}
+
+func (repository *controllerReviewCheckRepository) FindByApplicationID(ctx context.Context, applicationID string) ([]models.ApplicationReviewCheck, error) {
+	if repository.err != nil {
+		return nil, repository.err
+	}
+	return repository.checks, nil
+}
+
+func (repository *controllerReviewCheckRepository) UpdateStatus(ctx context.Context, applicationID string, checkType models.ApplicationReviewCheckType, status models.ApplicationReviewCheckStatus, reviewedBy, notes string, reviewedAt time.Time) error {
+	return repository.err
+}
+
 func TestHealthController(t *testing.T) {
-	app := routes.NewRouter(config.Config{AppName: "insurance-core-api", Version: "1.2.3", GitHash: "abc123"}, &controllerProductRepository{}, &controllerApplicationRepository{})
+	app := routes.NewRouter(config.Config{AppName: "insurance-core-api", Version: "1.2.3", GitHash: "abc123"}, &controllerProductRepository{}, &controllerApplicationRepository{}, &controllerReviewCheckRepository{})
 
 	response := performRequest(t, app, http.MethodGet, "/health", nil)
 	assertStatus(t, response, http.StatusOK)
@@ -73,7 +89,7 @@ func TestHealthController(t *testing.T) {
 
 func TestProductRoutes(t *testing.T) {
 	product := controllerProductFixture()
-	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{products: []models.Product{product}, product: product}, &controllerApplicationRepository{})
+	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{products: []models.Product{product}, product: product}, &controllerApplicationRepository{}, &controllerReviewCheckRepository{})
 
 	response := performRequest(t, app, http.MethodGet, "/api/v1/products?category=life&featured=true&limit=1", nil)
 	assertStatus(t, response, http.StatusOK)
@@ -89,7 +105,7 @@ func TestProductRoutes(t *testing.T) {
 }
 
 func TestProductRoutesHandleErrors(t *testing.T) {
-	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{err: repositories.ErrProductNotFound}, &controllerApplicationRepository{})
+	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{err: repositories.ErrProductNotFound}, &controllerApplicationRepository{}, &controllerReviewCheckRepository{})
 
 	response := performRequest(t, app, http.MethodGet, "/api/v1/products?category=travel", nil)
 	assertStatus(t, response, http.StatusBadRequest)
@@ -110,7 +126,8 @@ func TestApplicationRoutes(t *testing.T) {
 	product := controllerProductFixture()
 	application := models.Application{ID: "application-1", ProductID: product.ID, Product: product, Status: models.ApplicationStatusSubmitted}
 	applications := &controllerApplicationRepository{application: application}
-	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{product: product}, applications)
+	reviewChecks := &controllerReviewCheckRepository{checks: []models.ApplicationReviewCheck{{ID: "check-1", ApplicationID: application.ID, CheckType: models.ApplicationReviewCheckTypeIdentityVerified, Status: models.ApplicationReviewCheckStatusPending}}}
+	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{product: product}, applications, reviewChecks)
 
 	response := performRequest(t, app, http.MethodPost, "/api/v1/products/secure-life-plus/applications", applicationBody())
 	assertStatus(t, response, http.StatusCreated)
@@ -127,11 +144,21 @@ func TestApplicationRoutes(t *testing.T) {
 		"reviewed_by": "underwriter",
 	}))
 	assertStatus(t, response, http.StatusNoContent)
+
+	response = performRequest(t, app, http.MethodGet, "/api/v1/applications/application-1/review-checks", nil)
+	assertStatus(t, response, http.StatusOK)
+	assertBodyContains(t, readBody(t, response), string(models.ApplicationReviewCheckTypeIdentityVerified))
+
+	response = performRequest(t, app, http.MethodPatch, "/api/v1/applications/application-1/review-checks/identity_verified", jsonBody(map[string]any{
+		"status":      models.ApplicationReviewCheckStatusPassed,
+		"reviewed_by": "underwriter",
+	}))
+	assertStatus(t, response, http.StatusNoContent)
 }
 
 func TestApplicationRoutesHandleErrors(t *testing.T) {
 	product := controllerProductFixture()
-	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{product: product}, &controllerApplicationRepository{err: repositories.ErrApplicationNotFound})
+	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{product: product}, &controllerApplicationRepository{err: repositories.ErrApplicationNotFound}, &controllerReviewCheckRepository{})
 
 	response := performRequest(t, app, http.MethodPost, "/api/v1/products/secure-life-plus/applications", bytes.NewBufferString("{"))
 	assertStatus(t, response, http.StatusBadRequest)
@@ -157,9 +184,29 @@ func TestApplicationRoutesHandleErrors(t *testing.T) {
 	assertStatus(t, response, http.StatusBadRequest)
 }
 
+func TestApplicationReviewCheckRoutesHandleErrors(t *testing.T) {
+	product := controllerProductFixture()
+	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{product: product}, &controllerApplicationRepository{application: models.Application{ID: "application-1"}}, &controllerReviewCheckRepository{err: repositories.ErrApplicationReviewCheckNotFound})
+
+	response := performRequest(t, app, http.MethodPatch, "/api/v1/applications/application-1/review-checks/identity_verified", jsonBody(map[string]any{
+		"status":      models.ApplicationReviewCheckStatusPassed,
+		"reviewed_by": "underwriter",
+	}))
+	assertStatus(t, response, http.StatusNotFound)
+
+	response = performRequest(t, app, http.MethodPatch, "/api/v1/applications/application-1/review-checks/identity_verified", bytes.NewBufferString("{"))
+	assertStatus(t, response, http.StatusBadRequest)
+
+	response = performRequest(t, app, http.MethodPatch, "/api/v1/applications/application-1/review-checks/unknown", jsonBody(map[string]any{
+		"status":      models.ApplicationReviewCheckStatusPassed,
+		"reviewed_by": "underwriter",
+	}))
+	assertStatus(t, response, http.StatusBadRequest)
+}
+
 func TestApplicationRouteMapsInternalErrors(t *testing.T) {
 	product := controllerProductFixture()
-	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{product: product}, &controllerApplicationRepository{application: models.Application{ID: "application-1", Status: models.ApplicationStatusSubmitted}, err: errors.New("db failed")})
+	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{product: product}, &controllerApplicationRepository{application: models.Application{ID: "application-1", Status: models.ApplicationStatusSubmitted}, err: errors.New("db failed")}, &controllerReviewCheckRepository{})
 
 	response := performRequest(t, app, http.MethodGet, "/api/v1/applications/application-1", nil)
 	assertStatus(t, response, http.StatusInternalServerError)
@@ -171,6 +218,11 @@ func TestApplicationRouteMapsInternalErrors(t *testing.T) {
 	}))
 	assertStatus(t, response, http.StatusInternalServerError)
 	assertBodyContains(t, readBody(t, response), constants.ErrApplicationStatusUpdateFailed)
+
+	app = routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{product: product}, &controllerApplicationRepository{application: models.Application{ID: "application-1"}}, &controllerReviewCheckRepository{err: errors.New("db failed")})
+	response = performRequest(t, app, http.MethodGet, "/api/v1/applications/application-1/review-checks", nil)
+	assertStatus(t, response, http.StatusInternalServerError)
+	assertBodyContains(t, readBody(t, response), constants.ErrApplicationGetFailed)
 }
 
 func performRequest(t *testing.T, app *fiber.App, method string, path string, body io.Reader) *http.Response {

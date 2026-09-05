@@ -33,7 +33,8 @@ func main() {
 
 	productRepository := repositories.NewPostgresProductRepository(postgres.DB())
 	applicationRepository := repositories.NewPostgresApplicationRepository(postgres.DB())
-	app := routes.NewRouter(cfg, productRepository, applicationRepository)
+	reviewCheckRepository := repositories.NewPostgresApplicationReviewCheckRepository(postgres.DB())
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
