@@ -5,6 +5,7 @@ import (
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
 	"github.com/bayuanugerah/insurance-core-api/internal/config"
+	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
 	"github.com/bayuanugerah/insurance-core-api/internal/routes"
 )
 
@@ -26,7 +27,12 @@ func main() {
 		}
 	}()
 
-	app := routes.NewRouter(cfg)
+	if err := database.RunMigrations(postgres.DB()); err != nil {
+		log.Fatal(err)
+	}
+
+	productRepository := repositories.NewPostgresProductRepository(postgres.DB())
+	app := routes.NewRouter(cfg, productRepository)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {

@@ -143,3 +143,23 @@ Example response:
   "git_hash": "dev"
 }
 ```
+
+## Product Endpoints
+
+List all products:
+
+```bash
+curl http://localhost:8080/api/v1/products
+```
+
+List featured products for the landing page:
+
+```bash
+curl "http://localhost:8080/api/v1/products?featured=true&limit=3"
+```
+
+Get product detail by slug:
+
+```bash
+curl http://localhost:8080/api/v1/products/secure-life-plus
+```
