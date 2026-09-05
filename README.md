@@ -51,6 +51,10 @@ APP_VERSION=0.1.0
 GIT_HASH=dev
 HTTP_PORT=8080
 DATABASE_URL=postgres://insurance:insurance@localhost:5432/insurance_core?sslmode=disable
+LLM_BASE_URL=http://localhost:20128/v1
+LLM_API_KEY=
+LLM_COMPLETION_MODEL=
+LLM_EMBEDDING_MODEL=
 ```
 
 `APP_VERSION` and `GIT_HASH` can be injected during Docker build. Remove them from `.env` if you want the binary build metadata to be used instead of runtime overrides.
@@ -69,6 +73,26 @@ The default local connection string is:
 
 ```env
 DATABASE_URL=postgres://insurance:insurance@localhost:5432/insurance_core?sslmode=disable
+LLM_BASE_URL=http://localhost:20128/v1
+LLM_API_KEY=
+LLM_COMPLETION_MODEL=
+LLM_EMBEDDING_MODEL=
+```
+
+## LLM Adapter
+
+The LLM adapter is OpenAI-compatible and intended for OmniRoute. It supports:
+
+- Chat completions through `/v1/chat/completions`
+- Embeddings through `/v1/embeddings`
+
+Configure these values when an AI feature starts using the adapter:
+
+```env
+LLM_BASE_URL=http://localhost:20128/v1
+LLM_API_KEY=
+LLM_COMPLETION_MODEL=your-completion-model
+LLM_EMBEDDING_MODEL=your-embedding-model
 ```
 
 ## Run Locally with Go
