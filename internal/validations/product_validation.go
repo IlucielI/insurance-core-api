@@ -9,6 +9,7 @@ import (
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/go-ozzo/ozzo-validation/v4/is"
 )
 
 func ValidateProductListQuery(categoryValue string, featuredValue string, limitValue string) (dtos.ProductListQuery, error) {
@@ -17,9 +18,9 @@ func ValidateProductListQuery(categoryValue string, featuredValue string, limitV
 	}
 
 	if query.Category != "" && validation.Validate(query.Category, validation.In(
-		models.ProductCategoryLife,
-		models.ProductCategoryHealth,
-		models.ProductCategoryVehicle,
+		string(models.ProductCategoryLife),
+		string(models.ProductCategoryHealth),
+		string(models.ProductCategoryVehicle),
 	)) != nil {
 		return dtos.ProductListQuery{}, errors.New(constants.ErrProductCategoryInvalid)
 	}
@@ -75,11 +76,11 @@ func ValidateProductQuoteRequest(request dtos.ProductQuoteRequest) (dtos.Product
 		return dtos.ProductQuoteRequest{}, errors.New(constants.ErrQuoteGenderInvalid)
 	}
 
-	if validation.Validate(request.SumAssured, validation.Min(int64(1))) != nil {
+	if validation.Validate(request.SumAssured, validation.Required, validation.Min(int64(1))) != nil {
 		return dtos.ProductQuoteRequest{}, errors.New(constants.ErrQuoteSumAssuredInvalid)
 	}
 
-	if validation.Validate(request.PaymentTerm, validation.Min(1)) != nil {
+	if validation.Validate(request.PaymentTerm, validation.Required, validation.Min(1)) != nil {
 		return dtos.ProductQuoteRequest{}, errors.New(constants.ErrQuotePaymentTermInvalid)
 	}
 
@@ -122,7 +123,7 @@ func ValidateApplicationRequest(request dtos.CreateApplicationRequest) (dtos.Cre
 	if validation.Validate(request.FullName, validation.Required, validation.Length(2, 120)) != nil {
 		return dtos.CreateApplicationRequest{}, errors.New(constants.ErrApplicationFullNameInvalid)
 	}
-	if validation.Validate(request.Email, validation.Required, validation.Length(3, 255), validation.IsEmail) != nil {
+	if validation.Validate(request.Email, validation.Required, validation.Length(3, 255), is.EmailFormat) != nil {
 		return dtos.CreateApplicationRequest{}, errors.New(constants.ErrApplicationEmailInvalid)
 	}
 	if validation.Validate(request.Phone, validation.Required, validation.Length(7, 32)) != nil {
