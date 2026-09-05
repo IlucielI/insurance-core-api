@@ -5,9 +5,11 @@ const (
 	ProductQueryFeatured = "featured"
 	ProductQueryLimit    = "limit"
 
-	MaxProductListLimit = 50
-	MinQuoteAge         = 18
-	MaxQuoteAge         = 60
+	MaxProductListLimit         = 50
+	DefaultApplicationListLimit = 20
+	MaxApplicationListLimit     = 50
+	MinQuoteAge                 = 18
+	MaxQuoteAge                 = 60
 )
 
 const (

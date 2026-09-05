@@ -35,6 +35,10 @@ func (repository routeApplicationRepository) UpdateStatus(ctx context.Context, i
 	return repositories.ErrApplicationNotFound
 }
 
+func (repository routeApplicationRepository) List(ctx context.Context, filter repositories.ApplicationListFilter) ([]models.Application, int64, error) {
+	return []models.Application{}, 0, nil
+}
+
 type routeReviewCheckRepository struct{}
 
 func (repository routeReviewCheckRepository) FindByApplicationID(ctx context.Context, applicationID string) ([]models.ApplicationReviewCheck, error) {

@@ -54,6 +54,11 @@ const (
 	ErrApplicationCreateFailed       = "failed to create application"
 	ErrApplicationNotFound           = "application not found"
 	ErrApplicationGetFailed          = "failed to get application"
+	ErrApplicationListFailed         = "failed to list applications"
+	ErrApplicationListFilterInvalid  = "application list filter is invalid"
+	ErrApplicationListLimitTooHigh   = "application list limit must be less than or equal to 50"
+	ErrApplicationPageInvalid        = "page must be a positive integer"
+	ErrApplicationLimitInvalid       = "limit must be a positive integer"
 )
 
 const (

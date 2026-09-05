@@ -50,6 +50,10 @@ func (repository *fakeApplicationRepository) UpdateStatus(ctx context.Context, i
 	return repository.err
 }
 
+func (repository *fakeApplicationRepository) List(ctx context.Context, filter repositories.ApplicationListFilter) ([]models.Application, int64, error) {
+	return []models.Application{repository.application}, 1, repository.err
+}
+
 func (repository *fakeReviewCheckRepository) FindByApplicationID(ctx context.Context, applicationID string) ([]models.ApplicationReviewCheck, error) {
 	return repository.checks, repository.err
 }

@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,6 +79,14 @@ func TestPostgresApplicationRepository(t *testing.T) {
 	if err := repository.UpdateStatus(context.Background(), "missing", models.ApplicationStatusApproved, "underwriter", "", reviewedAt); !errors.Is(err, ErrApplicationNotFound) {
 		t.Fatalf("UpdateStatus(missing) error = %v, want ErrApplicationNotFound", err)
 	}
+
+	applications, total, err := repository.List(context.Background(), ApplicationListFilter{ProductID: product.ID, Page: 1, Limit: 10})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if total != 1 || len(applications) != 1 {
+		t.Fatalf("List() = %+v total=%d, want 1 application", applications, total)
+	}
 }
 
 func TestPostgresApplicationReviewCheckRepository(t *testing.T) {
@@ -122,7 +131,8 @@ func TestPostgresApplicationReviewCheckRepository(t *testing.T) {
 
 func sqliteDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := "file:" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name()) + "?mode=memory&cache=shared"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v", err)
 	}

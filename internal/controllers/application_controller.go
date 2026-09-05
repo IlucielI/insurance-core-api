@@ -126,6 +126,33 @@ func (controller *ApplicationController) Get(ctx *fiber.Ctx) error {
 	})
 }
 
+func (controller *ApplicationController) List(ctx *fiber.Ctx) error {
+	query, err := validations.ValidateApplicationListQuery(ctx.Query("status"), ctx.Query("product_id"), ctx.Query("page"), ctx.Query("limit"))
+	if err != nil {
+		return badRequest(ctx, err.Error())
+	}
+
+	applications, total, err := controller.service.List(ctx.Context(), query)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": constants.ErrApplicationListFailed})
+	}
+
+	totalPages := 0
+	if query.Limit > 0 {
+		totalPages = int((total + int64(query.Limit) - 1) / int64(query.Limit))
+	}
+
+	return ctx.JSON(fiber.Map{
+		"data": applications,
+		"meta": dtos.PaginationMeta{
+			Page:       query.Page,
+			Limit:      query.Limit,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	})
+}
+
 func badRequest(ctx *fiber.Ctx, message string) error {
 	return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 		"error": message,
