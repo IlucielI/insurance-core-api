@@ -1,10 +1,11 @@
 package services
 
 import (
-	"errors"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
@@ -67,7 +68,39 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 }
 
 func (service *ApplicationService) Get(ctx context.Context, id string) (models.Application, error) {
+	if service.applications == nil {
+		return models.Application{}, errors.New(constants.ErrApplicationServiceUnavailable)
+	}
+
 	return service.applications.FindByID(ctx, id)
+}
+
+func validApplicationTransition(current, next models.ApplicationStatus) bool {
+	switch current {
+	case models.ApplicationStatusSubmitted:
+		return next == models.ApplicationStatusUnderReview
+	case models.ApplicationStatusUnderReview:
+		return next == models.ApplicationStatusApproved || next == models.ApplicationStatusRejected
+	default:
+		return false
+	}
+}
+func (service *ApplicationService) UpdateStatus(ctx context.Context, id string, input dtos.UpdateApplicationStatusRequest) error {
+	if service.applications == nil {
+		return errors.New(constants.ErrApplicationServiceUnavailable)
+	}
+
+	application, err := service.applications.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !validApplicationTransition(application.Status, input.Status) {
+		return constants.ErrApplicationStatusTransitionInvalidError
+	}
+	if input.Status == models.ApplicationStatusRejected && input.RejectionReason == "" {
+		return constants.ErrApplicationRejectionReasonRequiredError
+	}
+	return service.applications.UpdateStatus(ctx, id, input.Status, input.ReviewedBy, input.RejectionReason, time.Now().UTC())
 }
 
 func applicationID() (string, error) {

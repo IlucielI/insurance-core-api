@@ -12,7 +12,7 @@ const (
 	ErrProductListFailed      = "failed to list products"
 	ErrProductDetailFailed    = "failed to get product"
 	ErrProductQuoteFailed     = "failed to create product quote"
-	ErrProductQuoteBodyInvalid  = "invalid product quote request body"
+	ErrProductQuoteBodyInvalid = "invalid product quote request body"
 )
 
 const (
@@ -30,6 +30,8 @@ const (
 )
 
 var (
+	ErrApplicationStatusTransitionInvalidError = errors.New(ErrApplicationStatusTransitionInvalid)
+	ErrApplicationRejectionReasonRequiredError = errors.New(ErrApplicationRejectionReasonRequired)
 	QuoteSumAssuredOutOfRangeError  = errors.New(ErrQuoteSumAssuredOutOfRange)
 	QuotePaymentTermOutOfRangeError = errors.New(ErrQuotePaymentTermOutOfRange)
 	QuotePricingRulesInvalidError   = errors.New(ErrQuotePricingRulesInvalid)
@@ -50,4 +52,11 @@ const (
 	ErrApplicationCreateFailed  = "failed to create application"
 	ErrApplicationNotFound      = "application not found"
 	ErrApplicationGetFailed     = "failed to get application"
+)
+
+const (
+	ErrApplicationStatusInvalid = "application status is invalid"
+	ErrApplicationStatusTransitionInvalid = "application status transition is invalid"
+	ErrApplicationRejectionReasonRequired = "rejection_reason is required when rejecting"
+	ErrApplicationStatusUpdateFailed = "failed to update application status"
 )

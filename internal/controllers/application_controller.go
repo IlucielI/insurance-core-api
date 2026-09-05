@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
@@ -39,6 +40,34 @@ func (controller *ApplicationController) Create(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"data": application,
 	})
+}
+
+func (controller *ApplicationController) UpdateStatus(ctx *fiber.Ctx) error {
+	id := strings.TrimSpace(ctx.Params("id"))
+	if id == "" {
+		return badRequest(ctx, constants.ErrApplicationNotFound)
+	}
+	var request dtos.UpdateApplicationStatusRequest
+	if err := ctx.BodyParser(&request); err != nil {
+		return badRequest(ctx, constants.ErrApplicationBodyInvalid)
+	}
+	request.ReviewedBy = strings.TrimSpace(request.ReviewedBy)
+	request.RejectionReason = strings.TrimSpace(request.RejectionReason)
+	if request.ReviewedBy == "" {
+		return badRequest(ctx, constants.ErrApplicationStatusInvalid)
+	}
+	if err := controller.service.UpdateStatus(ctx.Context(), id, request); err != nil {
+		if errors.Is(err, repositories.ErrApplicationNotFound) {
+			return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": constants.ErrApplicationNotFound})
+		}
+		if errors.Is(err, constants.ErrApplicationStatusTransitionInvalidError) || errors.Is(err, constants.ErrApplicationRejectionReasonRequiredError) {
+			return badRequest(ctx, err.Error())
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": constants.ErrApplicationStatusUpdateFailed,
+		})
+	}
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (controller *ApplicationController) Get(ctx *fiber.Ctx) error {
