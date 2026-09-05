@@ -1,0 +1,104 @@
+# Insurance Core API
+
+Insurance Policy Application backend for the technical test.
+
+## Scope
+
+This API will focus on the core assessment requirements:
+
+- Browse insurance products
+- Simulate premium from age, sum assured, and payment term
+- Submit policy applications
+- Review applications through the underwriting lifecycle
+- Provide one practical AI-powered feature
+
+## Architecture
+
+The project uses a simple layered structure inside `internal`:
+
+- `controllers`: HTTP request/response handlers
+- `services`: business logic and use cases
+- `repositories`: data access contracts and implementations
+- `routes`: HTTP route registration and middleware setup
+- `adapters`: external-service adapters such as database, object storage, or LLM clients
+- `config`: environment-based application configuration
+
+## Prerequisites
+
+For local Go development:
+
+- Go 1.23 or newer
+
+For Docker development:
+
+- Docker
+- Docker Compose
+
+## Environment Setup
+
+Create a local environment file before running the app:
+
+```bash
+cp .env.example .env
+```
+
+Default values:
+
+```env
+APP_NAME=insurance-core-api
+APP_ENV=development
+APP_VERSION=0.1.0
+GIT_HASH=dev
+HTTP_PORT=8080
+```
+
+`APP_VERSION` and `GIT_HASH` can be injected during Docker build. Remove them from `.env` if you want the binary build metadata to be used instead of runtime overrides.
+
+## Run Locally with Go
+
+Install dependencies and start the API:
+
+```bash
+go mod tidy
+go run ./cmd/api
+```
+
+The API starts on `http://localhost:8080` by default.
+
+## Run with Docker
+
+Build the dependency base image once:
+
+```bash
+./deployment/build-base.sh
+```
+
+Build the application image:
+
+```bash
+./deployment/build-api.sh
+```
+
+Run the container:
+
+```bash
+docker compose -f deployment/docker-compose.yaml up
+```
+
+If only source code changes, rerun `./deployment/build-api.sh`. If `go.mod` or `go.sum` changes, rerun both build scripts.
+
+## Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+Example response:
+
+```json
+{
+  "version": "0.1.0",
+  "uptime": "10.5s",
+  "git_hash": "dev"
+}
+```
