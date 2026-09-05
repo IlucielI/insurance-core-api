@@ -13,7 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository) *fiber.App {
+func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
 	})
@@ -25,7 +25,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
 	productService := services.NewProductService(productRepository)
 	productController := controllers.NewProductController(productService)
-	applicationService := services.NewApplicationService(productRepository, applicationRepository, productService)
+	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService)
 	applicationController := controllers.NewApplicationController(applicationService)
 
 	app.Get("/health", healthController.Check)
@@ -37,6 +37,8 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api.Post("/products/:slug/applications", applicationController.Create)
 	api.Get("/applications/:id", applicationController.Get)
 	api.Patch("/applications/:id/status", applicationController.UpdateStatus)
+	api.Get("/applications/:id/review-checks", applicationController.ListReviewChecks)
+	api.Patch("/applications/:id/review-checks/:check_type", applicationController.UpdateReviewCheck)
 
 	return app
 }

@@ -23,6 +23,15 @@ type fakeApplicationRepository struct {
 	updatedAt       time.Time
 }
 
+type fakeReviewCheckRepository struct {
+	checks        []models.ApplicationReviewCheck
+	err           error
+	updatedType   models.ApplicationReviewCheckType
+	updatedStatus models.ApplicationReviewCheckStatus
+	updatedBy     string
+	updatedNotes  string
+}
+
 func (repository *fakeApplicationRepository) Create(ctx context.Context, application *models.Application) error {
 	repository.created = application
 	return repository.err
@@ -41,10 +50,22 @@ func (repository *fakeApplicationRepository) UpdateStatus(ctx context.Context, i
 	return repository.err
 }
 
+func (repository *fakeReviewCheckRepository) FindByApplicationID(ctx context.Context, applicationID string) ([]models.ApplicationReviewCheck, error) {
+	return repository.checks, repository.err
+}
+
+func (repository *fakeReviewCheckRepository) UpdateStatus(ctx context.Context, applicationID string, checkType models.ApplicationReviewCheckType, status models.ApplicationReviewCheckStatus, reviewedBy, notes string, reviewedAt time.Time) error {
+	repository.updatedType = checkType
+	repository.updatedStatus = status
+	repository.updatedBy = reviewedBy
+	repository.updatedNotes = notes
+	return repository.err
+}
+
 func TestApplicationServiceCreate(t *testing.T) {
 	products := &fakeProductRepository{product: productFixture()}
 	applications := &fakeApplicationRepository{}
-	service := NewApplicationService(products, applications, NewProductService(products))
+	service := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products))
 
 	application, err := service.Create(context.Background(), "secure-life-plus", applicationRequestFixture())
 	if err != nil {
@@ -62,17 +83,20 @@ func TestApplicationServiceCreate(t *testing.T) {
 	if applications.created == nil || applications.created.ID != application.ID {
 		t.Fatalf("created application = %+v, want persisted application", applications.created)
 	}
+	if len(applications.created.ReviewChecks) != 4 {
+		t.Fatalf("created review checks = %+v, want 4 default checks", applications.created.ReviewChecks)
+	}
 }
 
 func TestApplicationServiceCreateValidatesDependenciesAndProduct(t *testing.T) {
-	_, err := NewApplicationService(nil, nil, nil).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
+	_, err := NewApplicationService(nil, nil, nil, nil).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
 	if err == nil || err.Error() != constants.ErrApplicationServiceUnavailable {
 		t.Fatalf("Create() error = %v, want service unavailable", err)
 	}
 
 	products := &fakeProductRepository{product: models.Product{}}
 	applications := &fakeApplicationRepository{}
-	_, err = NewApplicationService(products, applications, NewProductService(products)).Create(context.Background(), "missing", applicationRequestFixture())
+	_, err = NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products)).Create(context.Background(), "missing", applicationRequestFixture())
 	if !errors.Is(err, repositories.ErrProductNotFound) {
 		t.Fatalf("Create() error = %v, want product not found", err)
 	}
@@ -83,7 +107,7 @@ func TestApplicationServiceCreateReturnsQuoteError(t *testing.T) {
 	request := applicationRequestFixture()
 	request.SumAssured = 1
 
-	_, err := NewApplicationService(products, &fakeApplicationRepository{}, NewProductService(products)).Create(context.Background(), "secure-life-plus", request)
+	_, err := NewApplicationService(products, &fakeApplicationRepository{}, &fakeReviewCheckRepository{}, NewProductService(products)).Create(context.Background(), "secure-life-plus", request)
 	if !errors.Is(err, constants.QuoteSumAssuredOutOfRangeError) {
 		t.Fatalf("Create() error = %v, want quote range error", err)
 	}
@@ -94,7 +118,7 @@ func TestApplicationServiceCreateReturnsCreateError(t *testing.T) {
 	products := &fakeProductRepository{product: productFixture()}
 	applications := &fakeApplicationRepository{err: expectedErr}
 
-	_, err := NewApplicationService(products, applications, NewProductService(products)).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
+	_, err := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products)).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("Create() error = %v, want %v", err, expectedErr)
 	}
@@ -102,7 +126,7 @@ func TestApplicationServiceCreateReturnsCreateError(t *testing.T) {
 
 func TestApplicationServiceGet(t *testing.T) {
 	expected := models.Application{ID: "application-1"}
-	service := NewApplicationService(nil, &fakeApplicationRepository{application: expected}, nil)
+	service := NewApplicationService(nil, &fakeApplicationRepository{application: expected}, nil, nil)
 
 	application, err := service.Get(context.Background(), "application-1")
 	if err != nil {
@@ -114,7 +138,7 @@ func TestApplicationServiceGet(t *testing.T) {
 }
 
 func TestApplicationServiceGetRequiresRepository(t *testing.T) {
-	_, err := NewApplicationService(nil, nil, nil).Get(context.Background(), "application-1")
+	_, err := NewApplicationService(nil, nil, nil, nil).Get(context.Background(), "application-1")
 	if err == nil || err.Error() != constants.ErrApplicationServiceUnavailable {
 		t.Fatalf("Get() error = %v, want service unavailable", err)
 	}
@@ -138,7 +162,7 @@ func TestApplicationServiceUpdateStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repository := &fakeApplicationRepository{application: models.Application{ID: "application-1", Status: tt.current}}
-			service := NewApplicationService(nil, repository, nil)
+			service := NewApplicationService(nil, repository, &fakeReviewCheckRepository{checks: passedReviewChecks("application-1")}, nil)
 
 			err := service.UpdateStatus(context.Background(), "application-1", tt.input)
 			if tt.wantErr != nil {
@@ -160,9 +184,48 @@ func TestApplicationServiceUpdateStatus(t *testing.T) {
 	}
 }
 
+func TestApplicationServiceListReviewChecks(t *testing.T) {
+	checks := passedReviewChecks("application-1")
+	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1"}}, &fakeReviewCheckRepository{checks: checks}, nil)
+
+	got, err := service.ListReviewChecks(context.Background(), "application-1")
+	if err != nil {
+		t.Fatalf("ListReviewChecks() error = %v", err)
+	}
+	if len(got) != len(checks) {
+		t.Fatalf("ListReviewChecks() length = %d, want %d", len(got), len(checks))
+	}
+}
+
+func TestApplicationServiceUpdateReviewCheck(t *testing.T) {
+	reviewChecks := &fakeReviewCheckRepository{}
+	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1"}}, reviewChecks, nil)
+
+	err := service.UpdateReviewCheck(context.Background(), "application-1", models.ApplicationReviewCheckTypeIdentityVerified, dtos.UpdateApplicationReviewCheckRequest{
+		Status:     models.ApplicationReviewCheckStatusPassed,
+		ReviewedBy: "underwriter",
+		Notes:      "ok",
+	})
+	if err != nil {
+		t.Fatalf("UpdateReviewCheck() error = %v", err)
+	}
+	if reviewChecks.updatedType != models.ApplicationReviewCheckTypeIdentityVerified || reviewChecks.updatedStatus != models.ApplicationReviewCheckStatusPassed || reviewChecks.updatedBy != "underwriter" || reviewChecks.updatedNotes != "ok" {
+		t.Fatalf("updated review check = %+v", reviewChecks)
+	}
+}
+
+func TestApplicationServiceApprovalRequiresCompletedChecklist(t *testing.T) {
+	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1", Status: models.ApplicationStatusUnderReview}}, &fakeReviewCheckRepository{checks: []models.ApplicationReviewCheck{{Status: models.ApplicationReviewCheckStatusPending}}}, nil)
+
+	err := service.UpdateStatus(context.Background(), "application-1", statusRequest(models.ApplicationStatusApproved, "underwriter", ""))
+	if !errors.Is(err, constants.ErrApplicationApprovalChecklistIncompleteError) {
+		t.Fatalf("UpdateStatus() error = %v, want checklist incomplete", err)
+	}
+}
+
 func TestApplicationServiceUpdateStatusReturnsRepositoryErrors(t *testing.T) {
 	expectedErr := errors.New("db failed")
-	service := NewApplicationService(nil, &fakeApplicationRepository{err: expectedErr}, nil)
+	service := NewApplicationService(nil, &fakeApplicationRepository{err: expectedErr}, nil, nil)
 
 	err := service.UpdateStatus(context.Background(), "application-1", statusRequest(models.ApplicationStatusUnderReview, "underwriter", ""))
 	if !errors.Is(err, expectedErr) {
@@ -171,7 +234,7 @@ func TestApplicationServiceUpdateStatusReturnsRepositoryErrors(t *testing.T) {
 }
 
 func TestApplicationServiceUpdateStatusRequiresRepository(t *testing.T) {
-	err := NewApplicationService(nil, nil, nil).UpdateStatus(context.Background(), "application-1", statusRequest(models.ApplicationStatusUnderReview, "underwriter", ""))
+	err := NewApplicationService(nil, nil, nil, nil).UpdateStatus(context.Background(), "application-1", statusRequest(models.ApplicationStatusUnderReview, "underwriter", ""))
 	if err == nil || err.Error() != constants.ErrApplicationServiceUnavailable {
 		t.Fatalf("UpdateStatus() error = %v, want service unavailable", err)
 	}
@@ -211,4 +274,12 @@ func applicationRequestFixture() dtos.CreateApplicationRequest {
 
 func statusRequest(status models.ApplicationStatus, reviewedBy string, rejectionReason string) dtos.UpdateApplicationStatusRequest {
 	return dtos.UpdateApplicationStatusRequest{Status: status, ReviewedBy: reviewedBy, RejectionReason: rejectionReason}
+}
+
+func passedReviewChecks(applicationID string) []models.ApplicationReviewCheck {
+	checks := defaultApplicationReviewChecks(applicationID)
+	for index := range checks {
+		checks[index].Status = models.ApplicationReviewCheckStatusPassed
+	}
+	return checks
 }

@@ -26,7 +26,6 @@ func ProductQuoteRequestToInput(request ProductQuoteRequest) CreateProductQuoteI
 	}
 }
 
-
 type UpdateApplicationStatusRequest struct {
 	Status          models.ApplicationStatus `json:"status"`
 	ReviewedBy      string                   `json:"reviewed_by"`

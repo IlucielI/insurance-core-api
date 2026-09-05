@@ -129,6 +129,45 @@ func TestValidateApplicationRequest(t *testing.T) {
 	}
 }
 
+func TestValidateApplicationReviewCheckRequest(t *testing.T) {
+	request, err := ValidateApplicationReviewCheckRequest(dtos.UpdateApplicationReviewCheckRequest{
+		Status:     " passed ",
+		ReviewedBy: " underwriter ",
+		Notes:      " ok ",
+	})
+	if err != nil {
+		t.Fatalf("ValidateApplicationReviewCheckRequest() error = %v", err)
+	}
+	if request.Status != "passed" || request.ReviewedBy != "underwriter" || request.Notes != "ok" {
+		t.Fatalf("ValidateApplicationReviewCheckRequest() = %+v, want trimmed request", request)
+	}
+
+	tests := []dtos.UpdateApplicationReviewCheckRequest{
+		{Status: "unknown", ReviewedBy: "underwriter"},
+		{Status: "passed", ReviewedBy: ""},
+		{Status: "passed", ReviewedBy: "underwriter", Notes: string(make([]byte, 501))},
+	}
+	for _, tt := range tests {
+		if _, err := ValidateApplicationReviewCheckRequest(tt); err == nil {
+			t.Fatalf("ValidateApplicationReviewCheckRequest(%+v) error = nil, want error", tt)
+		}
+	}
+}
+
+func TestValidateApplicationReviewCheckType(t *testing.T) {
+	checkType, err := ValidateApplicationReviewCheckType(" identity_verified ")
+	if err != nil {
+		t.Fatalf("ValidateApplicationReviewCheckType() error = %v", err)
+	}
+	if checkType != "identity_verified" {
+		t.Fatalf("ValidateApplicationReviewCheckType() = %q, want identity_verified", checkType)
+	}
+
+	if _, err := ValidateApplicationReviewCheckType("unknown"); err == nil {
+		t.Fatal("ValidateApplicationReviewCheckType(unknown) error = nil, want error")
+	}
+}
+
 func TestContains(t *testing.T) {
 	if !contains("male", constants.GenderMale, constants.GenderFemale) {
 		t.Fatal("contains() = false, want true")

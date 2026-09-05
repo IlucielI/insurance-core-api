@@ -12,4 +12,9 @@ func TestTableNames(t *testing.T) {
 	if application.TableName() != "applications" {
 		t.Fatalf("Application.TableName() = %q, want applications", application.TableName())
 	}
+
+	reviewCheck := ApplicationReviewCheck{}
+	if reviewCheck.TableName() != "application_review_checks" {
+		t.Fatalf("ApplicationReviewCheck.TableName() = %q, want application_review_checks", reviewCheck.TableName())
+	}
 }

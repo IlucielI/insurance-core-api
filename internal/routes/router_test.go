@@ -35,8 +35,18 @@ func (repository routeApplicationRepository) UpdateStatus(ctx context.Context, i
 	return repositories.ErrApplicationNotFound
 }
 
+type routeReviewCheckRepository struct{}
+
+func (repository routeReviewCheckRepository) FindByApplicationID(ctx context.Context, applicationID string) ([]models.ApplicationReviewCheck, error) {
+	return nil, nil
+}
+
+func (repository routeReviewCheckRepository) UpdateStatus(ctx context.Context, applicationID string, checkType models.ApplicationReviewCheckType, status models.ApplicationReviewCheckStatus, reviewedBy, notes string, reviewedAt time.Time) error {
+	return repositories.ErrApplicationReviewCheckNotFound
+}
+
 func TestNewRouter(t *testing.T) {
-	app := NewRouter(config.Config{AppName: "test", Version: "1.0.0", GitHash: "abc123"}, routeProductRepository{}, routeApplicationRepository{})
+	app := NewRouter(config.Config{AppName: "test", Version: "1.0.0", GitHash: "abc123"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{})
 	if app == nil {
 		t.Fatal("NewRouter() = nil")
 	}

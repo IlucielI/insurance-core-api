@@ -235,3 +235,37 @@ curl -X PATCH http://localhost:8080/api/v1/applications/{application_id}/status 
     "rejection_reason": "Additional medical review is required."
   }'
 ```
+
+List underwriting review checks for an application:
+
+```bash
+curl http://localhost:8080/api/v1/applications/{application_id}/review-checks
+```
+
+Update an underwriting review check:
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/applications/{application_id}/review-checks/identity_verified \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "passed",
+    "reviewed_by": "underwriter@example.com",
+    "notes": "Identity document matches applicant profile."
+  }'
+```
+
+Available review check types:
+
+- `identity_verified`
+- `income_verified`
+- `documents_complete`
+- `medical_required`
+
+Available review check statuses:
+
+- `pending`
+- `passed`
+- `failed`
+- `not_needed`
+
+Applications can only be approved after every review check is either `passed` or `not_needed`.
