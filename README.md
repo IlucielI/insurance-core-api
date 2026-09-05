@@ -163,3 +163,24 @@ Get product detail by slug:
 ```bash
 curl http://localhost:8080/api/v1/products/secure-life-plus
 ```
+
+## Premium Quote Endpoint
+
+Create an indicative premium quote for a product:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/products/secure-life-plus/quotes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "age": 32,
+    "gender": "male",
+    "sum_assured": 500000000,
+    "payment_term": 10,
+    "payment_frequency": "monthly",
+    "smoker": "no",
+    "occupation_class": "standard",
+    "health_risk": "low"
+  }'
+```
+
+The quote is rule-based and returns premium breakdown factors so the calculation remains explainable.

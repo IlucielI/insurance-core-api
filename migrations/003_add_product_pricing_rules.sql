@@ -1,0 +1,2 @@
+ALTER TABLE products
+ADD COLUMN IF NOT EXISTS pricing_rules JSONB NOT NULL DEFAULT '{}'::jsonb;

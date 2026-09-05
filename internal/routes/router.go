@@ -31,6 +31,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api := app.Group("/api/v1")
 	api.Get("/products", productController.List)
 	api.Get("/products/:slug", productController.Detail)
+	api.Post("/products/:slug/quotes", productController.CreateQuote)
 
 	return app
 }
