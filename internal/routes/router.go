@@ -14,7 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, storageService *services.StorageService, mailer ports.Mailer) *fiber.App {
+func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, storageService *services.StorageService, mailer ports.Mailer, messageBus ports.MessageBus) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
 	})
@@ -26,7 +26,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
 	productService := services.NewProductService(productRepository)
 	productController := controllers.NewProductController(productService)
-	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer)
+	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer, messageBus)
 	applicationController := controllers.NewApplicationController(applicationService)
 	assistantController := controllers.NewAssistantController(assistantService)
 	storageController := controllers.NewStorageController(storageService)

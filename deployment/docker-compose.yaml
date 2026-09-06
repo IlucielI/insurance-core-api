@@ -10,6 +10,10 @@ services:
       SMTP_ENCRYPTION: none
       SMTP_FROM_EMAIL: no-reply@insurance.local
       SMTP_FROM_NAME: Insurance Core
+      NATS_HOST: nats
+      NATS_PORT: 4222
+      NATS_NAME: insurance-core-api
+      NATS_TIMEOUT: 5
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
@@ -25,6 +29,8 @@ services:
       maildev:
         condition: service_started
       minio:
+        condition: service_healthy
+      nats:
         condition: service_healthy
     restart: unless-stopped
 
@@ -52,6 +58,20 @@ services:
     ports:
       - "1025:1025"
       - "1080:1080"
+    restart: unless-stopped
+
+  nats:
+    image: nats:2.10.26
+    container_name: insurance-core-nats
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
   minio:

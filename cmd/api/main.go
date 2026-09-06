@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
+	natsadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/nats"
 	s3adapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/s3"
 	llmadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
 	smtpadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/smtp"
@@ -68,6 +69,23 @@ func main() {
 		}
 	}
 
+	var natsClient *natsadapter.Client
+	if cfg.NATSHost != "" {
+		client, err := natsadapter.NewClient(natsadapter.Config{
+			Host:    cfg.NATSHost,
+			Port:    cfg.NATSPort,
+			Token:   cfg.NATSToken,
+			Name:    cfg.NATSName,
+			Timeout: time.Duration(cfg.NATSTimeout) * time.Second,
+		})
+		if err != nil {
+			log.Printf("nats disabled: %v", err)
+		} else {
+			natsClient = client
+			defer natsClient.Close()
+		}
+	}
+
 	storageRepository := initStorageRepository(cfg)
 	storageService := services.NewStorageService(storageRepository)
 
@@ -89,7 +107,7 @@ func main() {
 		}
 	}
 
-	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer)
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {

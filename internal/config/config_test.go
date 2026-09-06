@@ -15,6 +15,11 @@ func TestLoad(t *testing.T) {
 	t.Setenv("SMTP_FROM_EMAIL", "no-reply@example.com")
 	t.Setenv("SMTP_FROM_NAME", "Insurance Test")
 	t.Setenv("SMTP_ENCRYPTION", "TLS")
+	t.Setenv("NATS_HOST", "nats.example.com")
+	t.Setenv("NATS_PORT", "4223")
+	t.Setenv("NATS_TOKEN", "token")
+	t.Setenv("NATS_NAME", "insurance-test")
+	t.Setenv("NATS_TIMEOUT", "7")
 	t.Setenv("S3_ENDPOINT", "s3.example.com")
 	t.Setenv("S3_ACCESS_KEY", "access")
 	t.Setenv("S3_SECRET_KEY", "secret")
@@ -35,6 +40,9 @@ func TestLoad(t *testing.T) {
 	}
 	if cfg.SMTPHost != "smtp.example.com" || cfg.SMTPPort != 2525 || cfg.SMTPUsername != "mailer" || cfg.SMTPPassword != "secret" || cfg.SMTPFromEmail != "no-reply@example.com" || cfg.SMTPFromName != "Insurance Test" || cfg.SMTPEncryption != "tls" {
 		t.Fatalf("Load() SMTP config = %+v, want env values", cfg)
+	}
+	if cfg.NATSHost != "nats.example.com" || cfg.NATSPort != 4223 || cfg.NATSToken != "token" || cfg.NATSName != "insurance-test" || cfg.NATSTimeout != 7 {
+		t.Fatalf("Load() NATS config = %+v, want env values", cfg)
 	}
 	if cfg.S3Endpoint != "s3.example.com" || cfg.S3AccessKey != "access" || cfg.S3SecretKey != "secret" || cfg.S3Region != "ap-southeast-1" || cfg.S3Bucket != "insurance-files" || !cfg.S3UseSSL || cfg.S3ForcePathStyle {
 		t.Fatalf("Load() S3 config = %+v, want env values", cfg)
@@ -63,6 +71,11 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("SMTP_PORT", "")
 	t.Setenv("SMTP_FROM_NAME", "")
 	t.Setenv("SMTP_ENCRYPTION", "")
+	t.Setenv("NATS_HOST", "")
+	t.Setenv("NATS_PORT", "")
+	t.Setenv("NATS_TOKEN", "")
+	t.Setenv("NATS_NAME", "")
+	t.Setenv("NATS_TIMEOUT", "")
 	t.Setenv("S3_ENDPOINT", "")
 	t.Setenv("S3_ACCESS_KEY", "")
 	t.Setenv("S3_SECRET_KEY", "")
@@ -83,6 +96,9 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.SMTPPort != 587 || cfg.SMTPFromName != "Insurance Core" || cfg.SMTPEncryption != "starttls" {
 		t.Fatalf("Load() SMTP defaults = %+v, want defaults", cfg)
+	}
+	if cfg.NATSHost != "" || cfg.NATSPort != 4222 || cfg.NATSToken != "" || cfg.NATSName != "insurance-core-api" || cfg.NATSTimeout != 5 {
+		t.Fatalf("Load() NATS defaults = %+v, want defaults", cfg)
 	}
 	if cfg.S3Region != "ap-southeast-1" || !cfg.S3ForcePathStyle {
 		t.Fatalf("Load() S3 defaults = %+v, want defaults", cfg)
