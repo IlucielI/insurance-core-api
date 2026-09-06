@@ -55,6 +55,13 @@ LLM_BASE_URL=http://localhost:20128/v1
 LLM_API_KEY=
 LLM_COMPLETION_MODEL=
 LLM_EMBEDDING_MODEL=
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM_EMAIL=
+SMTP_FROM_NAME=Insurance Core
+SMTP_ENCRYPTION=starttls
 ```
 
 `APP_VERSION` and `GIT_HASH` can be injected during Docker build. Remove them from `.env` if you want the binary build metadata to be used instead of runtime overrides.
@@ -78,6 +85,24 @@ LLM_API_KEY=
 LLM_COMPLETION_MODEL=
 LLM_EMBEDDING_MODEL=
 ```
+
+## SMTP Adapter
+
+The SMTP adapter sends application confirmation emails when SMTP is configured. It is disabled unless `SMTP_HOST` and `SMTP_FROM_EMAIL` are set.
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=mailer@example.com
+SMTP_PASSWORD=your-password
+SMTP_FROM_EMAIL=no-reply@example.com
+SMTP_FROM_NAME=Insurance Core
+SMTP_ENCRYPTION=starttls
+```
+
+Supported `SMTP_ENCRYPTION` values are `none`, `starttls`, and `tls`.
+
+For local Docker development, `deployment/docker-compose.yaml` includes Maildev on `localhost:1080`.
 
 ## LLM Adapter
 

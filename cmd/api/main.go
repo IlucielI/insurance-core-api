@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
 	llmadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
+	smtpadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/smtp"
 	"github.com/bayuanugerah/insurance-core-api/internal/config"
+	"github.com/bayuanugerah/insurance-core-api/internal/ports"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
 	"github.com/bayuanugerah/insurance-core-api/internal/routes"
 	"github.com/bayuanugerah/insurance-core-api/internal/services"
@@ -57,12 +60,32 @@ func main() {
 	productService := services.NewProductService(productRepository)
 	assistantService := services.NewAssistantService(knowledgeRepository, assistantLLM, productService)
 	if assistantLLM != nil {
-		if err := assistantService.SeedDefaultKnowledge(context.Background()); err != nil {
+		seedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := assistantService.SeedDefaultKnowledge(seedCtx); err != nil {
 			log.Printf("assistant knowledge seed failed: %v", err)
 		}
 	}
 
-	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService)
+	var mailer ports.Mailer
+	if cfg.SMTPHost != "" && cfg.SMTPFromEmail != "" {
+		smtpClient, err := smtpadapter.NewClient(smtpadapter.Config{
+			Host:       cfg.SMTPHost,
+			Port:       cfg.SMTPPort,
+			Username:   cfg.SMTPUsername,
+			Password:   cfg.SMTPPassword,
+			FromEmail:  cfg.SMTPFromEmail,
+			FromName:   cfg.SMTPFromName,
+			Encryption: smtpadapter.Encryption(cfg.SMTPEncryption),
+		})
+		if err != nil {
+			log.Printf("smtp disabled: %v", err)
+		} else {
+			mailer = smtpClient
+		}
+	}
+
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, mailer)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {

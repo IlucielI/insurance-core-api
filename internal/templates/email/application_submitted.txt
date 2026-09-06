@@ -1,0 +1,5 @@
+Halo {{.FullName}},
+
+Pengajuan polis {{.ProductName}} berhasil diterima dengan nomor aplikasi {{.ApplicationID}}. Tim kami akan meninjau data Anda dan menghubungi Anda untuk proses berikutnya.
+
+Terima kasih.

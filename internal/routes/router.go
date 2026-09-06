@@ -5,6 +5,7 @@ import (
 
 	"github.com/bayuanugerah/insurance-core-api/internal/config"
 	"github.com/bayuanugerah/insurance-core-api/internal/controllers"
+	"github.com/bayuanugerah/insurance-core-api/internal/ports"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
 	"github.com/bayuanugerah/insurance-core-api/internal/services"
 	"github.com/gofiber/fiber/v2"
@@ -13,7 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService) *fiber.App {
+func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, mailer ports.Mailer) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
 	})
@@ -25,7 +26,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
 	productService := services.NewProductService(productRepository)
 	productController := controllers.NewProductController(productService)
-	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService)
+	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer)
 	applicationController := controllers.NewApplicationController(applicationService)
 	assistantController := controllers.NewAssistantController(assistantService)
 
