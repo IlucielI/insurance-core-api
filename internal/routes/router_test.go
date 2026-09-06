@@ -50,7 +50,7 @@ func (repository routeReviewCheckRepository) UpdateStatus(ctx context.Context, a
 }
 
 func TestNewRouter(t *testing.T) {
-	app := NewRouter(config.Config{AppName: "test", Version: "1.0.0", GitHash: "abc123"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil)
+	app := NewRouter(config.Config{AppName: "test", Version: "1.0.0", GitHash: "abc123"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil, nil)
 	if app == nil {
 		t.Fatal("NewRouter() = nil")
 	}
@@ -65,5 +65,20 @@ func TestNewRouter(t *testing.T) {
 	}
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+}
+
+func TestStorageRouteExists(t *testing.T) {
+	app := NewRouter(config.Config{AppName: "test"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil, nil)
+	request, err := http.NewRequest(http.MethodGet, "/api/v1/storage/presign?object_name=a.txt", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	if response.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.StatusCode)
 	}
 }

@@ -70,4 +70,7 @@ const (
 	ErrApplicationReviewCheckInvalid          = "application review check is invalid"
 	ErrApplicationReviewCheckUpdateFailed     = "failed to update application review check"
 	ErrApplicationApprovalChecklistIncomplete = "application review checklist is incomplete"
+	ErrStorageServiceUnavailable              = "storage service unavailable"
+	ErrStorageObjectNameRequired              = "object_name is required"
+	ErrStoragePresignFailed                   = "failed to generate storage presigned url"
 )

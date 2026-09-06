@@ -5,9 +5,10 @@ go 1.25.0
 require (
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/gofiber/fiber/v2 v2.52.9
+	github.com/minio/minio-go/v7 v7.0.81
+	github.com/pgvector/pgvector-go v0.4.0
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.25.12
-	github.com/pgvector/pgvector-go v0.4.0
 )
 
 require (

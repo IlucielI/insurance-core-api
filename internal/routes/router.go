@@ -14,7 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, mailer ports.Mailer) *fiber.App {
+func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, storageService *services.StorageService, mailer ports.Mailer) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
 	})
@@ -29,6 +29,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer)
 	applicationController := controllers.NewApplicationController(applicationService)
 	assistantController := controllers.NewAssistantController(assistantService)
+	storageController := controllers.NewStorageController(storageService)
 
 	app.Get("/health", healthController.Check)
 
@@ -43,6 +44,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api.Get("/applications/:id/review-checks", applicationController.ListReviewChecks)
 	api.Patch("/applications/:id/review-checks/:check_type", applicationController.UpdateReviewCheck)
 	api.Post("/assistant/chat", assistantController.Chat)
+	api.Get("/storage/presign", storageController.Presign)
 
 	return app
 }

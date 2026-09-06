@@ -15,6 +15,16 @@ func TestLoad(t *testing.T) {
 	t.Setenv("SMTP_FROM_EMAIL", "no-reply@example.com")
 	t.Setenv("SMTP_FROM_NAME", "Insurance Test")
 	t.Setenv("SMTP_ENCRYPTION", "TLS")
+	t.Setenv("S3_ENDPOINT", "s3.example.com")
+	t.Setenv("S3_ACCESS_KEY", "access")
+	t.Setenv("S3_SECRET_KEY", "secret")
+	t.Setenv("S3_REGION", "ap-southeast-1")
+	t.Setenv("S3_BUCKET", "insurance-files")
+	t.Setenv("S3_USE_SSL", "true")
+	t.Setenv("S3_FORCE_PATH_STYLE", "false")
+	t.Setenv("S3_UPLOAD_URL_LIFETIME", "20")
+	t.Setenv("S3_DOWNLOAD_URL_LIFETIME", "1445")
+	t.Setenv("S3_OVERRIDE_BASE_URL", "https://cdn.example.com/files")
 
 	cfg, err := Load()
 	if err != nil {
@@ -25,6 +35,12 @@ func TestLoad(t *testing.T) {
 	}
 	if cfg.SMTPHost != "smtp.example.com" || cfg.SMTPPort != 2525 || cfg.SMTPUsername != "mailer" || cfg.SMTPPassword != "secret" || cfg.SMTPFromEmail != "no-reply@example.com" || cfg.SMTPFromName != "Insurance Test" || cfg.SMTPEncryption != "tls" {
 		t.Fatalf("Load() SMTP config = %+v, want env values", cfg)
+	}
+	if cfg.S3Endpoint != "s3.example.com" || cfg.S3AccessKey != "access" || cfg.S3SecretKey != "secret" || cfg.S3Region != "ap-southeast-1" || cfg.S3Bucket != "insurance-files" || !cfg.S3UseSSL || cfg.S3ForcePathStyle {
+		t.Fatalf("Load() S3 config = %+v, want env values", cfg)
+	}
+	if cfg.S3UploadUrlLifetime != 20 || cfg.S3DownloadUrlLifetime != 1445 || cfg.S3OverrideBaseURL != "https://cdn.example.com/files" {
+		t.Fatalf("Load() S3 lifetime config = %+v, want env values", cfg)
 	}
 }
 
@@ -47,6 +63,16 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("SMTP_PORT", "")
 	t.Setenv("SMTP_FROM_NAME", "")
 	t.Setenv("SMTP_ENCRYPTION", "")
+	t.Setenv("S3_ENDPOINT", "")
+	t.Setenv("S3_ACCESS_KEY", "")
+	t.Setenv("S3_SECRET_KEY", "")
+	t.Setenv("S3_REGION", "")
+	t.Setenv("S3_BUCKET", "")
+	t.Setenv("S3_USE_SSL", "")
+	t.Setenv("S3_FORCE_PATH_STYLE", "")
+	t.Setenv("S3_UPLOAD_URL_LIFETIME", "")
+	t.Setenv("S3_DOWNLOAD_URL_LIFETIME", "")
+	t.Setenv("S3_OVERRIDE_BASE_URL", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -57,5 +83,11 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.SMTPPort != 587 || cfg.SMTPFromName != "Insurance Core" || cfg.SMTPEncryption != "starttls" {
 		t.Fatalf("Load() SMTP defaults = %+v, want defaults", cfg)
+	}
+	if cfg.S3Region != "ap-southeast-1" || !cfg.S3ForcePathStyle {
+		t.Fatalf("Load() S3 defaults = %+v, want defaults", cfg)
+	}
+	if cfg.S3UploadUrlLifetime != 15 || cfg.S3DownloadUrlLifetime != 1440 || cfg.S3OverrideBaseURL != "" {
+		t.Fatalf("Load() S3 lifetime defaults = %+v, want defaults", cfg)
 	}
 }
