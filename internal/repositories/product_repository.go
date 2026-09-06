@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
@@ -68,14 +69,16 @@ func (repository *PostgresProductRepository) FindAll(ctx context.Context, filter
 	}
 
 	if repository.cache != nil && cacheKey != "" && len(products) > 0 {
-		_ = repository.cache.SetJSON(ctx, cacheKey, products, 15*time.Minute)
+		if err := repository.cache.SetJSON(ctx, cacheKey, products, 15*time.Minute); err != nil {
+			log.Printf("[ProductRepository] failed to cache products list: %v", err)
+		}
 	}
 
 	return products, nil
 }
 
 func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slug string) (models.Product, error) {
-	cacheKey := "product:slug:" + slug
+	cacheKey := "catalog:products:slug:" + slug
 	if repository.cache != nil {
 		var cachedProduct models.Product
 		if err := repository.cache.GetJSON(ctx, cacheKey, &cachedProduct); err == nil && cachedProduct.ID != "" {
@@ -93,7 +96,9 @@ func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slu
 	}
 
 	if repository.cache != nil {
-		_ = repository.cache.SetJSON(ctx, cacheKey, product, 1*time.Hour)
+		if err := repository.cache.SetJSON(ctx, cacheKey, product, 1*time.Hour); err != nil {
+			log.Printf("[ProductRepository] failed to cache product slug %s: %v", slug, err)
+		}
 	}
 
 	return product, nil
@@ -108,5 +113,5 @@ func productFilterCacheKey(filter ProductFilter) string {
 			featured = "false"
 		}
 	}
-	return fmt.Sprintf("products:list:%s:%s:%d", filter.Category, featured, filter.Limit)
+	return fmt.Sprintf("catalog:products:list:%s:%s:%d", filter.Category, featured, filter.Limit)
 }

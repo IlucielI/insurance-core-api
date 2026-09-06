@@ -80,7 +80,7 @@ func TestPostgresProductRepositoryWithCache(t *testing.T) {
 		Name: "Cached Product",
 		Slug: "cached-slug",
 	}
-	if err := cache.SetJSON(context.Background(), "product:slug:cached-slug", cachedProduct, time.Hour); err != nil {
+	if err := cache.SetJSON(context.Background(), "catalog:products:slug:cached-slug", cachedProduct, time.Hour); err != nil {
 		t.Fatalf("cache.SetJSON error = %v", err)
 	}
 

@@ -3,6 +3,8 @@ package redis
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -29,6 +31,12 @@ func TestNewClientValidatesConfig(t *testing.T) {
 }
 
 func TestParseRedisConfig(t *testing.T) {
+	testAuth := os.Getenv("TEST_REDIS_PASSWORD")
+	if testAuth == "" {
+		testAuth = "auth-" + t.Name()
+	}
+	redisURLWithAuth := fmt.Sprintf("redis://:%s@localhost:6381/2", testAuth)
+
 	tests := []struct {
 		name         string
 		config       Config
@@ -45,9 +53,9 @@ func TestParseRedisConfig(t *testing.T) {
 		},
 		{
 			name:         "host with custom port",
-			config:       Config{Host: "127.0.0.1", Port: 6380, Password: "test-auth-token", DB: 1},
+			config:       Config{Host: "127.0.0.1", Port: 6380, Password: testAuth, DB: 1},
 			wantAddr:     "127.0.0.1:6380",
-			wantPassword: "test-auth-token",
+			wantPassword: testAuth,
 			wantDB:       1,
 		},
 		{
@@ -57,9 +65,9 @@ func TestParseRedisConfig(t *testing.T) {
 		},
 		{
 			name:         "redis url with auth and db",
-			config:       Config{Host: "redis://:sample-token@localhost:6381/2"},
+			config:       Config{Host: redisURLWithAuth},
 			wantAddr:     "localhost:6381",
-			wantPassword: "sample-token",
+			wantPassword: testAuth,
 			wantDB:       2,
 		},
 		{
