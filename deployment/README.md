@@ -28,7 +28,7 @@ APP_VERSION=0.1.0 ./deployment/build-api.sh
 
 ## Docker Compose
 
-Compose runs the API image and a PostgreSQL service. It does not build `api-base`, so it will not pull `insurance-core-api-base` from Docker Hub.
+Compose runs the API image, PostgreSQL, and Maildev for local SMTP testing. It does not build `api-base`, so it will not pull `insurance-core-api-base` from Docker Hub.
 
 ```bash
 docker compose -f deployment/docker-compose.yaml up
@@ -61,3 +61,12 @@ POSTGRES_PASSWORD=insurance
 ```
 
 The API container connects to PostgreSQL using the internal Compose hostname `postgres`.
+
+## Maildev SMTP
+
+Compose includes Maildev so you can inspect outbound emails locally.
+
+- SMTP server: `localhost:1025`
+- Web UI: `http://localhost:1080`
+
+The API container uses the internal Compose hostname `maildev` for SMTP delivery.

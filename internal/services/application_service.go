@@ -5,23 +5,33 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"html"
+	"strings"
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
+	"github.com/bayuanugerah/insurance-core-api/internal/ports"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
+	emailtemplate "github.com/bayuanugerah/insurance-core-api/internal/templates/email"
 )
 
 type ApplicationService struct {
-	products     repositories.ProductRepository
-	applications repositories.ApplicationRepository
-	reviewChecks repositories.ApplicationReviewCheckRepository
-	quotes       *ProductService
+	products      repositories.ProductRepository
+	applications  repositories.ApplicationRepository
+	reviewChecks  repositories.ApplicationReviewCheckRepository
+	quotes        *ProductService
+	mailer        ports.Mailer
+	emailRenderer *emailtemplate.Renderer
 }
 
-func NewApplicationService(products repositories.ProductRepository, applications repositories.ApplicationRepository, reviewChecks repositories.ApplicationReviewCheckRepository, quotes *ProductService) *ApplicationService {
-	return &ApplicationService{products: products, applications: applications, reviewChecks: reviewChecks, quotes: quotes}
+func NewApplicationService(products repositories.ProductRepository, applications repositories.ApplicationRepository, reviewChecks repositories.ApplicationReviewCheckRepository, quotes *ProductService, mailer ports.Mailer) *ApplicationService {
+	renderer, err := emailtemplate.NewRenderer()
+	if err != nil {
+		renderer = nil
+	}
+	return &ApplicationService{products: products, applications: applications, reviewChecks: reviewChecks, quotes: quotes, mailer: mailer, emailRenderer: renderer}
 }
 
 func (service *ApplicationService) Create(ctx context.Context, slug string, input dtos.CreateApplicationRequest) (models.Application, error) {
@@ -66,7 +76,65 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 		ReviewChecks:     defaultApplicationReviewChecks(id),
 	}
 
-	return application, service.applications.Create(ctx, &application)
+	if err := service.applications.Create(ctx, &application); err != nil {
+		return models.Application{}, err
+	}
+	if service.mailer != nil {
+		message, err := service.applicationSubmittedEmail(application, product.Name)
+		if err != nil {
+			return models.Application{}, err
+		}
+		if err := service.mailer.Send(ctx, message); err != nil {
+			return models.Application{}, err
+		}
+	}
+
+	return application, nil
+}
+
+func (service *ApplicationService) applicationSubmittedEmail(application models.Application, productName string) (ports.EmailMessage, error) {
+	textBody := ""
+	htmlBody := ""
+	if service.emailRenderer != nil {
+		var err error
+		textBody, htmlBody, err = service.emailRenderer.RenderApplicationSubmitted(emailtemplate.ApplicationSubmittedData{
+			FullName:      application.FullName,
+			ProductName:   productName,
+			ApplicationID: application.ID,
+		})
+		if err != nil {
+			return ports.EmailMessage{}, err
+		}
+	}
+
+	if textBody == "" {
+		textBody = "Halo " + sanitizeEmailText(application.FullName) + ",\n\n" +
+			"Pengajuan polis " + sanitizeEmailText(productName) + " berhasil diterima dengan nomor aplikasi " + sanitizeEmailText(application.ID) + ". " +
+			"Tim kami akan meninjau data Anda dan menghubungi Anda untuk proses berikutnya.\n\n" +
+			"Terima kasih."
+	}
+	if htmlBody == "" {
+		fullName := html.EscapeString(sanitizeEmailText(application.FullName))
+		escapedProductName := html.EscapeString(sanitizeEmailText(productName))
+		escapedApplicationID := html.EscapeString(sanitizeEmailText(application.ID))
+		htmlBody = "<p>Halo " + fullName + ",</p>" +
+			"<p>Pengajuan polis <strong>" + escapedProductName + "</strong> berhasil diterima dengan nomor aplikasi <strong>" + escapedApplicationID + "</strong>.</p>" +
+			"<p>Tim kami akan meninjau data Anda dan menghubungi Anda untuk proses berikutnya.</p>" +
+			"<p>Terima kasih.</p>"
+	}
+
+	return ports.EmailMessage{
+		To:       []string{application.Email},
+		Subject:  "Pengajuan polis berhasil diterima",
+		TextBody: textBody,
+		HTMLBody: htmlBody,
+	}, nil
+}
+
+func sanitizeEmailText(value string) string {
+	value = strings.ReplaceAll(value, "\r", "")
+	value = strings.ReplaceAll(value, "\n", " ")
+	return value
 }
 
 func (service *ApplicationService) Get(ctx context.Context, id string) (models.Application, error) {

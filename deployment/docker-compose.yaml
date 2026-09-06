@@ -4,11 +4,19 @@ services:
     container_name: insurance-core-api
     env_file:
       - ../.env
+    environment:
+      SMTP_HOST: maildev
+      SMTP_PORT: 1025
+      SMTP_ENCRYPTION: none
+      SMTP_FROM_EMAIL: no-reply@insurance.local
+      SMTP_FROM_NAME: Insurance Core
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      maildev:
+        condition: service_started
     restart: unless-stopped
 
   postgres:
@@ -27,6 +35,14 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
+
+  maildev:
+    image: maildev/maildev:2.1.0
+    container_name: insurance-core-maildev
+    ports:
+      - "1025:1025"
+      - "1080:1080"
     restart: unless-stopped
 
 volumes:
