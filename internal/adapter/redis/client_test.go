@@ -44,11 +44,11 @@ func TestParseRedisConfig(t *testing.T) {
 			wantDB:   0,
 		},
 		{
-			name:     "host with custom port",
-			config:   Config{Host: "127.0.0.1", Port: 6380, Password: "secret", DB: 1},
-			wantAddr: "127.0.0.1:6380",
-			wantPassword: "secret",
-			wantDB:   1,
+			name:         "host with custom port",
+			config:       Config{Host: "127.0.0.1", Port: 6380, Password: "test-auth-token", DB: 1},
+			wantAddr:     "127.0.0.1:6380",
+			wantPassword: "test-auth-token",
+			wantDB:       1,
 		},
 		{
 			name:     "host:port string",
@@ -56,11 +56,11 @@ func TestParseRedisConfig(t *testing.T) {
 			wantAddr: "redis.internal:6379",
 		},
 		{
-			name:     "redis url with auth and db",
-			config:   Config{Host: "redis://:mypass@localhost:6381/2"},
-			wantAddr: "localhost:6381",
-			wantPassword: "mypass",
-			wantDB:   2,
+			name:         "redis url with auth and db",
+			config:       Config{Host: "redis://:sample-token@localhost:6381/2"},
+			wantAddr:     "localhost:6381",
+			wantPassword: "sample-token",
+			wantDB:       2,
 		},
 		{
 			name:    "empty host",

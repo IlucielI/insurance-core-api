@@ -3,9 +3,12 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
+	"github.com/bayuanugerah/insurance-core-api/internal/ports"
 	"gorm.io/gorm"
 )
 
@@ -23,14 +26,28 @@ type ProductFilter struct {
 }
 
 type PostgresProductRepository struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache ports.Cache
 }
 
 func NewPostgresProductRepository(db *gorm.DB) *PostgresProductRepository {
 	return &PostgresProductRepository{db: db}
 }
 
+func (repository *PostgresProductRepository) WithCache(cache ports.Cache) *PostgresProductRepository {
+	repository.cache = cache
+	return repository
+}
+
 func (repository *PostgresProductRepository) FindAll(ctx context.Context, filter ProductFilter) ([]models.Product, error) {
+	cacheKey := productFilterCacheKey(filter)
+	if repository.cache != nil && cacheKey != "" {
+		var cached []models.Product
+		if err := repository.cache.GetJSON(ctx, cacheKey, &cached); err == nil && len(cached) > 0 {
+			return cached, nil
+		}
+	}
+
 	query := repository.db.WithContext(ctx).Order("created_at ASC")
 
 	if filter.Category != "" {
@@ -50,10 +67,22 @@ func (repository *PostgresProductRepository) FindAll(ctx context.Context, filter
 		return nil, err
 	}
 
+	if repository.cache != nil && cacheKey != "" && len(products) > 0 {
+		_ = repository.cache.SetJSON(ctx, cacheKey, products, 15*time.Minute)
+	}
+
 	return products, nil
 }
 
 func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slug string) (models.Product, error) {
+	cacheKey := "product:slug:" + slug
+	if repository.cache != nil {
+		var cachedProduct models.Product
+		if err := repository.cache.GetJSON(ctx, cacheKey, &cachedProduct); err == nil && cachedProduct.ID != "" {
+			return cachedProduct, nil
+		}
+	}
+
 	var product models.Product
 	err := repository.db.WithContext(ctx).Where("slug = ?", slug).First(&product).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -63,5 +92,21 @@ func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slu
 		return models.Product{}, err
 	}
 
+	if repository.cache != nil {
+		_ = repository.cache.SetJSON(ctx, cacheKey, product, 1*time.Hour)
+	}
+
 	return product, nil
+}
+
+func productFilterCacheKey(filter ProductFilter) string {
+	featured := "all"
+	if filter.IsFeatured != nil {
+		if *filter.IsFeatured {
+			featured = "true"
+		} else {
+			featured = "false"
+		}
+	}
+	return fmt.Sprintf("products:list:%s:%s:%d", filter.Category, featured, filter.Limit)
 }
