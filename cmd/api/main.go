@@ -47,6 +47,7 @@ func main() {
 			Port:     cfg.RedisPort,
 			Password: cfg.RedisPassword,
 			DB:       cfg.RedisDB,
+			// cfg.RedisTimeout is configured in seconds (integer)
 			Timeout:  time.Duration(cfg.RedisTimeout) * time.Second,
 		})
 		if err != nil {

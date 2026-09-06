@@ -24,6 +24,7 @@ type ProductFilter struct {
 	Category   string
 	IsFeatured *bool
 	Limit      int
+	Offset     int
 }
 
 type PostgresProductRepository struct {
@@ -61,6 +62,10 @@ func (repository *PostgresProductRepository) FindAll(ctx context.Context, filter
 
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
+	}
+
+	if filter.Offset > 0 {
+		query = query.Offset(filter.Offset)
 	}
 
 	var products []models.Product
@@ -113,5 +118,5 @@ func productFilterCacheKey(filter ProductFilter) string {
 			featured = "false"
 		}
 	}
-	return fmt.Sprintf("catalog:products:list:%s:%s:%d", filter.Category, featured, filter.Limit)
+	return fmt.Sprintf("catalog:products:list:%s:%s:%d:%d", filter.Category, featured, filter.Limit, filter.Offset)
 }

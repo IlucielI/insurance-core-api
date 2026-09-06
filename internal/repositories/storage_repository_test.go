@@ -109,8 +109,8 @@ func TestS3StorageRepositoryValidatesInput(t *testing.T) {
 	if _, err := repository.GetDownloadURL(context.Background(), " "); err == nil {
 		t.Fatal("GetDownloadURL() error = nil, want validation error")
 	}
-	if _, err := repository.GetUploadURL(context.Background(), "../file"); err == nil {
-		t.Fatal("GetUploadURL() error = nil, want error")
+	if _, err := repository.GetUploadURL(context.Background(), "../file"); err == nil || err.Error() != "invalid object name" {
+		t.Fatalf("GetUploadURL('../file') error = %v, want 'invalid object name'", err)
 	}
 }
 

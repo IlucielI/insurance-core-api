@@ -44,7 +44,7 @@ type Config struct {
 	RedisPort           int
 	RedisPassword       string
 	RedisDB             int
-	RedisTimeout        int
+	RedisTimeout        int // in seconds
 }
 
 func Load() (Config, error) {

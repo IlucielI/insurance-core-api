@@ -206,7 +206,7 @@ func TestDeleteAndExists(t *testing.T) {
 	}
 
 	client.existsFunc = func(ctx context.Context, keys ...string) (int64, error) {
-		if keys[0] == "present" {
+		if len(keys) > 0 && keys[0] == "present" {
 			return 1, nil
 		}
 		return 0, nil

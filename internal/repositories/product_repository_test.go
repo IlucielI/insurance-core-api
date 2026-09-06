@@ -98,8 +98,21 @@ func TestPostgresProductRepositoryWithCache(t *testing.T) {
 
 	// Preload cache for FindAll
 	cachedList := []models.Product{cachedProduct}
-	filter := ProductFilter{Category: "life", Limit: 10}
+	filter := ProductFilter{Category: "life", Limit: 10, Offset: 0}
 	filterKey := productFilterCacheKey(filter)
+	if filterKey != "catalog:products:list:life:all:10:0" {
+		t.Fatalf("filterKey = %q, want catalog:products:list:life:all:10:0", filterKey)
+	}
+
+	filterPage2 := ProductFilter{Category: "life", Limit: 10, Offset: 10}
+	filterKeyPage2 := productFilterCacheKey(filterPage2)
+	if filterKeyPage2 != "catalog:products:list:life:all:10:10" {
+		t.Fatalf("filterKeyPage2 = %q, want catalog:products:list:life:all:10:10", filterKeyPage2)
+	}
+	if filterKey == filterKeyPage2 {
+		t.Fatal("cache key collision between page 1 and page 2")
+	}
+
 	if err := cache.SetJSON(context.Background(), filterKey, cachedList, 15*time.Minute); err != nil {
 		t.Fatalf("cache.SetJSON error = %v", err)
 	}
