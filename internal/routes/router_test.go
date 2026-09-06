@@ -50,7 +50,7 @@ func (repository routeReviewCheckRepository) UpdateStatus(ctx context.Context, a
 }
 
 func TestNewRouter(t *testing.T) {
-	app := NewRouter(config.Config{AppName: "test", Version: "1.0.0", GitHash: "abc123"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil, nil)
+	app := NewRouter(config.Config{AppName: "test", Version: "1.0.0", GitHash: "abc123"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil, nil, nil)
 	if app == nil {
 		t.Fatal("NewRouter() = nil")
 	}
@@ -69,7 +69,7 @@ func TestNewRouter(t *testing.T) {
 }
 
 func TestStorageRouteExists(t *testing.T) {
-	app := NewRouter(config.Config{AppName: "test"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil, nil)
+	app := NewRouter(config.Config{AppName: "test"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil, nil, nil)
 	request, err := http.NewRequest(http.MethodGet, "/api/v1/storage/presign?object_name=a.txt", nil)
 	if err != nil {
 		t.Fatalf("NewRequest() error = %v", err)

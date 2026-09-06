@@ -46,6 +46,12 @@ type fakeEmailRenderer struct {
 	err  error
 }
 
+type fakeMessageBus struct {
+	subject string
+	payload any
+	err     error
+}
+
 func (repository *fakeApplicationRepository) Create(ctx context.Context, application *models.Application) error {
 	repository.created = application
 	return repository.err
@@ -89,11 +95,22 @@ func (renderer *fakeEmailRenderer) RenderApplicationSubmitted(data emailtemplate
 	return renderer.text, renderer.html, renderer.err
 }
 
+func (messageBus *fakeMessageBus) PublishJSON(ctx context.Context, subject string, payload any) error {
+	messageBus.subject = subject
+	messageBus.payload = payload
+	return messageBus.err
+}
+
+func (messageBus *fakeMessageBus) RequestJSON(ctx context.Context, subject string, payload any, result any, timeout time.Duration) error {
+	return messageBus.err
+}
+
 func TestApplicationServiceCreate(t *testing.T) {
 	products := &fakeProductRepository{product: productFixture()}
 	applications := &fakeApplicationRepository{}
 	mailer := &fakeMailer{}
-	service := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), mailer)
+	messageBus := &fakeMessageBus{}
+	service := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), mailer, messageBus)
 
 	application, err := service.Create(context.Background(), "secure-life-plus", applicationRequestFixture())
 	if err != nil {
@@ -117,13 +134,23 @@ func TestApplicationServiceCreate(t *testing.T) {
 	if len(mailer.message.To) != 1 || mailer.message.To[0] != application.Email || mailer.message.Subject == "" || mailer.message.TextBody == "" || mailer.message.HTMLBody == "" {
 		t.Fatalf("mailer message = %+v, want application confirmation email", mailer.message)
 	}
+	if messageBus.subject != "application.submitted" {
+		t.Fatalf("messageBus subject = %q, want application.submitted", messageBus.subject)
+	}
+	event, ok := messageBus.payload.(applicationSubmittedEvent)
+	if !ok {
+		t.Fatalf("messageBus payload type = %T, want applicationSubmittedEvent", messageBus.payload)
+	}
+	if event.ApplicationID != application.ID || event.ProductID != application.ProductID || event.Email != application.Email || event.Premium != application.Premium || event.Status != string(models.ApplicationStatusSubmitted) {
+		t.Fatalf("messageBus payload = %+v, want submitted event", event)
+	}
 }
 
 func TestApplicationServiceCreateReturnsMailerError(t *testing.T) {
 	products := &fakeProductRepository{product: productFixture()}
 	applications := &fakeApplicationRepository{}
 	expectedErr := errors.New("smtp failed")
-	service := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), &fakeMailer{err: expectedErr})
+	service := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), &fakeMailer{err: expectedErr}, nil)
 
 	_, err := service.Create(context.Background(), "secure-life-plus", applicationRequestFixture())
 	if !errors.Is(err, expectedErr) {
@@ -132,7 +159,7 @@ func TestApplicationServiceCreateReturnsMailerError(t *testing.T) {
 }
 
 func TestApplicationSubmittedEmailEscapesFallbackHTML(t *testing.T) {
-	service := NewApplicationService(nil, nil, nil, nil, nil)
+	service := NewApplicationService(nil, nil, nil, nil, nil, nil)
 	service.emailRenderer = nil
 	application := models.Application{
 		ID:       `app-<1>`,
@@ -153,14 +180,14 @@ func TestApplicationSubmittedEmailEscapesFallbackHTML(t *testing.T) {
 }
 
 func TestApplicationServiceCreateValidatesDependenciesAndProduct(t *testing.T) {
-	_, err := NewApplicationService(nil, nil, nil, nil, nil).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
+	_, err := NewApplicationService(nil, nil, nil, nil, nil, nil).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
 	if err == nil || err.Error() != constants.ErrApplicationServiceUnavailable {
 		t.Fatalf("Create() error = %v, want service unavailable", err)
 	}
 
 	products := &fakeProductRepository{product: models.Product{}}
 	applications := &fakeApplicationRepository{}
-	_, err = NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), nil).Create(context.Background(), "missing", applicationRequestFixture())
+	_, err = NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), nil, nil).Create(context.Background(), "missing", applicationRequestFixture())
 	if !errors.Is(err, repositories.ErrProductNotFound) {
 		t.Fatalf("Create() error = %v, want product not found", err)
 	}
@@ -171,7 +198,7 @@ func TestApplicationServiceCreateReturnsQuoteError(t *testing.T) {
 	request := applicationRequestFixture()
 	request.SumAssured = 1
 
-	_, err := NewApplicationService(products, &fakeApplicationRepository{}, &fakeReviewCheckRepository{}, NewProductService(products), nil).Create(context.Background(), "secure-life-plus", request)
+	_, err := NewApplicationService(products, &fakeApplicationRepository{}, &fakeReviewCheckRepository{}, NewProductService(products), nil, nil).Create(context.Background(), "secure-life-plus", request)
 	if !errors.Is(err, constants.QuoteSumAssuredOutOfRangeError) {
 		t.Fatalf("Create() error = %v, want quote range error", err)
 	}
@@ -182,7 +209,7 @@ func TestApplicationServiceCreateReturnsCreateError(t *testing.T) {
 	products := &fakeProductRepository{product: productFixture()}
 	applications := &fakeApplicationRepository{err: expectedErr}
 
-	_, err := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), nil).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
+	_, err := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), nil, nil).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("Create() error = %v, want %v", err, expectedErr)
 	}
@@ -190,7 +217,7 @@ func TestApplicationServiceCreateReturnsCreateError(t *testing.T) {
 
 func TestApplicationServiceGet(t *testing.T) {
 	expected := models.Application{ID: "application-1"}
-	service := NewApplicationService(nil, &fakeApplicationRepository{application: expected}, nil, nil, nil)
+	service := NewApplicationService(nil, &fakeApplicationRepository{application: expected}, nil, nil, nil, nil)
 
 	application, err := service.Get(context.Background(), "application-1")
 	if err != nil {
@@ -202,7 +229,7 @@ func TestApplicationServiceGet(t *testing.T) {
 }
 
 func TestApplicationServiceGetRequiresRepository(t *testing.T) {
-	_, err := NewApplicationService(nil, nil, nil, nil, nil).Get(context.Background(), "application-1")
+	_, err := NewApplicationService(nil, nil, nil, nil, nil, nil).Get(context.Background(), "application-1")
 	if err == nil || err.Error() != constants.ErrApplicationServiceUnavailable {
 		t.Fatalf("Get() error = %v, want service unavailable", err)
 	}
@@ -226,7 +253,7 @@ func TestApplicationServiceUpdateStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repository := &fakeApplicationRepository{application: models.Application{ID: "application-1", Status: tt.current}}
-			service := NewApplicationService(nil, repository, &fakeReviewCheckRepository{checks: passedReviewChecks("application-1")}, nil, nil)
+			service := NewApplicationService(nil, repository, &fakeReviewCheckRepository{checks: passedReviewChecks("application-1")}, nil, nil, nil)
 
 			err := service.UpdateStatus(context.Background(), "application-1", tt.input)
 			if tt.wantErr != nil {
@@ -250,7 +277,7 @@ func TestApplicationServiceUpdateStatus(t *testing.T) {
 
 func TestApplicationServiceListReviewChecks(t *testing.T) {
 	checks := passedReviewChecks("application-1")
-	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1"}}, &fakeReviewCheckRepository{checks: checks}, nil, nil)
+	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1"}}, &fakeReviewCheckRepository{checks: checks}, nil, nil, nil)
 
 	got, err := service.ListReviewChecks(context.Background(), "application-1")
 	if err != nil {
@@ -263,7 +290,7 @@ func TestApplicationServiceListReviewChecks(t *testing.T) {
 
 func TestApplicationServiceUpdateReviewCheck(t *testing.T) {
 	reviewChecks := &fakeReviewCheckRepository{}
-	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1"}}, reviewChecks, nil, nil)
+	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1"}}, reviewChecks, nil, nil, nil)
 
 	err := service.UpdateReviewCheck(context.Background(), "application-1", models.ApplicationReviewCheckTypeIdentityVerified, dtos.UpdateApplicationReviewCheckRequest{
 		Status:     models.ApplicationReviewCheckStatusPassed,
@@ -279,7 +306,7 @@ func TestApplicationServiceUpdateReviewCheck(t *testing.T) {
 }
 
 func TestApplicationServiceApprovalRequiresCompletedChecklist(t *testing.T) {
-	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1", Status: models.ApplicationStatusUnderReview}}, &fakeReviewCheckRepository{checks: []models.ApplicationReviewCheck{{Status: models.ApplicationReviewCheckStatusPending}}}, nil, nil)
+	service := NewApplicationService(nil, &fakeApplicationRepository{application: models.Application{ID: "application-1", Status: models.ApplicationStatusUnderReview}}, &fakeReviewCheckRepository{checks: []models.ApplicationReviewCheck{{Status: models.ApplicationReviewCheckStatusPending}}}, nil, nil, nil)
 
 	err := service.UpdateStatus(context.Background(), "application-1", statusRequest(models.ApplicationStatusApproved, "underwriter", ""))
 	if !errors.Is(err, constants.ErrApplicationApprovalChecklistIncompleteError) {
@@ -289,7 +316,7 @@ func TestApplicationServiceApprovalRequiresCompletedChecklist(t *testing.T) {
 
 func TestApplicationServiceUpdateStatusReturnsRepositoryErrors(t *testing.T) {
 	expectedErr := errors.New("db failed")
-	service := NewApplicationService(nil, &fakeApplicationRepository{err: expectedErr}, nil, nil, nil)
+	service := NewApplicationService(nil, &fakeApplicationRepository{err: expectedErr}, nil, nil, nil, nil)
 
 	err := service.UpdateStatus(context.Background(), "application-1", statusRequest(models.ApplicationStatusUnderReview, "underwriter", ""))
 	if !errors.Is(err, expectedErr) {
@@ -298,7 +325,7 @@ func TestApplicationServiceUpdateStatusReturnsRepositoryErrors(t *testing.T) {
 }
 
 func TestApplicationServiceUpdateStatusRequiresRepository(t *testing.T) {
-	err := NewApplicationService(nil, nil, nil, nil, nil).UpdateStatus(context.Background(), "application-1", statusRequest(models.ApplicationStatusUnderReview, "underwriter", ""))
+	err := NewApplicationService(nil, nil, nil, nil, nil, nil).UpdateStatus(context.Background(), "application-1", statusRequest(models.ApplicationStatusUnderReview, "underwriter", ""))
 	if err == nil || err.Error() != constants.ErrApplicationServiceUnavailable {
 		t.Fatalf("UpdateStatus() error = %v, want service unavailable", err)
 	}

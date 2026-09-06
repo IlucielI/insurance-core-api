@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"html"
+	"log"
 	"strings"
 	"time"
 
@@ -17,21 +18,24 @@ import (
 	emailtemplate "github.com/bayuanugerah/insurance-core-api/internal/templates/email"
 )
 
+const applicationSubmittedSubject = "application.submitted"
+
 type ApplicationService struct {
 	products      repositories.ProductRepository
 	applications  repositories.ApplicationRepository
 	reviewChecks  repositories.ApplicationReviewCheckRepository
 	quotes        *ProductService
 	mailer        ports.Mailer
+	messageBus    ports.MessageBus
 	emailRenderer *emailtemplate.Renderer
 }
 
-func NewApplicationService(products repositories.ProductRepository, applications repositories.ApplicationRepository, reviewChecks repositories.ApplicationReviewCheckRepository, quotes *ProductService, mailer ports.Mailer) *ApplicationService {
+func NewApplicationService(products repositories.ProductRepository, applications repositories.ApplicationRepository, reviewChecks repositories.ApplicationReviewCheckRepository, quotes *ProductService, mailer ports.Mailer, messageBus ports.MessageBus) *ApplicationService {
 	renderer, err := emailtemplate.NewRenderer()
 	if err != nil {
 		renderer = nil
 	}
-	return &ApplicationService{products: products, applications: applications, reviewChecks: reviewChecks, quotes: quotes, mailer: mailer, emailRenderer: renderer}
+	return &ApplicationService{products: products, applications: applications, reviewChecks: reviewChecks, quotes: quotes, mailer: mailer, messageBus: messageBus, emailRenderer: renderer}
 }
 
 func (service *ApplicationService) Create(ctx context.Context, slug string, input dtos.CreateApplicationRequest) (models.Application, error) {
@@ -79,6 +83,7 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 	if err := service.applications.Create(ctx, &application); err != nil {
 		return models.Application{}, err
 	}
+	service.publishApplicationSubmitted(ctx, application)
 	if service.mailer != nil {
 		message, err := service.applicationSubmittedEmail(application, product.Name)
 		if err != nil {
@@ -129,6 +134,14 @@ func (service *ApplicationService) applicationSubmittedEmail(application models.
 		TextBody: textBody,
 		HTMLBody: htmlBody,
 	}, nil
+}
+
+type applicationSubmittedEvent struct {
+	ApplicationID string `json:"application_id"`
+	ProductID     string `json:"product_id"`
+	Email         string `json:"email"`
+	Premium       int64  `json:"premium"`
+	Status        string `json:"status"`
 }
 
 func sanitizeEmailText(value string) string {
@@ -278,4 +291,19 @@ func applicationID() (string, error) {
 	}
 
 	return hex.EncodeToString(value), nil
+}
+
+func (service *ApplicationService) publishApplicationSubmitted(ctx context.Context, application models.Application) {
+	if service.messageBus == nil {
+		return
+	}
+	if err := service.messageBus.PublishJSON(ctx, applicationSubmittedSubject, applicationSubmittedEvent{
+		ApplicationID: application.ID,
+		ProductID:     application.ProductID,
+		Email:         application.Email,
+		Premium:       application.Premium,
+		Status:        string(application.Status),
+	}); err != nil {
+		log.Printf("[ApplicationService] warning: failed to publish %s event: %v", applicationSubmittedSubject, err)
+	}
 }
