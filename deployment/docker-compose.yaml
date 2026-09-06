@@ -10,6 +10,13 @@ services:
       SMTP_ENCRYPTION: none
       SMTP_FROM_EMAIL: no-reply@insurance.local
       SMTP_FROM_NAME: Insurance Core
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_REGION: ap-southeast-1
+      S3_BUCKET: insurance-files
+      S3_USE_SSL: "false"
+      S3_FORCE_PATH_STYLE: "true"
     ports:
       - "8080:8080"
     depends_on:
@@ -17,6 +24,8 @@ services:
         condition: service_healthy
       maildev:
         condition: service_started
+      minio:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres:
@@ -45,5 +54,25 @@ services:
       - "1080:1080"
     restart: unless-stopped
 
+  minio:
+    image: minio/minio:latest
+    container_name: insurance-core-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  minio_data:

@@ -25,6 +25,16 @@ type Config struct {
 	SMTPFromEmail      string
 	SMTPFromName       string
 	SMTPEncryption     string
+	S3Endpoint           string
+	S3AccessKey          string
+	S3SecretKey          string
+	S3Region             string
+	S3Bucket             string
+	S3UseSSL             bool
+	S3ForcePathStyle     bool
+	S3UploadUrlLifetime  int
+	S3DownloadUrlLifetime int
+	S3OverrideBaseURL    string
 }
 
 func Load() (Config, error) {
@@ -51,6 +61,16 @@ func Load() (Config, error) {
 		SMTPFromEmail:      os.Getenv("SMTP_FROM_EMAIL"),
 		SMTPFromName:       getEnv("SMTP_FROM_NAME", "Insurance Core"),
 		SMTPEncryption:     strings.ToLower(getEnv("SMTP_ENCRYPTION", "starttls")),
+		S3Endpoint:           os.Getenv("S3_ENDPOINT"),
+		S3AccessKey:          os.Getenv("S3_ACCESS_KEY"),
+		S3SecretKey:          os.Getenv("S3_SECRET_KEY"),
+		S3Region:             getEnv("S3_REGION", "ap-southeast-1"),
+		S3Bucket:             os.Getenv("S3_BUCKET"),
+		S3UseSSL:             getEnvBool("S3_USE_SSL", false),
+		S3ForcePathStyle:     getEnvBool("S3_FORCE_PATH_STYLE", true),
+		S3UploadUrlLifetime:  getEnvInt("S3_UPLOAD_URL_LIFETIME", 15),
+		S3DownloadUrlLifetime: getEnvInt("S3_DOWNLOAD_URL_LIFETIME", 1440),
+		S3OverrideBaseURL:    os.Getenv("S3_OVERRIDE_BASE_URL"),
 	}, nil
 }
 
@@ -70,6 +90,20 @@ func getEnvInt(key string, fallback int) int {
 	}
 
 	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		return fallback
 	}

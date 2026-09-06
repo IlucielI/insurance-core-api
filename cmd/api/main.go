@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
+	s3adapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/s3"
 	llmadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
 	smtpadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/smtp"
 	"github.com/bayuanugerah/insurance-core-api/internal/config"
@@ -67,6 +68,9 @@ func main() {
 		}
 	}
 
+	storageRepository := initStorageRepository(cfg)
+	storageService := services.NewStorageService(storageRepository)
+
 	var mailer ports.Mailer
 	if cfg.SMTPHost != "" && cfg.SMTPFromEmail != "" {
 		smtpClient, err := smtpadapter.NewClient(smtpadapter.Config{
@@ -85,10 +89,51 @@ func main() {
 		}
 	}
 
-	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, mailer)
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func initStorageRepository(cfg *config.Config) repositories.StorageRepository {
+	if cfg.S3Endpoint == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" || cfg.S3Bucket == "" {
+		return nil
+	}
+
+	s3Client, err := s3adapter.NewClient(s3adapter.Config{
+		Endpoint:       cfg.S3Endpoint,
+		AccessKey:      cfg.S3AccessKey,
+		SecretKey:      cfg.S3SecretKey,
+		Region:         cfg.S3Region,
+		UseSSL:         cfg.S3UseSSL,
+		ForcePathStyle: cfg.S3ForcePathStyle,
+		PresignExpiry:  time.Duration(cfg.S3UploadUrlLifetime) * time.Minute,
+	})
+	if err != nil {
+		log.Printf("s3 disabled: %v", err)
+		return nil
+	}
+
+	bootstrapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := s3Client.EnsureBucketExists(bootstrapCtx, cfg.S3Bucket); err != nil {
+		log.Printf("s3 bucket bootstrap failed: %v", err)
+		return nil
+	}
+
+	repository, err := repositories.NewS3StorageRepository(
+		s3Client,
+		cfg.S3Bucket,
+		time.Duration(cfg.S3UploadUrlLifetime)*time.Minute,
+		time.Duration(cfg.S3DownloadUrlLifetime)*time.Minute,
+		cfg.S3OverrideBaseURL,
+	)
+	if err != nil {
+		log.Printf("s3 repository disabled: %v", err)
+		return nil
+	}
+
+	return repository
 }
