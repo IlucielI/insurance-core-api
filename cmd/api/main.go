@@ -7,6 +7,7 @@ import (
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
 	natsadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/nats"
+	redisadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/redis"
 	s3adapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/s3"
 	llmadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
 	smtpadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/smtp"
@@ -85,6 +86,28 @@ func main() {
 			defer natsClient.Close()
 		}
 	}
+
+	var redisClient *redisadapter.Client
+	if cfg.RedisHost != "" {
+		client, err := redisadapter.NewClient(redisadapter.Config{
+			Host:     cfg.RedisHost,
+			Port:     cfg.RedisPort,
+			Password: cfg.RedisPassword,
+			DB:       cfg.RedisDB,
+			Timeout:  time.Duration(cfg.RedisTimeout) * time.Second,
+		})
+		if err != nil {
+			log.Printf("redis disabled: %v", err)
+		} else {
+			redisClient = client
+			defer func() {
+				if err := redisClient.Close(); err != nil {
+					log.Printf("failed to close redis connection: %v", err)
+				}
+			}()
+		}
+	}
+	_ = redisClient
 
 	storageRepository := initStorageRepository(cfg)
 	storageService := services.NewStorageService(storageRepository)

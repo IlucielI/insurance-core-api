@@ -30,6 +30,11 @@ func TestLoad(t *testing.T) {
 	t.Setenv("S3_UPLOAD_URL_LIFETIME", "20")
 	t.Setenv("S3_DOWNLOAD_URL_LIFETIME", "1445")
 	t.Setenv("S3_OVERRIDE_BASE_URL", "https://cdn.example.com/files")
+	t.Setenv("REDIS_HOST", "redis.example.com")
+	t.Setenv("REDIS_PORT", "6380")
+	t.Setenv("REDIS_PASSWORD", "redis-secret")
+	t.Setenv("REDIS_DB", "2")
+	t.Setenv("REDIS_TIMEOUT", "6")
 
 	cfg, err := Load()
 	if err != nil {
@@ -49,6 +54,9 @@ func TestLoad(t *testing.T) {
 	}
 	if cfg.S3UploadUrlLifetime != 20 || cfg.S3DownloadUrlLifetime != 1445 || cfg.S3OverrideBaseURL != "https://cdn.example.com/files" {
 		t.Fatalf("Load() S3 lifetime config = %+v, want env values", cfg)
+	}
+	if cfg.RedisHost != "redis.example.com" || cfg.RedisPort != 6380 || cfg.RedisPassword != "redis-secret" || cfg.RedisDB != 2 || cfg.RedisTimeout != 6 {
+		t.Fatalf("Load() Redis config = %+v, want env values", cfg)
 	}
 }
 
@@ -86,6 +94,11 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("S3_UPLOAD_URL_LIFETIME", "")
 	t.Setenv("S3_DOWNLOAD_URL_LIFETIME", "")
 	t.Setenv("S3_OVERRIDE_BASE_URL", "")
+	t.Setenv("REDIS_HOST", "")
+	t.Setenv("REDIS_PORT", "")
+	t.Setenv("REDIS_PASSWORD", "")
+	t.Setenv("REDIS_DB", "")
+	t.Setenv("REDIS_TIMEOUT", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -105,5 +118,8 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.S3UploadUrlLifetime != 15 || cfg.S3DownloadUrlLifetime != 1440 || cfg.S3OverrideBaseURL != "" {
 		t.Fatalf("Load() S3 lifetime defaults = %+v, want defaults", cfg)
+	}
+	if cfg.RedisHost != "" || cfg.RedisPort != 6379 || cfg.RedisPassword != "" || cfg.RedisDB != 0 || cfg.RedisTimeout != 5 {
+		t.Fatalf("Load() Redis defaults = %+v, want defaults", cfg)
 	}
 }
