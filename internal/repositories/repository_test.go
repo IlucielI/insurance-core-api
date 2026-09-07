@@ -205,4 +205,29 @@ func TestKnowledgeRepository(t *testing.T) {
 	if count != 0 {
 		t.Fatalf("Count() = %d after replace, want 0", count)
 	}
+
+	// Test ReplaceByDocumentID, CountByDocumentID, FindChunksByDocumentID
+	docChunks := []models.KnowledgeChunk{
+		{ID: "c1", DocumentID: "doc-x", SourceType: "underwriting", Title: "T1", Content: "C1", ChunkIndex: 0},
+		{ID: "c2", DocumentID: "doc-x", SourceType: "underwriting", Title: "T2", Content: "C2", ChunkIndex: 1},
+	}
+	if err := repository.ReplaceByDocumentID(context.Background(), "doc-x", docChunks); err != nil {
+		t.Fatalf("ReplaceByDocumentID() error = %v", err)
+	}
+	docCount, err := repository.CountByDocumentID(context.Background(), "doc-x")
+	if err != nil || docCount != 2 {
+		t.Fatalf("CountByDocumentID() = %d, error = %v", docCount, err)
+	}
+	foundChunks, err := repository.FindChunksByDocumentID(context.Background(), "doc-x")
+	if err != nil || len(foundChunks) != 2 {
+		t.Fatalf("FindChunksByDocumentID() len = %d, error = %v", len(foundChunks), err)
+	}
+	// Replace with empty to delete
+	if err := repository.ReplaceByDocumentID(context.Background(), "doc-x", nil); err != nil {
+		t.Fatalf("ReplaceByDocumentID(nil) error = %v", err)
+	}
+	docCount, err = repository.CountByDocumentID(context.Background(), "doc-x")
+	if err != nil || docCount != 0 {
+		t.Fatalf("CountByDocumentID() after clear = %d, want 0", docCount)
+	}
 }
