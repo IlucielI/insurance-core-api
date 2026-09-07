@@ -177,7 +177,10 @@ func (client *Client) StreamChatCompletion(ctx context.Context, input ChatComple
 	defer response.Body.Close()
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		raw, _ := io.ReadAll(io.LimitReader(response.Body, 1024*1024))
+		raw, readErr := io.ReadAll(io.LimitReader(response.Body, 1024*1024))
+		if readErr != nil {
+			return fmt.Errorf("llm stream request failed with status %d (failed to read response body: %w)", response.StatusCode, readErr)
+		}
 		return fmt.Errorf("llm stream request failed with status %d: %s", response.StatusCode, strings.TrimSpace(string(raw)))
 	}
 
