@@ -163,6 +163,15 @@ func main() {
 		}
 	}
 
+	if natsClient != nil && notificationService != nil {
+		adminNotifWorker := workers.NewAdminNotificationWorker(natsClient, notificationService, applicationRepository)
+		if err := adminNotifWorker.Start(context.Background()); err != nil {
+			log.Printf("failed to start admin notification worker: %v", err)
+		} else {
+			defer adminNotifWorker.Stop()
+		}
+	}
+
 	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository, knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, knowledgeRAGService, auditLogRepository, auditLogService, systemHealthService, notificationRepository, notificationService)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)

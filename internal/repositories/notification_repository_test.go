@@ -146,4 +146,43 @@ func TestPostgresNotificationRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), unreadAfter)
 	})
+
+	t.Run("CreateBatch", func(t *testing.T) {
+		batch := []models.Notification{
+			{
+				ID:        "batch-1",
+				Type:      "SLA_WARNING",
+				Category:  models.NotificationCategoryUnderwriting,
+				Severity:  models.NotificationSeverityWarning,
+				Title:     "Batch SLA 1",
+				Message:   "Message 1",
+				Link:      "/queue",
+				CreatedAt: time.Now().UTC(),
+			},
+			{
+				ID:        "batch-2",
+				Type:      "SLA_WARNING",
+				Category:  models.NotificationCategoryUnderwriting,
+				Severity:  models.NotificationSeverityWarning,
+				Title:     "Batch SLA 2",
+				Message:   "Message 2",
+				Link:      "/queue",
+				CreatedAt: time.Now().UTC(),
+			},
+		}
+
+		err := repo.CreateBatch(ctx, batch)
+		require.NoError(t, err)
+
+		found1, err := repo.FindByID(ctx, "batch-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Batch SLA 1", found1.Title)
+
+		found2, err := repo.FindByID(ctx, "batch-2")
+		require.NoError(t, err)
+		assert.Equal(t, "Batch SLA 2", found2.Title)
+
+		// empty slice should be a no-op
+		require.NoError(t, repo.CreateBatch(ctx, []models.Notification{}))
+	})
 }

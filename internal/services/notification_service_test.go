@@ -23,6 +23,11 @@ func (m *MockNotificationRepository) Create(ctx context.Context, item *models.No
 	return args.Error(0)
 }
 
+func (m *MockNotificationRepository) CreateBatch(ctx context.Context, items []models.Notification) error {
+	args := m.Called(ctx, items)
+	return args.Error(0)
+}
+
 func (m *MockNotificationRepository) FindAll(ctx context.Context, query dtos.NotificationQuery) ([]models.Notification, int64, int64, error) {
 	args := m.Called(ctx, query)
 	if args.Get(0) == nil {
@@ -188,5 +193,46 @@ func TestNotificationService(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(5), count)
 		repo.AssertExpectations(t)
+	})
+
+	t.Run("CreateBatch success", func(t *testing.T) {
+		repo := new(MockNotificationRepository)
+		reqs := []dtos.CreateNotificationRequest{
+			{
+				Type:     "SLA_WARNING",
+				Category: "underwriting",
+				Severity: "WARNING",
+				Title:    "SLA Warning: App 1",
+				Message:  "Pending",
+			},
+			{
+				Type:     "SLA_WARNING",
+				Category: "underwriting",
+				Severity: "WARNING",
+				Title:    "SLA Warning: App 2",
+				Message:  "Pending",
+			},
+		}
+
+		repo.On("CreateBatch", ctx, mock.MatchedBy(func(items []models.Notification) bool {
+			return len(items) == 2 && items[0].Title == "SLA Warning: App 1" && items[1].Title == "SLA Warning: App 2"
+		})).Return(nil)
+
+		svc := NewNotificationService(repo)
+		resps, err := svc.CreateBatch(ctx, reqs)
+		require.NoError(t, err)
+		assert.Len(t, resps, 2)
+		assert.Equal(t, "SLA Warning: App 1", resps[0].Title)
+		assert.Equal(t, "SLA Warning: App 2", resps[1].Title)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("CreateBatch empty returns empty slice without calling repo", func(t *testing.T) {
+		repo := new(MockNotificationRepository)
+		svc := NewNotificationService(repo)
+		resps, err := svc.CreateBatch(ctx, []dtos.CreateNotificationRequest{})
+		require.NoError(t, err)
+		assert.Empty(t, resps)
+		repo.AssertNotCalled(t, "CreateBatch", mock.Anything, mock.Anything)
 	})
 }
