@@ -439,6 +439,57 @@ func TestAssistantChatWithConversationMultiTurn(t *testing.T) {
 	}
 }
 
+func TestAssistantChat_SanitizesLeadingOrphanToolMessages(t *testing.T) {
+	repo := &knowledgeFake{}
+	convRepo := newFakeConversationRepository()
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+
+	// Pre-populate conversation with an orphan tool message at the start
+	convID := "orphan-conv"
+	_, _ = convRepo.GetOrCreateConversation(context.Background(), convID, "Test")
+	_ = convRepo.SaveMessages(context.Background(), []models.AssistantMessage{
+		{
+			ID:             "orphan-tool-msg",
+			ConversationID: convID,
+			Role:           "tool",
+			Content:        `{"quote":100000}`,
+			ToolCallID:     "call_xyz",
+			CreatedAt:      time.Now().Add(-10 * time.Minute),
+		},
+		{
+			ID:             "subsequent-user-msg",
+			ConversationID: convID,
+			Role:           "user",
+			Content:        "Apakah ada promo?",
+			CreatedAt:      time.Now().Add(-5 * time.Minute),
+		},
+	})
+
+	var messagesReceived []llm.Message
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			messagesReceived = in.Messages
+			return llm.ChatCompletionOutput{Content: "Tidak ada promo saat ini."}, nil
+		},
+	}
+
+	service := NewAssistantService(repo, model, productService, convRepo)
+
+	_, err := service.ChatWithConversation(context.Background(), "Baik, terima kasih.", convID, nil, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify that the orphan tool message was stripped and never sent to LLM
+	for _, m := range messagesReceived {
+		if m.Role == "tool" && m.ToolCallID == "call_xyz" {
+			t.Fatal("orphan tool message was not sanitized from LLM prompt")
+		}
+	}
+}
+
 func embeddingFixture() []float32 {
 	return make([]float32, constants.AssistantEmbeddingDimension)
 }

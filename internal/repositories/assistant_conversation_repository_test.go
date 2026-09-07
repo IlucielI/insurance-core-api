@@ -97,6 +97,9 @@ func TestPostgresAssistantConversationRepository(t *testing.T) {
 	if len(fetchedConv.Messages) != 3 {
 		t.Fatalf("len(fetchedConv.Messages) = %d, want 3", len(fetchedConv.Messages))
 	}
+	if fetchedConv.UpdatedAt.IsZero() {
+		t.Fatal("expected non-zero UpdatedAt")
+	}
 
 	// 6. DeleteConversation
 	if err := repo.DeleteConversation(ctx, "conv-1"); err != nil {

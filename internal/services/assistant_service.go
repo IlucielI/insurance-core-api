@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -146,10 +147,20 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 
 	var historyMessages []llm.Message
 	if service.conversationRepository != nil {
-		_, _ = service.conversationRepository.GetOrCreateConversation(ctx, conversationID, "Insurance Consultation")
+		if _, err := service.conversationRepository.GetOrCreateConversation(ctx, conversationID, "Insurance Consultation"); err != nil {
+			log.Printf("[AssistantService] warning: failed to get/create conversation %s: %v", conversationID, err)
+		}
 		history, err := service.conversationRepository.ListMessages(ctx, conversationID, 10)
-		if err == nil {
-			for _, h := range history {
+		if err != nil {
+			log.Printf("[AssistantService] warning: failed to list messages for conversation %s: %v", conversationID, err)
+		} else {
+			// Discard leading orphan tool messages to prevent OpenAI 400 Bad Request
+			// ('tool' message must immediately follow an 'assistant' message with matching 'tool_calls')
+			startIndex := 0
+			for startIndex < len(history) && history[startIndex].Role == "tool" {
+				startIndex++
+			}
+			for _, h := range history[startIndex:] {
 				historyMessages = append(historyMessages, llm.Message{
 					Role:       h.Role,
 					Content:    h.Content,
@@ -279,7 +290,9 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 	}
 
 	if service.conversationRepository != nil && len(newMessages) > 0 {
-		_ = service.conversationRepository.SaveMessages(ctx, newMessages)
+		if err := service.conversationRepository.SaveMessages(ctx, newMessages); err != nil {
+			log.Printf("[AssistantService] warning: failed to save messages for conversation %s: %v", conversationID, err)
+		}
 	}
 
 	sources := make([]dtos.AssistantSource, 0, len(matches))

@@ -65,7 +65,7 @@ func (r *PostgresAssistantConversationRepository) GetOrCreateConversation(ctx co
 		return models.AssistantConversation{}, err
 	}
 
-	return r.GetConversation(ctx, id)
+	return conv, nil
 }
 
 func (r *PostgresAssistantConversationRepository) GetConversation(ctx context.Context, id string) (models.AssistantConversation, error) {
@@ -129,6 +129,10 @@ func (r *PostgresAssistantConversationRepository) SaveMessages(ctx context.Conte
 	if err := r.db.WithContext(ctx).Create(&msgs).Error; err != nil {
 		return err
 	}
+
+	_ = r.db.WithContext(ctx).Model(&models.AssistantConversation{}).
+		Where("id = ?", msgs[0].ConversationID).
+		Update("updated_at", time.Now()).Error
 
 	if r.cache != nil && len(msgs) > 0 {
 		cacheKey := fmt.Sprintf("assistant:conversation:%s:messages", msgs[0].ConversationID)
