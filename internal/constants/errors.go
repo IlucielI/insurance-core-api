@@ -34,6 +34,9 @@ const (
 	ErrProductDeleteFailed             = "failed to delete product"
 	ErrProductMetricsFailed            = "failed to get product metrics"
 	ErrProductPricingRulesUpdateFailed = "failed to update pricing rules"
+	ErrProductIDRequired               = "product id is required"
+	ErrProductRequestBodyInvalid       = "invalid product request body"
+	ErrPricingRulesBodyInvalid         = "invalid pricing rules body"
 )
 
 const (

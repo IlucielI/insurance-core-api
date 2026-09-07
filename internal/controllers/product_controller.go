@@ -136,7 +136,7 @@ func (controller *ProductController) GetPricingRules(ctx *fiber.Ctx) error {
 	rules, err := controller.productService.GetPricingRules(ctx.Context(), slug)
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to retrieve product pricing rules",
+			"error": constants.ErrProductPricingRulesUpdateFailed,
 		})
 	}
 
@@ -149,7 +149,7 @@ func (controller *ProductController) GetByID(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
 	if id == "" {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "product id is required",
+			"error": constants.ErrProductIDRequired,
 		})
 	}
 
@@ -174,7 +174,7 @@ func (controller *ProductController) Create(ctx *fiber.Ctx) error {
 	var request dtos.CreateProductRequest
 	if err := ctx.BodyParser(&request); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid product request body",
+			"error": constants.ErrProductRequestBodyInvalid,
 		})
 	}
 
@@ -199,14 +199,14 @@ func (controller *ProductController) Update(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
 	if id == "" {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "product id is required",
+			"error": constants.ErrProductIDRequired,
 		})
 	}
 
 	var request dtos.UpdateProductRequest
 	if err := ctx.BodyParser(&request); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid product request body",
+			"error": constants.ErrProductRequestBodyInvalid,
 		})
 	}
 
@@ -236,14 +236,14 @@ func (controller *ProductController) UpdateStatus(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
 	if id == "" {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "product id is required",
+			"error": constants.ErrProductIDRequired,
 		})
 	}
 
 	var request dtos.UpdateProductStatusRequest
 	if err := ctx.BodyParser(&request); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid request body",
+			"error": constants.ErrProductRequestBodyInvalid,
 		})
 	}
 
@@ -275,7 +275,7 @@ func (controller *ProductController) ToggleStatus(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
 	if id == "" {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "product id is required",
+			"error": constants.ErrProductIDRequired,
 		})
 	}
 
@@ -300,7 +300,7 @@ func (controller *ProductController) Delete(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
 	if id == "" {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "product id is required",
+			"error": constants.ErrProductIDRequired,
 		})
 	}
 
@@ -350,7 +350,7 @@ func (controller *ProductController) UpdatePricingRules(ctx *fiber.Ctx) error {
 	var rules []models.ProductPricingRule
 	if err := ctx.BodyParser(&rules); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid pricing rules body",
+			"error": constants.ErrPricingRulesBodyInvalid,
 		})
 	}
 

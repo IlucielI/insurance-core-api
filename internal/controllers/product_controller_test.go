@@ -21,7 +21,6 @@ func TestProductManagement_CreateProduct(t *testing.T) {
 	}
 	app := routes.NewRouter(config.Config{AppName: "test"}, prodRepo, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil)
 
-	// 1. Success Create
 	reqBody := dtos.CreateProductRequest{
 		Name:             "Jiwa Garda",
 		Slug:             "jiwa-garda",
@@ -52,7 +51,6 @@ func TestProductManagement_CreateProduct(t *testing.T) {
 		t.Fatalf("resp.StatusCode = %d, want %d", resp.StatusCode, http.StatusCreated)
 	}
 
-	// 2. Duplicate Slug -> 409 Conflict
 	dupBody := reqBody
 	dupBody.Slug = "existing-slug"
 	dupPayload, err := json.Marshal(dupBody)
@@ -69,7 +67,6 @@ func TestProductManagement_CreateProduct(t *testing.T) {
 		t.Fatalf("dupResp.StatusCode = %d, want %d", dupResp.StatusCode, http.StatusConflict)
 	}
 
-	// 3. Validation error -> 400 Bad Request
 	badBody := reqBody
 	badBody.MinSumAssured = 0
 	badPayload, err := json.Marshal(badBody)
@@ -192,7 +189,6 @@ func TestProductManagement_Delete(t *testing.T) {
 	}
 	app := routes.NewRouter(config.Config{AppName: "test"}, prodRepo, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil)
 
-	// 1. Delete blocked by existing applications -> 409 Conflict
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/products/prod-del-1", nil)
 	resp, err := app.Test(req)
 	if err != nil {
@@ -202,7 +198,6 @@ func TestProductManagement_Delete(t *testing.T) {
 		t.Fatalf("resp.StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
 	}
 
-	// 2. Delete allowed -> 200 OK
 	prodRepo.hasApps = false
 	reqOK := httptest.NewRequest(http.MethodDelete, "/api/v1/products/prod-del-1", nil)
 	respOK, err := app.Test(reqOK)
