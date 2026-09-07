@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,7 +99,7 @@ func TestProductRoutes(t *testing.T) {
 	product := controllerProductFixture()
 	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{products: []models.Product{product}, product: product}, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil)
 
-	response := performRequest(t, app, http.MethodGet, "/api/v1/products?category=life&featured=true&limit=1", nil)
+	response := performRequest(t, app, http.MethodGet, "/api/v1/products?category=life&featured=true&limit=1&search=secure", nil)
 	assertStatus(t, response, http.StatusOK)
 	assertBodyContains(t, readBody(t, response), "Secure Life Plus")
 
@@ -117,6 +118,11 @@ func TestProductRoutesHandleErrors(t *testing.T) {
 	response := performRequest(t, app, http.MethodGet, "/api/v1/products?category=travel", nil)
 	assertStatus(t, response, http.StatusBadRequest)
 	assertBodyContains(t, readBody(t, response), constants.ErrProductCategoryInvalid)
+
+	longSearch := strings.Repeat("a", 101)
+	response = performRequest(t, app, http.MethodGet, "/api/v1/products?search="+longSearch, nil)
+	assertStatus(t, response, http.StatusBadRequest)
+	assertBodyContains(t, readBody(t, response), constants.ErrProductSearchInvalid)
 
 	response = performRequest(t, app, http.MethodGet, "/api/v1/products/missing", nil)
 	assertStatus(t, response, http.StatusNotFound)

@@ -27,6 +27,24 @@ func TestPostgresProductRepository(t *testing.T) {
 		t.Fatalf("FindAll() = %+v, want product-1", products)
 	}
 
+	// Test Search filter matching name
+	searchResults, err := repository.FindAll(context.Background(), ProductFilter{Search: "guard"})
+	if err != nil {
+		t.Fatalf("FindAll(Search: guard) error = %v", err)
+	}
+	if len(searchResults) != 1 || searchResults[0].ID != "product-2" {
+		t.Fatalf("FindAll(Search: guard) = %+v, want product-2", searchResults)
+	}
+
+	// Test Search filter matching non-existent product
+	emptyResults, err := repository.FindAll(context.Background(), ProductFilter{Search: "nonexistent"})
+	if err != nil {
+		t.Fatalf("FindAll(Search: nonexistent) error = %v", err)
+	}
+	if len(emptyResults) != 0 {
+		t.Fatalf("FindAll(Search: nonexistent) count = %d, want 0", len(emptyResults))
+	}
+
 	product, err := repository.FindBySlug(context.Background(), "secure-life-plus")
 	if err != nil {
 		t.Fatalf("FindBySlug() error = %v", err)

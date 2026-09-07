@@ -24,6 +24,7 @@ func (service *ProductService) ListProducts(ctx context.Context, input dtos.Prod
 		Category:   strings.TrimSpace(input.Category),
 		IsFeatured: input.IsFeatured,
 		Limit:      input.Limit,
+		Search:     strings.TrimSpace(input.Search),
 	})
 }
 

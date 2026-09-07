@@ -38,6 +38,7 @@ func TestProductServiceListProducts(t *testing.T) {
 		Category:   " life ",
 		IsFeatured: &featured,
 		Limit:      3,
+		Search:     " life ",
 	})
 	if err != nil {
 		t.Fatalf("ListProducts() error = %v", err)
@@ -45,7 +46,7 @@ func TestProductServiceListProducts(t *testing.T) {
 	if len(products) != 1 || products[0].ID != "product-1" {
 		t.Fatalf("ListProducts() = %+v, want product-1", products)
 	}
-	if repository.filter.Category != "life" || repository.filter.IsFeatured == nil || !*repository.filter.IsFeatured || repository.filter.Limit != 3 {
+	if repository.filter.Category != "life" || repository.filter.IsFeatured == nil || !*repository.filter.IsFeatured || repository.filter.Limit != 3 || repository.filter.Search != "life" {
 		t.Fatalf("FindAll filter = %+v, want normalized query", repository.filter)
 	}
 }

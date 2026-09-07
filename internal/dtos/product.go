@@ -4,6 +4,7 @@ type ProductListQuery struct {
 	Category   string
 	IsFeatured *bool
 	Limit      int
+	Search     string
 }
 
 type ProductQuoteRequest struct {

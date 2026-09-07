@@ -4,8 +4,10 @@ const (
 	ProductQueryCategory = "category"
 	ProductQueryFeatured = "featured"
 	ProductQueryLimit    = "limit"
+	ProductQuerySearch   = "search"
 
 	MaxProductListLimit         = 50
+	MaxProductSearchLength      = 100
 	DefaultApplicationListLimit = 20
 	MaxApplicationListLimit     = 50
 	MinQuoteAge                 = 18
