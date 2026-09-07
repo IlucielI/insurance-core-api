@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -138,6 +139,78 @@ func (client *Client) CreateChatCompletionWithTools(ctx context.Context, input C
 	}
 
 	return parseChatCompletionResponseWithTools(raw)
+}
+
+func (client *Client) StreamChatCompletion(ctx context.Context, input ChatCompletionInput, onToken func(token string) error) error {
+	if len(input.Messages) == 0 {
+		return errors.New("messages are required")
+	}
+
+	payload := chatCompletionRequest{
+		Model:       client.completionModel,
+		Messages:    input.Messages,
+		Temperature: input.Temperature,
+		MaxTokens:   input.MaxTokens,
+		Stream:      true,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.baseURL+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
+	if client.apiKey != "" {
+		request.Header.Set("Authorization", "Bearer "+client.apiKey)
+	}
+
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		raw, readErr := io.ReadAll(io.LimitReader(response.Body, 1024*1024))
+		if readErr != nil {
+			return fmt.Errorf("llm stream request failed with status %d (failed to read response body: %w)", response.StatusCode, readErr)
+		}
+		return fmt.Errorf("llm stream request failed with status %d: %s", response.StatusCode, strings.TrimSpace(string(raw)))
+	}
+
+	scanner := bufio.NewScanner(response.Body)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+
+		var chunk chatCompletionStreamResponse
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			continue
+		}
+
+		for _, choice := range chunk.Choices {
+			content, err := parseContent(choice.Delta.Content)
+			if err == nil && content != "" {
+				if err := onToken(content); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return scanner.Err()
 }
 
 func (client *Client) CreateEmbedding(ctx context.Context, input EmbeddingInput) ([]float32, error) {
@@ -375,6 +448,7 @@ type chatCompletionRequest struct {
 	Messages    []Message `json:"messages"`
 	Temperature *float64  `json:"temperature,omitempty"`
 	MaxTokens   *int      `json:"max_tokens,omitempty"`
+	Stream      bool      `json:"stream,omitempty"`
 	Tools       []Tool    `json:"tools,omitempty"`
 	ToolChoice  any       `json:"tool_choice,omitempty"`
 }

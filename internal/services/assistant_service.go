@@ -32,6 +32,7 @@ type AssistantLLM interface {
 	CreateChatCompletion(context.Context, llm.ChatCompletionInput) (string, error)
 	CreateChatCompletionWithTools(context.Context, llm.ChatCompletionInput) (llm.ChatCompletionOutput, error)
 	CreateEmbedding(context.Context, llm.EmbeddingInput) ([]float32, error)
+	StreamChatCompletion(context.Context, llm.ChatCompletionInput, func(string) error) error
 }
 
 type AssistantQuoteService interface {
@@ -138,16 +139,23 @@ func (service *AssistantService) SeedDefaultKnowledge(ctx context.Context) error
 	return service.knowledgeRepository.ReplaceAll(ctx, chunks)
 }
 
-func (service *AssistantService) chat(ctx context.Context, message string, quoteRequest *dtos.ProductQuoteRequest, slug string, conversationID string) (dtos.AssistantChatResponse, error) {
+type preparedChatContext struct {
+	conversationID string
+	messages       []llm.Message
+	newMessages    []models.AssistantMessage
+	matches        []repositories.KnowledgeChunkMatch
+}
+
+func (service *AssistantService) prepareChatContext(ctx context.Context, message string, quoteRequest *dtos.ProductQuoteRequest, slug string, conversationID string) (*preparedChatContext, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
-		return dtos.AssistantChatResponse{}, constants.ErrAssistantMessageRequiredError
+		return nil, constants.ErrAssistantMessageRequiredError
 	}
 	if len(message) > constants.AssistantMaxMessageSize {
-		return dtos.AssistantChatResponse{}, constants.ErrAssistantMessageTooLongError
+		return nil, constants.ErrAssistantMessageTooLongError
 	}
 	if service.knowledgeRepository == nil || service.llm == nil {
-		return dtos.AssistantChatResponse{}, constants.ErrAssistantServiceUnavailableError
+		return nil, constants.ErrAssistantServiceUnavailableError
 	}
 
 	conversationID = strings.TrimSpace(conversationID)
@@ -183,12 +191,12 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 
 	embedding, err := service.llm.CreateEmbedding(ctx, llm.EmbeddingInput{Text: message})
 	if err != nil {
-		return dtos.AssistantChatResponse{}, err
+		return nil, err
 	}
 
 	matches, err := service.knowledgeRepository.Search(ctx, embedding, constants.AssistantTopK)
 	if err != nil {
-		return dtos.AssistantChatResponse{}, err
+		return nil, err
 	}
 
 	filtered := matches[:0]
@@ -200,7 +208,7 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 	matches = filtered
 	quoteContext, err := service.buildQuoteContext(ctx, quoteRequest, slug)
 	if err != nil {
-		return dtos.AssistantChatResponse{}, err
+		return nil, err
 	}
 
 	contextText := strings.TrimSpace(buildContext(matches) + "\n\n" + quoteContext)
@@ -227,6 +235,25 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 			CreatedAt:      time.Now(),
 		},
 	}
+
+	return &preparedChatContext{
+		conversationID: conversationID,
+		messages:       messages,
+		newMessages:    newMessages,
+		matches:        matches,
+	}, nil
+}
+
+func (service *AssistantService) chat(ctx context.Context, message string, quoteRequest *dtos.ProductQuoteRequest, slug string, conversationID string) (dtos.AssistantChatResponse, error) {
+	prep, err := service.prepareChatContext(ctx, message, quoteRequest, slug, conversationID)
+	if err != nil {
+		return dtos.AssistantChatResponse{}, err
+	}
+
+	conversationID = prep.conversationID
+	messages := prep.messages
+	newMessages := prep.newMessages
+	matches := prep.matches
 
 	tools := assistantTools()
 	toolsUsed := make([]string, 0)
@@ -321,6 +348,225 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 		Sources:        sources,
 		ToolsUsed:      toolsUsed,
 	}, nil
+}
+
+func (service *AssistantService) ChatStream(ctx context.Context, req dtos.AssistantChatRequest, onEvent func(event dtos.AssistantStreamEvent) error) error {
+	productSlug := strings.TrimSpace(firstNonEmpty(req.ProductSlug, req.Slug))
+	prep, err := service.prepareChatContext(ctx, req.Message, req.Quote, productSlug, req.ConversationID)
+	if err != nil {
+		if onEvent != nil {
+			if emitErr := onEvent(dtos.AssistantStreamEvent{
+				Type:  dtos.StreamEventError,
+				Error: err.Error(),
+			}); emitErr != nil {
+				log.Printf("[AssistantService] warning: failed to emit error event: %v", emitErr)
+			}
+		}
+		return err
+	}
+
+	conversationID := prep.conversationID
+	messages := prep.messages
+	newMessages := prep.newMessages
+	matches := prep.matches
+
+	tools := assistantTools()
+	toolsUsed := make([]string, 0)
+	var answerBuilder strings.Builder
+
+	for iteration := 0; iteration < 3; iteration++ {
+		output, err := service.llm.CreateChatCompletionWithTools(ctx, llm.ChatCompletionInput{
+			Messages: messages,
+			Tools:    tools,
+		})
+		if err != nil {
+			if onEvent != nil {
+				if emitErr := onEvent(dtos.AssistantStreamEvent{
+					Type:           dtos.StreamEventError,
+					ConversationID: conversationID,
+					Error:          err.Error(),
+				}); emitErr != nil {
+					log.Printf("[AssistantService] warning: failed to emit error event: %v", emitErr)
+				}
+			}
+			return err
+		}
+
+		if len(output.ToolCalls) == 0 {
+			if output.Content != "" {
+				answerBuilder.WriteString(output.Content)
+			}
+			break
+		}
+
+		messages = append(messages, llm.Message{
+			Role:      "assistant",
+			Content:   output.Content,
+			ToolCalls: output.ToolCalls,
+		})
+
+		newMessages = append(newMessages, models.AssistantMessage{
+			ID:             generateID(),
+			ConversationID: conversationID,
+			Role:           "assistant",
+			Content:        output.Content,
+			ToolCalls:      output.ToolCalls,
+			CreatedAt:      time.Now(),
+		})
+
+		for _, toolCall := range output.ToolCalls {
+			toolsUsed = append(toolsUsed, toolCall.Function.Name)
+
+			if onEvent != nil {
+				if err := onEvent(dtos.AssistantStreamEvent{
+					Type:           dtos.StreamEventToolCall,
+					ToolName:       toolCall.Function.Name,
+					ConversationID: conversationID,
+				}); err != nil {
+					return err
+				}
+			}
+
+			toolResult := service.executeTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
+
+			if onEvent != nil {
+				if err := onEvent(dtos.AssistantStreamEvent{
+					Type:           dtos.StreamEventToolResult,
+					ToolName:       toolCall.Function.Name,
+					ConversationID: conversationID,
+				}); err != nil {
+					return err
+				}
+			}
+
+			messages = append(messages, llm.Message{
+				Role:       "tool",
+				Content:    toolResult,
+				ToolCallID: toolCall.ID,
+			})
+			newMessages = append(newMessages, models.AssistantMessage{
+				ID:             generateID(),
+				ConversationID: conversationID,
+				Role:           "tool",
+				Content:        toolResult,
+				ToolCallID:     toolCall.ID,
+				CreatedAt:      time.Now(),
+			})
+		}
+	}
+
+	if len(toolsUsed) > 0 || answerBuilder.Len() == 0 {
+		answerBuilder.Reset()
+		err := service.llm.StreamChatCompletion(ctx, llm.ChatCompletionInput{
+			Messages: messages,
+		}, func(token string) error {
+			answerBuilder.WriteString(token)
+			if onEvent != nil {
+				return onEvent(dtos.AssistantStreamEvent{
+					Type:           dtos.StreamEventToken,
+					Content:        token,
+					ConversationID: conversationID,
+				})
+			}
+			return nil
+		})
+		if err != nil {
+			if onEvent != nil {
+				if emitErr := onEvent(dtos.AssistantStreamEvent{
+					Type:           dtos.StreamEventError,
+					ConversationID: conversationID,
+					Error:          err.Error(),
+				}); emitErr != nil {
+					log.Printf("[AssistantService] warning: failed to emit error event: %v", emitErr)
+				}
+			}
+			return err
+		}
+	} else {
+		content := answerBuilder.String()
+		answerBuilder.Reset()
+		tokens := splitIntoTokens(content)
+		for _, token := range tokens {
+			answerBuilder.WriteString(token)
+			if onEvent != nil {
+				if err := onEvent(dtos.AssistantStreamEvent{
+					Type:           dtos.StreamEventToken,
+					Content:        token,
+					ConversationID: conversationID,
+				}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	finalAnswer := answerBuilder.String()
+	if finalAnswer != "" {
+		newMessages = append(newMessages, models.AssistantMessage{
+			ID:             generateID(),
+			ConversationID: conversationID,
+			Role:           "assistant",
+			Content:        finalAnswer,
+			CreatedAt:      time.Now(),
+		})
+	}
+
+	if service.conversationRepository != nil && len(newMessages) > 0 {
+		if err := service.conversationRepository.SaveMessages(ctx, newMessages); err != nil {
+			log.Printf("[AssistantService] warning: failed to save messages for conversation %s: %v", conversationID, err)
+		}
+	}
+
+	sources := make([]dtos.AssistantSource, 0, len(matches))
+	for _, match := range matches {
+		sources = append(sources, dtos.AssistantSource{
+			Title:      match.Title,
+			SourceType: match.SourceType,
+			Score:      max(0, 1-match.Distance),
+			Excerpt:    excerpt(match.Content),
+		})
+	}
+
+	if onEvent != nil {
+		if err := onEvent(dtos.AssistantStreamEvent{
+			Type:           dtos.StreamEventDone,
+			ConversationID: conversationID,
+			Sources:        sources,
+			ToolsUsed:      toolsUsed,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func splitIntoTokens(text string) []string {
+	if text == "" {
+		return nil
+	}
+	var tokens []string
+	var current strings.Builder
+	for _, r := range text {
+		current.WriteRune(r)
+		if r == ' ' || r == '\n' || r == '.' || r == ',' || r == '!' || r == '?' {
+			tokens = append(tokens, current.String())
+			current.Reset()
+		}
+	}
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+	return tokens
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func generateID() string {

@@ -42,10 +42,14 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	questionnaireController := controllers.NewQuestionnaireController(questionnaireService)
 	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer, messageBus, questionnaireRepository)
 	applicationController := controllers.NewApplicationController(applicationService)
-	if assistantService != nil && applicationService != nil {
-		assistantService.WithApplicationService(applicationService)
+	var assistantChatService controllers.AssistantChatService
+	if assistantService != nil {
+		if applicationService != nil {
+			assistantService.WithApplicationService(applicationService)
+		}
+		assistantChatService = assistantService
 	}
-	assistantController := controllers.NewAssistantController(assistantService)
+	assistantController := controllers.NewAssistantController(assistantChatService)
 	storageController := controllers.NewStorageController(storageService)
 
 	app.Get("/health", healthController.Check)
@@ -65,6 +69,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api.Get("/applications/:id/review-checks", applicationController.ListReviewChecks)
 	api.Patch("/applications/:id/review-checks/:check_type", applicationController.UpdateReviewCheck)
 	api.Post("/assistant/chat", assistantController.Chat)
+	api.Post("/assistant/chat/stream", assistantController.ChatStream)
 	api.Get("/assistant/conversations/:id", assistantController.GetConversation)
 	api.Delete("/assistant/conversations/:id", assistantController.DeleteConversation)
 	api.Get("/storage/presign", storageController.Presign)

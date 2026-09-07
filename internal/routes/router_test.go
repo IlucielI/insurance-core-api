@@ -82,3 +82,19 @@ func TestStorageRouteExists(t *testing.T) {
 		t.Fatalf("status = %d, want 503", response.StatusCode)
 	}
 }
+
+func TestAssistantStreamRouteExists(t *testing.T) {
+	app := NewRouter(config.Config{AppName: "test"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil, nil, nil)
+	request, err := http.NewRequest(http.MethodPost, "/api/v1/assistant/chat/stream", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	// With nil assistantService, it should return 503 Service Unavailable, not 404 Not Found
+	if response.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.StatusCode)
+	}
+}

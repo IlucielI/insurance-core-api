@@ -21,6 +21,28 @@ type assistantLLMFake struct {
 	embedCalls, chatCalls int
 	toolCalls             []llm.ToolCall
 	chatWithToolsFn       func(context.Context, llm.ChatCompletionInput) (llm.ChatCompletionOutput, error)
+	streamTokens          []string
+	streamErr             error
+	streamCalls           int
+}
+
+func (f *assistantLLMFake) StreamChatCompletion(ctx context.Context, in llm.ChatCompletionInput, onToken func(string) error) error {
+	f.streamCalls++
+	if f.streamErr != nil {
+		return f.streamErr
+	}
+	if len(f.streamTokens) > 0 {
+		for _, t := range f.streamTokens {
+			if err := onToken(t); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if f.answer != "" {
+		return onToken(f.answer)
+	}
+	return nil
 }
 
 func (f *assistantLLMFake) CreateEmbedding(context.Context, llm.EmbeddingInput) ([]float32, error) {
@@ -709,5 +731,173 @@ func TestAssistantChatWithTools_SubmitApplication_ServiceUnavailable(t *testing.
 	}
 	if !strings.Contains(resp.Answer, "tidak tersedia") {
 		t.Fatalf("expected assistant response to indicate unavailable, got: %s", resp.Answer)
+	}
+}
+
+func TestAssistantChatStream_Success(t *testing.T) {
+	repo := &knowledgeFake{
+		matches: []repositories.KnowledgeChunkMatch{
+			{
+				KnowledgeChunk: models.KnowledgeChunk{
+					Title:      "FAQ Produk",
+					Content:    "Produk asuransi jiwa mencakup santunan tutup usia.",
+					SourceType: "faq",
+				},
+				Distance: 0.1,
+			},
+		},
+	}
+	model := &assistantLLMFake{
+		embedding:    embeddingFixture(),
+		streamTokens: []string{"Asuransi ", "jiwa ", "melindungi ", "keluarga ", "Anda."},
+	}
+
+	service := NewAssistantService(repo, model, nil)
+
+	var receivedEvents []dtos.AssistantStreamEvent
+	err := service.ChatStream(context.Background(), dtos.AssistantChatRequest{
+		Message: "Jelaskan apa itu asuransi jiwa?",
+	}, func(event dtos.AssistantStreamEvent) error {
+		receivedEvents = append(receivedEvents, event)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("ChatStream failed: %v", err)
+	}
+
+	if len(receivedEvents) == 0 {
+		t.Fatal("expected to receive stream events, got none")
+	}
+
+	var tokenContent strings.Builder
+	var doneReceived bool
+	for _, ev := range receivedEvents {
+		switch ev.Type {
+		case dtos.StreamEventToken:
+			tokenContent.WriteString(ev.Content)
+		case dtos.StreamEventDone:
+			doneReceived = true
+			if ev.ConversationID == "" {
+				t.Errorf("expected conversation_id in done event")
+			}
+			if len(ev.Sources) != 1 {
+				t.Errorf("expected 1 source in done event, got %d", len(ev.Sources))
+			}
+		}
+	}
+
+	if !doneReceived {
+		t.Fatal("expected done event")
+	}
+	expectedText := "Asuransi jiwa melindungi keluarga Anda."
+	if tokenContent.String() != expectedText {
+		t.Fatalf("expected streamed content %q, got %q", expectedText, tokenContent.String())
+	}
+}
+
+func TestAssistantChatStream_WithTools(t *testing.T) {
+	repo := &knowledgeFake{
+		matches: []repositories.KnowledgeChunkMatch{
+			{
+				KnowledgeChunk: models.KnowledgeChunk{
+					Title:      "Produk",
+					Content:    "List of products",
+					SourceType: "product",
+				},
+				Distance: 0.1,
+			},
+		},
+	}
+
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+
+	toolCallsMade := false
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			if !toolCallsMade {
+				toolCallsMade = true
+				return llm.ChatCompletionOutput{
+					ToolCalls: []llm.ToolCall{
+						{
+							ID:   "call_quote_1",
+							Type: "function",
+							Function: llm.ToolCallFunction{
+								Name:      "calculate_quote",
+								Arguments: `{"product_slug":"secure-life-plus","age":30,"gender":"male","sum_assured":100000000,"payment_term":10,"payment_frequency":"monthly"}`,
+							},
+						},
+					},
+				}, nil
+			}
+			return llm.ChatCompletionOutput{}, nil
+		},
+		streamTokens: []string{"Premi ", "tahunan ", "Anda ", "adalah ", "Rp1.000.000."},
+	}
+
+	service := NewAssistantService(repo, model, productService)
+
+	var receivedEvents []dtos.AssistantStreamEvent
+	err := service.ChatStream(context.Background(), dtos.AssistantChatRequest{
+		Message: "Berapa premi saya?",
+	}, func(event dtos.AssistantStreamEvent) error {
+		receivedEvents = append(receivedEvents, event)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("ChatStream with tools failed: %v", err)
+	}
+
+	var hasToolCall, hasToolResult, hasDone bool
+	var toolsUsedInDone []string
+	var tokenContent strings.Builder
+
+	for _, ev := range receivedEvents {
+		switch ev.Type {
+		case dtos.StreamEventToolCall:
+			hasToolCall = true
+			if ev.ToolName != "calculate_quote" {
+				t.Errorf("expected tool_name calculate_quote, got %s", ev.ToolName)
+			}
+		case dtos.StreamEventToolResult:
+			hasToolResult = true
+			if ev.ToolName != "calculate_quote" {
+				t.Errorf("expected tool_name calculate_quote, got %s", ev.ToolName)
+			}
+		case dtos.StreamEventToken:
+			tokenContent.WriteString(ev.Content)
+		case dtos.StreamEventDone:
+			hasDone = true
+			toolsUsedInDone = ev.ToolsUsed
+		}
+	}
+
+	if !hasToolCall {
+		t.Error("expected tool_call event")
+	}
+	if !hasToolResult {
+		t.Error("expected tool_result event")
+	}
+	if !hasDone {
+		t.Error("expected done event")
+	}
+	if len(toolsUsedInDone) != 1 || toolsUsedInDone[0] != "calculate_quote" {
+		t.Errorf("expected tools_used [calculate_quote], got %v", toolsUsedInDone)
+	}
+	if tokenContent.String() != "Premi tahunan Anda adalah Rp1.000.000." {
+		t.Errorf("unexpected token content: %s", tokenContent.String())
+	}
+}
+
+func TestAssistantChatStream_ValidationErrors(t *testing.T) {
+	service := NewAssistantService(nil, nil, nil)
+	err := service.ChatStream(context.Background(), dtos.AssistantChatRequest{
+		Message: "",
+	}, nil)
+	if !errors.Is(err, constants.ErrAssistantMessageRequiredError) {
+		t.Fatalf("expected ErrAssistantMessageRequiredError, got %v", err)
 	}
 }
