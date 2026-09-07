@@ -13,6 +13,7 @@ import (
 
 type NotificationRepository interface {
 	Create(ctx context.Context, notification *models.Notification) error
+	CreateBatch(ctx context.Context, notifications []models.Notification) error
 	FindAll(ctx context.Context, query dtos.NotificationQuery) ([]models.Notification, int64, int64, error)
 	FindByID(ctx context.Context, id string) (*models.Notification, error)
 	MarkAsRead(ctx context.Context, id string, readAt time.Time) (*models.Notification, error)
@@ -30,6 +31,13 @@ func NewPostgresNotificationRepository(db *gorm.DB) *PostgresNotificationReposit
 
 func (r *PostgresNotificationRepository) Create(ctx context.Context, notification *models.Notification) error {
 	return r.db.WithContext(ctx).Create(notification).Error
+}
+
+func (r *PostgresNotificationRepository) CreateBatch(ctx context.Context, notifications []models.Notification) error {
+	if len(notifications) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&notifications).Error
 }
 
 func (r *PostgresNotificationRepository) FindAll(ctx context.Context, query dtos.NotificationQuery) ([]models.Notification, int64, int64, error) {

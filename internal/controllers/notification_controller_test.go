@@ -44,6 +44,16 @@ func (f *fakeNotificationService) Create(_ context.Context, _ dtos.CreateNotific
 	return f.createResp, nil
 }
 
+func (f *fakeNotificationService) CreateBatch(_ context.Context, _ []dtos.CreateNotificationRequest) ([]*dtos.NotificationResponse, error) {
+	if f.createErr != nil {
+		return nil, f.createErr
+	}
+	if f.createResp != nil {
+		return []*dtos.NotificationResponse{f.createResp}, nil
+	}
+	return []*dtos.NotificationResponse{}, nil
+}
+
 func (f *fakeNotificationService) MarkAsRead(_ context.Context, id string) (*dtos.MarkReadResponse, error) {
 	if f.markReadErr != nil {
 		return nil, f.markReadErr

@@ -33,6 +33,14 @@ func (m *mockNotificationService) Create(ctx context.Context, req dtos.CreateNot
 	return args.Get(0).(*dtos.NotificationResponse), args.Error(1)
 }
 
+func (m *mockNotificationService) CreateBatch(ctx context.Context, reqs []dtos.CreateNotificationRequest) ([]*dtos.NotificationResponse, error) {
+	args := m.Called(ctx, reqs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*dtos.NotificationResponse), args.Error(1)
+}
+
 func (m *mockNotificationService) MarkAsRead(ctx context.Context, id string) (*dtos.MarkReadResponse, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
@@ -239,12 +247,13 @@ func TestAdminNotificationWorkerSLA(t *testing.T) {
 			Data: []dtos.NotificationResponse{},
 		}, nil)
 
-		notifSvc.On("Create", ctx, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
-			return req.Type == "SLA_WARNING" &&
-				req.Category == "underwriting" &&
-				req.Severity == "WARNING" &&
-				req.Title == "SLA Warning: Aplikasi #APP-BREACH-1"
-		})).Return(&dtos.NotificationResponse{ID: "notif-sla-1"}, nil)
+		notifSvc.On("CreateBatch", ctx, mock.MatchedBy(func(reqs []dtos.CreateNotificationRequest) bool {
+			return len(reqs) == 1 &&
+				reqs[0].Type == "SLA_WARNING" &&
+				reqs[0].Category == "underwriting" &&
+				reqs[0].Severity == "WARNING" &&
+				reqs[0].Title == "SLA Warning: Aplikasi #APP-BREACH-1"
+		})).Return([]*dtos.NotificationResponse{{ID: "notif-sla-1"}}, nil)
 
 		worker := NewAdminNotificationWorker(sub, notifSvc, slaSource)
 		worker.SetSLAThresholdHours(20)
@@ -292,6 +301,70 @@ func TestAdminNotificationWorkerSLA(t *testing.T) {
 		assert.Equal(t, 0, count)
 
 		notifSvc.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+		notifSvc.AssertNotCalled(t, "CreateBatch", mock.Anything, mock.Anything)
 		notifSvc.AssertExpectations(t)
+	})
+
+	t.Run("guard test against N+1: processes multiple breach items in a single batch query", func(t *testing.T) {
+		sub := newFakeSubscriber()
+		notifSvc := new(mockNotificationService)
+
+		// 5 pending applications
+		apps := []models.Application{
+			{ID: "APP-1", FullName: "User 1", CreatedAt: time.Now().Add(-21 * time.Hour)},
+			{ID: "APP-2", FullName: "User 2", CreatedAt: time.Now().Add(-22 * time.Hour)},
+			{ID: "APP-3", FullName: "User 3", CreatedAt: time.Now().Add(-23 * time.Hour)},
+			{ID: "APP-4", FullName: "User 4", CreatedAt: time.Now().Add(-24 * time.Hour)},
+			{ID: "APP-5", FullName: "User 5", CreatedAt: time.Now().Add(-25 * time.Hour)},
+		}
+		slaSource := &fakeSLASource{apps: apps}
+
+		unreadOnly := true
+		// APP-1 already alerted, others are not
+		notifSvc.On("List", ctx, dtos.NotificationQuery{
+			UnreadOnly: &unreadOnly,
+			Limit:      100,
+		}).Return(&dtos.NotificationListResponse{
+			Data: []dtos.NotificationResponse{
+				{ID: "notif-app-1", Title: "SLA Warning: Aplikasi #APP-1", IsRead: false},
+			},
+		}, nil).Once()
+
+		// Exactly ONE batch call for all 4 new applications, NOT 4 separate calls
+		notifSvc.On("CreateBatch", ctx, mock.MatchedBy(func(reqs []dtos.CreateNotificationRequest) bool {
+			return len(reqs) == 4
+		})).Return([]*dtos.NotificationResponse{
+			{ID: "n2"}, {ID: "n3"}, {ID: "n4"}, {ID: "n5"},
+		}, nil).Once()
+
+		worker := NewAdminNotificationWorker(sub, notifSvc, slaSource)
+		worker.SetSLAThresholdHours(20)
+
+		count, err := worker.CheckSLANow(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 4, count)
+
+		// Assert that no per-item Create is called
+		notifSvc.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+		// Assert that CreateBatch is called exactly ONCE
+		notifSvc.AssertNumberOfCalls(t, "CreateBatch", 1)
+		notifSvc.AssertNumberOfCalls(t, "List", 1)
+		notifSvc.AssertExpectations(t)
+	})
+
+	t.Run("handles empty breach collection without any query or batch calls", func(t *testing.T) {
+		sub := newFakeSubscriber()
+		notifSvc := new(mockNotificationService)
+
+		slaSource := &fakeSLASource{apps: []models.Application{}}
+		worker := NewAdminNotificationWorker(sub, notifSvc, slaSource)
+
+		count, err := worker.CheckSLANow(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+
+		notifSvc.AssertNotCalled(t, "List", mock.Anything, mock.Anything)
+		notifSvc.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+		notifSvc.AssertNotCalled(t, "CreateBatch", mock.Anything, mock.Anything)
 	})
 }

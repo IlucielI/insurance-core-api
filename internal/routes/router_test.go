@@ -227,6 +227,10 @@ func (r routeNotificationRepository) Create(ctx context.Context, notification *m
 	return nil
 }
 
+func (r routeNotificationRepository) CreateBatch(ctx context.Context, notifications []models.Notification) error {
+	return nil
+}
+
 func (r routeNotificationRepository) FindAll(ctx context.Context, query dtos.NotificationQuery) ([]models.Notification, int64, int64, error) {
 	return []models.Notification{}, 0, 0, nil
 }

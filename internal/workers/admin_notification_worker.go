@@ -191,32 +191,35 @@ func (w *AdminNotificationWorker) CheckSLANow(ctx context.Context) (int, error) 
 		}
 	}
 
-	count := 0
+	var batchRequests []dtos.CreateNotificationRequest
 	for _, app := range pendingApps {
 		title := fmt.Sprintf("SLA Warning: Aplikasi #%s", app.ID)
 		if existingTitles[title] {
 			continue
 		}
 
-		req := dtos.CreateNotificationRequest{
+		existingTitles[title] = true
+		batchRequests = append(batchRequests, dtos.CreateNotificationRequest{
 			Type:     "SLA_WARNING",
 			Category: "underwriting",
 			Severity: "WARNING",
 			Title:    title,
 			Message:  fmt.Sprintf("Aplikasi nasabah %s telah berada dalam antrean underwriting selama lebih dari %d jam.", app.FullName, w.slaThresholdHours),
 			Link:     "/queue",
-		}
-
-		resp, createErr := w.notificationService.Create(ctx, req)
-		if createErr != nil {
-			log.Printf("[AdminNotificationWorker] failed to generate SLA warning for app %s: %v", app.ID, createErr)
-		} else if resp != nil {
-			count++
-			existingTitles[title] = true
-		}
+		})
 	}
 
-	return count, nil
+	if len(batchRequests) == 0 {
+		return 0, nil
+	}
+
+	createdList, batchErr := w.notificationService.CreateBatch(ctx, batchRequests)
+	if batchErr != nil {
+		log.Printf("[AdminNotificationWorker] failed to batch create SLA warnings: %v", batchErr)
+		return 0, batchErr
+	}
+
+	return len(createdList), nil
 }
 
 func (w *AdminNotificationWorker) handleApplicationSubmitted(ctx context.Context, data []byte) error {

@@ -15,6 +15,7 @@ import (
 type NotificationService interface {
 	List(ctx context.Context, query dtos.NotificationQuery) (*dtos.NotificationListResponse, error)
 	Create(ctx context.Context, req dtos.CreateNotificationRequest) (*dtos.NotificationResponse, error)
+	CreateBatch(ctx context.Context, reqs []dtos.CreateNotificationRequest) ([]*dtos.NotificationResponse, error)
 	MarkAsRead(ctx context.Context, id string) (*dtos.MarkReadResponse, error)
 	MarkAllAsRead(ctx context.Context) (*dtos.MarkAllReadResponse, error)
 	GetUnreadCount(ctx context.Context) (int64, error)
@@ -76,6 +77,45 @@ func (s *DefaultNotificationService) Create(ctx context.Context, req dtos.Create
 
 	resp := toNotificationResponse(item)
 	return &resp, nil
+}
+
+func (s *DefaultNotificationService) CreateBatch(ctx context.Context, reqs []dtos.CreateNotificationRequest) ([]*dtos.NotificationResponse, error) {
+	if len(reqs) == 0 {
+		return []*dtos.NotificationResponse{}, nil
+	}
+
+	items := make([]models.Notification, 0, len(reqs))
+	responses := make([]*dtos.NotificationResponse, 0, len(reqs))
+	now := time.Now().UTC()
+
+	for _, req := range reqs {
+		copyReq := req
+		if err := validations.ValidateCreateNotificationRequest(&copyReq); err != nil {
+			return nil, err
+		}
+
+		id := fmt.Sprintf("notif_%s_%s", now.Format("20060102150405"), uuid.New().String()[:8])
+		item := models.Notification{
+			ID:        id,
+			Type:      copyReq.Type,
+			Category:  models.NotificationCategory(copyReq.Category),
+			Severity:  models.NotificationSeverity(copyReq.Severity),
+			Title:     copyReq.Title,
+			Message:   copyReq.Message,
+			Link:      copyReq.Link,
+			IsRead:    false,
+			CreatedAt: now,
+		}
+		items = append(items, item)
+		resp := toNotificationResponse(item)
+		responses = append(responses, &resp)
+	}
+
+	if err := s.repo.CreateBatch(ctx, items); err != nil {
+		return nil, err
+	}
+
+	return responses, nil
 }
 
 func (s *DefaultNotificationService) MarkAsRead(ctx context.Context, id string) (*dtos.MarkReadResponse, error) {
