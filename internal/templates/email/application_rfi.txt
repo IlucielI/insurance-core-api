@@ -1,0 +1,17 @@
+Halo {{.FullName}},
+
+Terima kasih telah mengajukan perlindungan asuransi {{.ProductName}} melalui Bayu Insurance. Tim Underwriting kami saat ini sedang melakukan verifikasi kelayakan polis Anda (Aplikasi #{{.ApplicationID}}).
+
+PESAN KHUSUS DARI TIM UNDERWRITER:
+"{{.Notes}}"
+
+DAFTAR BERKAS YANG WAJIB DIUNGGAH:
+{{range $index, $doc := .RequiredDocs}}- {{$doc}}
+{{end}}
+BATAS WAKTU PENGUNGGAHAN (SLA): {{.SLADeadline}}
+
+Unggah Dokumen Tambahan Sekarang melalui portal aman terenkripsi:
+{{.UploadPortalURL}}
+
+Layanan Nasabah: 1500-888 | support@bayuinsurance.co.id
+PT Bayu Insurance Digital Indonesia • Berizin & Diawasi OJK

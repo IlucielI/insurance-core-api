@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polis Asuransi Anda Telah Terbit</title>
+</head>
+<body style="margin: 0; padding: 24px 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <!-- Simulation Header Bar -->
+    <tr>
+      <td style="background-color: #ffffff; padding: 14px 24px; border-bottom: 1px solid #e2e8f0;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="font-size: 13px; font-weight: 700; color: #0f172a;">
+              ✉️ Bayu Insurance Mail Gateway
+            </td>
+            <td align="right">
+              <span style="display: inline-block; background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px;">
+                🔒 DKIM & SPF PASS
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Brand Header -->
+    <tr>
+      <td style="background-color: #0f172a; padding: 24px 32px; border-bottom: 3px solid #10b981;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td width="48" valign="middle">
+              <div style="width: 40px; height: 40px; background-color: #2563eb; border-radius: 8px; text-align: center; line-height: 40px; font-size: 16px; font-weight: 800; color: #ffffff;">
+                BI
+              </div>
+            </td>
+            <td style="padding-left: 14px;" valign="middle">
+              <div style="font-size: 17px; font-weight: 700; color: #ffffff; line-height: 1.2;">Bayu Insurance</div>
+              <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Digital Life & Health Protection</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Content Body -->
+    <tr>
+      <td style="padding: 32px 32px 24px 32px;">
+        <!-- Status Pill -->
+        <div style="display: inline-block; background-color: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 12px; margin-bottom: 18px;">
+          🎉 POLIS RESMI DISETUJUI & PERLINDUNGAN AKTIF
+        </div>
+
+        <h1 style="font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 12px 0; line-height: 1.3;">
+          Selamat! Polis Asuransi Anda Resmi Diterbitkan
+        </h1>
+
+        <p style="font-size: 14px; font-weight: 600; color: #334155; margin: 0 0 8px 0;">
+          Halo {{.FullName}},
+        </p>
+        <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">
+          Kabar bahagia! Aplikasi pengajuan asuransi Anda telah disetujui penuh oleh tim Underwriting Bayu Insurance. Perlindungan jiwa dan kesehatan keluarga Anda kini resmi aktif dan terjamin.
+        </p>
+
+        <!-- Master Certificate Box -->
+        <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 18px; margin-bottom: 24px;">
+          <div style="font-size: 10px; font-weight: 700; color: #15803d; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px;">
+            Sertifikat Kepesertaan & Ringkasan Polis Resmi
+          </div>
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td width="50%" style="padding-bottom: 12px;">
+                <div style="font-size: 11px; color: #4b5563; font-weight: 500;">Nomor Polis Resmi</div>
+                <div style="font-size: 16px; color: #0f172a; font-weight: 800; margin-top: 2px;">{{.PolicyNumber}}</div>
+              </td>
+              <td width="50%" style="padding-bottom: 12px;">
+                <div style="font-size: 11px; color: #4b5563; font-weight: 500;">Uang Pertanggungan (UP)</div>
+                <div style="font-size: 16px; color: #047857; font-weight: 800; margin-top: 2px;">{{.SumAssuredFormatted}}</div>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="border-top: 1px solid #bbf7d0; padding-top: 12px; padding-bottom: 12px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td width="50%">
+                      <div style="font-size: 11px; color: #4b5563; font-weight: 500;">Masa Berlaku Perlindungan</div>
+                      <div style="font-size: 13px; color: #0f172a; font-weight: 700; margin-top: 2px;">{{.ProtectionPeriod}}</div>
+                    </td>
+                    <td width="50%">
+                      <div style="font-size: 11px; color: #4b5563; font-weight: 500;">Premi & Status Pembayaran</div>
+                      <div style="font-size: 13px; color: #047857; font-weight: 700; margin-top: 2px;">{{.PremiumFormatted}} • LUNAS (Tahun ke-1)</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="border-top: 1px solid #bbf7d0; padding-top: 8px;">
+                <div style="font-size: 11px; color: #6b7280;">
+                  Ref Aplikasi: #{{.ApplicationID}} &bull; Produk: {{.ProductName}} &bull; Tertanggung: {{.FullName}}
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- PDF Attachment Box -->
+        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 10px;">
+          Dokumen Kontrak Polis Digital (e-Policy):
+        </div>
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td width="42" valign="middle">
+                <div style="width: 38px; height: 38px; background-color: #fee2e2; border-radius: 6px; text-align: center; line-height: 38px; font-size: 11px; font-weight: 800; color: #dc2626;">
+                  PDF
+                </div>
+              </td>
+              <td style="padding-left: 14px;" valign="middle">
+                <div style="font-size: 13px; font-weight: 700; color: #0f172a;">
+                  e-Polis_Resmi_BayuInsurance_{{.PolicyNumber}}.pdf
+                </div>
+                <div style="font-size: 11px; color: #15803d; font-weight: 500; margin-top: 3px;">
+                  ✓ Terenkripsi SHA-256 &bull; e-Materai Peruri Sah &bull; QR Verifikasi OJK Valid
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Free Look Period Box -->
+        <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px;">
+          <div style="font-size: 12px; font-weight: 700; color: #1e40af; margin-bottom: 4px;">
+            ℹ️ Masa Pertimbangan Bebas (Free Look Period 14 Hari Kalender)
+          </div>
+          <div style="font-size: 12px; line-height: 1.5; color: #1e3a8a;">
+            Anda memiliki hak mempelajari isi polis selama 14 hari kalender sejak email ini diterima. Bila syarat dan ketentuan tidak sesuai dengan kebutuhan Anda, Anda berhak membatalkan polis dengan jaminan pengembalian premi 100% penuh tanpa potongan.
+          </div>
+        </div>
+
+        <!-- Action CTA Buttons -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
+          <tr>
+            <td align="center">
+              <a href="{{.PolicyDownloadURL}}" style="display: inline-block; width: 85%; max-width: 440px; background-color: #059669; color: #ffffff; font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; padding: 14px 20px; border-radius: 8px; margin-bottom: 10px;">
+                Unduh Dokumen e-Polis Lengkap (PDF) 📥 →
+              </a>
+              <br>
+              <a href="{{.PortalURL}}" style="display: inline-block; width: 85%; max-width: 440px; background-color: #ffffff; border: 1px solid #cbd5e1; color: #334155; font-size: 13px; font-weight: 700; text-align: center; text-decoration: none; padding: 11px 20px; border-radius: 8px;">
+                Buka Kartu Polis Digital di Aplikasi Mobile 📱
+              </a>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 10px;">
+                Atau buka: {{.PortalURL}}
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Footer Claim & Hotline -->
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 18px;">
+          <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+            🛡️ Layanan Klaim 24 Jam & Bantuan Nasabah
+          </div>
+          <div style="font-size: 11px; line-height: 1.5; color: #64748b; margin-bottom: 12px;">
+            Pengajuan klaim rawat inap dan santunan dapat dilakukan secara instan tanpa kertas melalui aplikasi Bayu Insurance atau menghubungi Emergency Hotline 1500-888 (bebas pulsa).
+          </div>
+          <div style="font-size: 10px; color: #94a3b8;">
+            PT Bayu Insurance Digital Indonesia • Menara Asuransi Lt. 18, Jakarta Selatan • Berizin & Diawasi OJK
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

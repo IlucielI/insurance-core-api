@@ -45,6 +45,7 @@ type Config struct {
 	RedisPassword       string
 	RedisDB             int
 	RedisTimeout        int // in seconds
+	CustomerAppBaseURL  string
 }
 
 func Load() (Config, error) {
@@ -91,6 +92,7 @@ func Load() (Config, error) {
 		RedisPassword:       os.Getenv("REDIS_PASSWORD"),
 		RedisDB:             getEnvInt("REDIS_DB", 0),
 		RedisTimeout:        getEnvInt("REDIS_TIMEOUT", 5),
+		CustomerAppBaseURL:  getEnv("CUSTOMER_APP_BASE_URL", getEnv("APP_BASE_URL", "http://localhost:3000")),
 	}, nil
 }
 

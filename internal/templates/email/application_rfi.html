@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Permintaan Dokumen Tambahan</title>
+</head>
+<body style="margin: 0; padding: 24px 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <!-- Simulation Header Bar -->
+    <tr>
+      <td style="background-color: #ffffff; padding: 14px 24px; border-bottom: 1px solid #e2e8f0;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="font-size: 13px; font-weight: 700; color: #0f172a;">
+              ✉️ Bayu Insurance Mail Gateway
+            </td>
+            <td align="right">
+              <span style="display: inline-block; background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px;">
+                🔒 DKIM & SPF PASS
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Brand Header -->
+    <tr>
+      <td style="background-color: #0f172a; padding: 24px 32px; border-bottom: 3px solid #d97706;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td width="48" valign="middle">
+              <div style="width: 40px; height: 40px; background-color: #2563eb; border-radius: 8px; text-align: center; line-height: 40px; font-size: 16px; font-weight: 800; color: #ffffff;">
+                BI
+              </div>
+            </td>
+            <td style="padding-left: 14px;" valign="middle">
+              <div style="font-size: 17px; font-weight: 700; color: #ffffff; line-height: 1.2;">Bayu Insurance</div>
+              <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Digital Life & Health Protection</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Content Body -->
+    <tr>
+      <td style="padding: 32px 32px 24px 32px;">
+        <!-- Status Pill -->
+        <div style="display: inline-block; background-color: #fef3c7; border: 1px solid #fde68a; color: #b45309; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 12px; margin-bottom: 18px;">
+          ⚠️ TINDAK LANJUT DOKUMEN DIPERLUKAN
+        </div>
+
+        <h1 style="font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 12px 0; line-height: 1.3;">
+          Permintaan Dokumen Tambahan
+        </h1>
+
+        <p style="font-size: 14px; font-weight: 600; color: #334155; margin: 0 0 8px 0;">
+          Halo {{.FullName}},
+        </p>
+        <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">
+          Terima kasih telah mengajukan perlindungan asuransi {{.ProductName}} melalui Bayu Insurance. Tim Underwriting kami saat ini sedang melakukan verifikasi kelayakan polis Anda (Aplikasi #{{.ApplicationID}}).
+        </p>
+
+        <!-- Underwriter Note Callout -->
+        <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 16px 18px; margin-bottom: 24px;">
+          <div style="font-size: 12px; font-weight: 700; color: #92400e; margin-bottom: 6px;">
+            💬 Pesan Khusus dari Tim Underwriter:
+          </div>
+          <div style="font-size: 12px; line-height: 1.6; color: #78350f; font-style: italic;">
+            "{{.Notes}}"
+          </div>
+        </div>
+
+        <!-- Checklist Required Docs -->
+        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 10px;">
+          Daftar Berkas yang Wajib Diunggah:
+        </div>
+        <div style="margin-bottom: 24px;">
+          {{range $index, $doc := .RequiredDocs}}
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 10px;">
+            <div style="font-size: 13px; font-weight: 700; color: #0f172a;">
+              {{$doc}}
+            </div>
+          </div>
+          {{end}}
+        </div>
+
+        <!-- SLA Deadline Box -->
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px;">
+          <div style="font-size: 12px; font-weight: 700; color: #dc2626;">
+            ⏱️ Batas Waktu Pengunggahan (SLA): {{.SLADeadline}}
+          </div>
+        </div>
+
+        <!-- CTA Button -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
+          <tr>
+            <td align="center">
+              <a href="{{.UploadPortalURL}}" style="display: inline-block; width: 85%; max-width: 440px; background-color: #d97706; color: #ffffff; font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; padding: 14px 20px; border-radius: 8px;">
+                Unggah Dokumen Tambahan Sekarang 📤 →
+              </a>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 10px;">
+                Atau salin tautan: {{.UploadPortalURL}}
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Security Footer -->
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 18px;">
+          <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+            🔒 Keamanan Dokumen Terjamin
+          </div>
+          <div style="font-size: 11px; line-height: 1.5; color: #64748b; margin-bottom: 12px;">
+            Tautan di atas aman dan terenkripsi 256-bit SSL. Berkas yang Anda unggah hanya dapat diakses oleh tim medis dan underwriter resmi PT Bayu Insurance Digital Indonesia yang terdaftar dan diawasi oleh Otoritas Jasa Keuangan (OJK).
+          </div>
+          <div style="font-size: 10px; color: #94a3b8;">
+            PT Bayu Insurance Digital Indonesia • Menara Asuransi Lt. 18, Jakarta Selatan • Layanan Nasabah: 1500-888
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

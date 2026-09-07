@@ -35,10 +35,14 @@ func TestLoad(t *testing.T) {
 	t.Setenv("REDIS_PASSWORD", "redis-secret")
 	t.Setenv("REDIS_DB", "2")
 	t.Setenv("REDIS_TIMEOUT", "6")
+	t.Setenv("CUSTOMER_APP_BASE_URL", "http://localhost:3000")
 
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.CustomerAppBaseURL != "http://localhost:3000" {
+		t.Fatalf("Load() CustomerAppBaseURL = %q, want http://localhost:3000", cfg.CustomerAppBaseURL)
 	}
 	if cfg.AppName != "insurance-test" || cfg.HTTPPort != "9000" || cfg.Version != "1.0.0" || cfg.GitHash != "abc123" {
 		t.Fatalf("Load() = %+v, want env values", cfg)
@@ -121,5 +125,8 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.RedisHost != "" || cfg.RedisPort != 6379 || cfg.RedisPassword != "" || cfg.RedisDB != 0 || cfg.RedisTimeout != 5 {
 		t.Fatalf("Load() Redis defaults = %+v, want defaults", cfg)
+	}
+	if cfg.CustomerAppBaseURL != "http://localhost:3000" {
+		t.Fatalf("Load() CustomerAppBaseURL default = %q, want http://localhost:3000", cfg.CustomerAppBaseURL)
 	}
 }
