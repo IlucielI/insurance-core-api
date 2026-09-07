@@ -46,6 +46,10 @@ type Config struct {
 	RedisDB             int
 	RedisTimeout        int // in seconds
 	CustomerAppBaseURL  string
+	DBMaxOpenConns       int
+	DBMaxIdleConns       int
+	DBConnMaxLifetimeMin int
+	DBConnMaxIdleTimeMin int
 }
 
 func Load() (Config, error) {
@@ -93,6 +97,10 @@ func Load() (Config, error) {
 		RedisDB:             getEnvInt("REDIS_DB", 0),
 		RedisTimeout:        getEnvInt("REDIS_TIMEOUT", 5),
 		CustomerAppBaseURL:  getEnv("CUSTOMER_APP_BASE_URL", getEnv("APP_BASE_URL", "http://localhost:3000")),
+		DBMaxOpenConns:       getEnvInt("DB_MAX_OPEN_CONNS", 10),
+		DBMaxIdleConns:       getEnvInt("DB_MAX_IDLE_CONNS", 5),
+		DBConnMaxLifetimeMin: getEnvInt("DB_CONN_MAX_LIFETIME_MINUTES", 30),
+		DBConnMaxIdleTimeMin: getEnvInt("DB_CONN_MAX_IDLE_TIME_MINUTES", 10),
 	}, nil
 }
 

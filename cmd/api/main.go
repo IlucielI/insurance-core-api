@@ -30,7 +30,11 @@ func main() {
 	}
 
 	postgres, err := database.NewPostgres(database.PostgresConfig{
-		DatabaseURL: cfg.DatabaseURL,
+		DatabaseURL:     cfg.DatabaseURL,
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: time.Duration(cfg.DBConnMaxLifetimeMin) * time.Minute,
+		ConnMaxIdleTime: time.Duration(cfg.DBConnMaxIdleTimeMin) * time.Minute,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -180,16 +184,21 @@ func main() {
 	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
 
+	serverErrChan := make(chan error, 1)
 	go func() {
-		sig := <-shutdownChan
+		log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
+		if err := app.Listen(":" + cfg.HTTPPort); err != nil {
+			serverErrChan <- err
+		}
+	}()
+
+	select {
+	case sig := <-shutdownChan:
 		log.Printf("received signal %v, gracefully shutting down %s...", sig, cfg.AppName)
 		if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
 			log.Printf("error during server shutdown: %v", err)
 		}
-	}()
-
-	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
-	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
+	case err := <-serverErrChan:
 		log.Printf("server listener stopped: %v", err)
 	}
 }
