@@ -171,6 +171,142 @@ func TestParseEmbeddingResponse(t *testing.T) {
 	}
 }
 
+func TestClientCreateChatCompletionWithTools(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var reqBody map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&reqBody); err != nil {
+			t.Fatalf("Decode request body failed: %v", err)
+		}
+		tools, ok := reqBody["tools"].([]any)
+		if !ok || len(tools) == 0 {
+			t.Fatalf("tools not sent in request body")
+		}
+
+		writeJSON(t, writer, map[string]any{
+			"choices": []map[string]any{
+				{
+					"message": map[string]any{
+						"role":    "assistant",
+						"content": nil,
+						"tool_calls": []map[string]any{
+							{
+								"id":   "call_123",
+								"type": "function",
+								"function": map[string]any{
+									"name":      "calculate_quote",
+									"arguments": `{"age":30,"sum_assured":500000000}`,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, CompletionModel: "chat", EmbeddingModel: "embed"})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	out, err := client.CreateChatCompletionWithTools(context.Background(), ChatCompletionInput{
+		Messages: []Message{{Role: "user", Content: "hitung premi"}},
+		Tools: []Tool{
+			{
+				Type: "function",
+				Function: ToolFunction{
+					Name:        "calculate_quote",
+					Description: "calculate premium",
+					Parameters: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"age": map[string]any{"type": "integer"},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateChatCompletionWithTools() error = %v", err)
+	}
+	if len(out.ToolCalls) != 1 {
+		t.Fatalf("len(ToolCalls) = %d, want 1", len(out.ToolCalls))
+	}
+	if out.ToolCalls[0].Function.Name != "calculate_quote" {
+		t.Fatalf("tool name = %s, want calculate_quote", out.ToolCalls[0].Function.Name)
+	}
+	if out.ToolCalls[0].Function.Arguments != `{"age":30,"sum_assured":500000000}` {
+		t.Fatalf("arguments = %s", out.ToolCalls[0].Function.Arguments)
+	}
+}
+
+func TestParseChatCompletionResponseWithTools_ContentHandling(t *testing.T) {
+	// Happy path: tool calls with valid content
+	withContent := []byte(`{
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": "Let me calculate that for you.",
+				"tool_calls": [{
+					"id": "call_1",
+					"type": "function",
+					"function": {"name": "calculate_quote", "arguments": "{}"}
+				}]
+			}
+		}]
+	}`)
+	out, err := parseChatCompletionResponseWithTools(withContent)
+	if err != nil {
+		t.Fatalf("parseChatCompletionResponseWithTools(withContent) error = %v", err)
+	}
+	if out.Content != "Let me calculate that for you." || len(out.ToolCalls) != 1 {
+		t.Fatalf("unexpected output: %+v", out)
+	}
+
+	// Edge case: tool calls with null content
+	nullContent := []byte(`{
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": null,
+				"tool_calls": [{
+					"id": "call_2",
+					"type": "function",
+					"function": {"name": "calculate_quote", "arguments": "{}"}
+				}]
+			}
+		}]
+	}`)
+	out, err = parseChatCompletionResponseWithTools(nullContent)
+	if err != nil {
+		t.Fatalf("parseChatCompletionResponseWithTools(nullContent) error = %v", err)
+	}
+	if out.Content != "" || len(out.ToolCalls) != 1 {
+		t.Fatalf("unexpected output for null content: %+v", out)
+	}
+
+	// Problematic edge case: tool calls with invalid/unparsable content format
+	invalidContent := []byte(`{
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": 12345,
+				"tool_calls": [{
+					"id": "call_3",
+					"type": "function",
+					"function": {"name": "calculate_quote", "arguments": "{}"}
+				}]
+			}
+		}]
+	}`)
+	_, err = parseChatCompletionResponseWithTools(invalidContent)
+	if err == nil {
+		t.Fatal("parseChatCompletionResponseWithTools(invalidContent) expected error, got nil")
+	}
+}
+
 func writeJSON(t *testing.T, writer http.ResponseWriter, value any) {
 	t.Helper()
 	if err := json.NewEncoder(writer).Encode(value); err != nil {
