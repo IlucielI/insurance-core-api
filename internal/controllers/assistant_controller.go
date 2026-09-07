@@ -7,7 +7,6 @@ import (
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
-	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
 	"github.com/bayuanugerah/insurance-core-api/internal/validations"
 	"github.com/gofiber/fiber/v2"
 )
@@ -92,7 +91,7 @@ func (controller *AssistantController) GetConversation(ctx *fiber.Ctx) error {
 	}
 	id := strings.TrimSpace(ctx.Params("id"))
 	if id == "" {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "conversation id is required"})
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": constants.ErrConversationIDRequired})
 	}
 	mgr, ok := controller.service.(AssistantConversationManager)
 	if !ok || mgr == nil {
@@ -100,13 +99,13 @@ func (controller *AssistantController) GetConversation(ctx *fiber.Ctx) error {
 	}
 	conv, err := mgr.GetConversation(ctx.Context(), id)
 	if err != nil {
-		if errors.Is(err, repositories.ErrConversationNotFound) {
-			return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "conversation not found"})
+		if errors.Is(err, constants.ErrConversationNotFoundError) {
+			return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": constants.ErrConversationNotFound})
 		}
 		if errors.Is(err, constants.ErrAssistantServiceUnavailableError) {
 			return ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": constants.ErrAssistantServiceUnavailable})
 		}
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to get conversation"})
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": constants.ErrConversationGetFailed})
 	}
 	return ctx.JSON(fiber.Map{"data": conv})
 }
@@ -117,7 +116,7 @@ func (controller *AssistantController) DeleteConversation(ctx *fiber.Ctx) error 
 	}
 	id := strings.TrimSpace(ctx.Params("id"))
 	if id == "" {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "conversation id is required"})
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": constants.ErrConversationIDRequired})
 	}
 	mgr, ok := controller.service.(AssistantConversationManager)
 	if !ok || mgr == nil {
@@ -128,7 +127,7 @@ func (controller *AssistantController) DeleteConversation(ctx *fiber.Ctx) error 
 		if errors.Is(err, constants.ErrAssistantServiceUnavailableError) {
 			return ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": constants.ErrAssistantServiceUnavailable})
 		}
-		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete conversation"})
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": constants.ErrConversationDeleteFailed})
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }

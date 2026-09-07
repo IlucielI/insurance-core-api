@@ -447,8 +447,10 @@ func TestAssistantChat_SanitizesLeadingOrphanToolMessages(t *testing.T) {
 
 	// Pre-populate conversation with an orphan tool message at the start
 	convID := "orphan-conv"
-	_, _ = convRepo.GetOrCreateConversation(context.Background(), convID, "Test")
-	_ = convRepo.SaveMessages(context.Background(), []models.AssistantMessage{
+	if _, err := convRepo.GetOrCreateConversation(context.Background(), convID, "Test"); err != nil {
+		t.Fatalf("setup GetOrCreateConversation error: %v", err)
+	}
+	if err := convRepo.SaveMessages(context.Background(), []models.AssistantMessage{
 		{
 			ID:             "orphan-tool-msg",
 			ConversationID: convID,
@@ -464,7 +466,9 @@ func TestAssistantChat_SanitizesLeadingOrphanToolMessages(t *testing.T) {
 			Content:        "Apakah ada promo?",
 			CreatedAt:      time.Now().Add(-5 * time.Minute),
 		},
-	})
+	}); err != nil {
+		t.Fatalf("setup SaveMessages error: %v", err)
+	}
 
 	var messagesReceived []llm.Message
 	model := &assistantLLMFake{

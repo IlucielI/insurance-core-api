@@ -315,7 +315,9 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 
 func generateID() string {
 	value := make([]byte, 16)
-	_, _ = rand.Read(value)
+	if _, err := rand.Read(value); err != nil {
+		return fmt.Sprintf("%x", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(value)
 }
 

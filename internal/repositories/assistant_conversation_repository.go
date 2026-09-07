@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
+	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
 	"github.com/bayuanugerah/insurance-core-api/internal/ports"
 	"gorm.io/gorm"
@@ -17,7 +19,7 @@ const (
 )
 
 var (
-	ErrConversationNotFound = errors.New("conversation not found")
+	ErrConversationNotFound = constants.ErrConversationNotFoundError
 )
 
 type AssistantConversationRepository interface {
@@ -86,7 +88,7 @@ func (r *PostgresAssistantConversationRepository) GetConversation(ctx context.Co
 }
 
 func (r *PostgresAssistantConversationRepository) ListMessages(ctx context.Context, conversationID string, limit int) ([]models.AssistantMessage, error) {
-	cacheKey := fmt.Sprintf("assistant:conversation:%s:messages", conversationID)
+	cacheKey := conversationCacheKey(conversationID)
 	if r.cache != nil {
 		var cached []models.AssistantMessage
 		if err := r.cache.GetJSON(ctx, cacheKey, &cached); err == nil && len(cached) > 0 {
@@ -107,7 +109,9 @@ func (r *PostgresAssistantConversationRepository) ListMessages(ctx context.Conte
 	}
 
 	if r.cache != nil && len(messages) > 0 {
-		_ = r.cache.SetJSON(ctx, cacheKey, messages, defaultConversationCacheTTL)
+		if err := r.cache.SetJSON(ctx, cacheKey, messages, defaultConversationCacheTTL); err != nil {
+			log.Printf("[AssistantConversationRepository] failed to cache messages: %v", err)
+		}
 	}
 
 	if limit > 0 && len(messages) > limit {
@@ -130,13 +134,17 @@ func (r *PostgresAssistantConversationRepository) SaveMessages(ctx context.Conte
 		return err
 	}
 
-	_ = r.db.WithContext(ctx).Model(&models.AssistantConversation{}).
+	if err := r.db.WithContext(ctx).Model(&models.AssistantConversation{}).
 		Where("id = ?", msgs[0].ConversationID).
-		Update("updated_at", time.Now()).Error
+		Update("updated_at", time.Now()).Error; err != nil {
+		log.Printf("[AssistantConversationRepository] failed to update conversation updated_at: %v", err)
+	}
 
 	if r.cache != nil && len(msgs) > 0 {
-		cacheKey := fmt.Sprintf("assistant:conversation:%s:messages", msgs[0].ConversationID)
-		_ = r.cache.Delete(ctx, cacheKey)
+		cacheKey := conversationCacheKey(msgs[0].ConversationID)
+		if err := r.cache.Delete(ctx, cacheKey); err != nil {
+			log.Printf("[AssistantConversationRepository] failed to invalidate messages cache: %v", err)
+		}
 	}
 
 	return nil
@@ -148,9 +156,15 @@ func (r *PostgresAssistantConversationRepository) DeleteConversation(ctx context
 	}
 
 	if r.cache != nil {
-		cacheKey := fmt.Sprintf("assistant:conversation:%s:messages", id)
-		_ = r.cache.Delete(ctx, cacheKey)
+		cacheKey := conversationCacheKey(id)
+		if err := r.cache.Delete(ctx, cacheKey); err != nil {
+			log.Printf("[AssistantConversationRepository] failed to delete conversation cache: %v", err)
+		}
 	}
 
 	return nil
+}
+
+func conversationCacheKey(conversationID string) string {
+	return fmt.Sprintf("tenant:%s:assistant:conversation:%s:messages", defaultTenantScope, sanitizeCacheSegment(conversationID))
 }
