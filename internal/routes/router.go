@@ -14,7 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, storageService *services.StorageService, mailer ports.Mailer, messageBus ports.MessageBus) *fiber.App {
+func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, storageService *services.StorageService, mailer ports.Mailer, messageBus ports.MessageBus, questionnaireRepositories ...repositories.QuestionnaireRepository) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
 	})
@@ -23,10 +23,17 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	app.Use(logger.New())
 	app.Use(cors.New())
 
+	var questionnaireRepository repositories.QuestionnaireRepository
+	if len(questionnaireRepositories) > 0 {
+		questionnaireRepository = questionnaireRepositories[0]
+	}
+
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
 	productService := services.NewProductService(productRepository)
 	productController := controllers.NewProductController(productService)
-	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer, messageBus)
+	questionnaireService := services.NewQuestionnaireService(questionnaireRepository, productRepository)
+	questionnaireController := controllers.NewQuestionnaireController(questionnaireService)
+	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer, messageBus, questionnaireRepository)
 	applicationController := controllers.NewApplicationController(applicationService)
 	assistantController := controllers.NewAssistantController(assistantService)
 	storageController := controllers.NewStorageController(storageService)
@@ -37,7 +44,10 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api.Get("/products", productController.List)
 	api.Get("/products/:slug", productController.Detail)
 	api.Post("/products/:slug/quotes", productController.CreateQuote)
+	api.Get("/products/:slug/questionnaire", questionnaireController.GetByProduct)
+	api.Get("/questionnaires", questionnaireController.GetDefault)
 	api.Post("/products/:slug/applications", applicationController.Create)
+	api.Post("/applications", applicationController.Create)
 	api.Get("/applications", applicationController.List)
 	api.Get("/applications/:id", applicationController.Get)
 	api.Patch("/applications/:id/status", applicationController.UpdateStatus)

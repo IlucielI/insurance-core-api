@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"html"
 	"log"
 	"strings"
@@ -16,26 +17,32 @@ import (
 	"github.com/bayuanugerah/insurance-core-api/internal/ports"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
 	emailtemplate "github.com/bayuanugerah/insurance-core-api/internal/templates/email"
+	"github.com/bayuanugerah/insurance-core-api/internal/validations"
 )
 
 const applicationSubmittedSubject = "application.submitted"
 
 type ApplicationService struct {
-	products      repositories.ProductRepository
-	applications  repositories.ApplicationRepository
-	reviewChecks  repositories.ApplicationReviewCheckRepository
-	quotes        *ProductService
-	mailer        ports.Mailer
-	messageBus    ports.MessageBus
-	emailRenderer *emailtemplate.Renderer
+	products       repositories.ProductRepository
+	applications   repositories.ApplicationRepository
+	reviewChecks   repositories.ApplicationReviewCheckRepository
+	questionnaires repositories.QuestionnaireRepository
+	quotes         *ProductService
+	mailer         ports.Mailer
+	messageBus     ports.MessageBus
+	emailRenderer  *emailtemplate.Renderer
 }
 
-func NewApplicationService(products repositories.ProductRepository, applications repositories.ApplicationRepository, reviewChecks repositories.ApplicationReviewCheckRepository, quotes *ProductService, mailer ports.Mailer, messageBus ports.MessageBus) *ApplicationService {
+func NewApplicationService(products repositories.ProductRepository, applications repositories.ApplicationRepository, reviewChecks repositories.ApplicationReviewCheckRepository, quotes *ProductService, mailer ports.Mailer, messageBus ports.MessageBus, questionnaires ...repositories.QuestionnaireRepository) *ApplicationService {
 	renderer, err := emailtemplate.NewRenderer()
 	if err != nil {
 		renderer = nil
 	}
-	return &ApplicationService{products: products, applications: applications, reviewChecks: reviewChecks, quotes: quotes, mailer: mailer, messageBus: messageBus, emailRenderer: renderer}
+	var qRepo repositories.QuestionnaireRepository
+	if len(questionnaires) > 0 {
+		qRepo = questionnaires[0]
+	}
+	return &ApplicationService{products: products, applications: applications, reviewChecks: reviewChecks, questionnaires: qRepo, quotes: quotes, mailer: mailer, messageBus: messageBus, emailRenderer: renderer}
 }
 
 func (service *ApplicationService) Create(ctx context.Context, slug string, input dtos.CreateApplicationRequest) (models.Application, error) {
@@ -56,9 +63,55 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 		return models.Application{}, err
 	}
 
+	var questions []models.Question
+	if service.questionnaires != nil && len(input.Answers) > 0 {
+		_, qList, err := service.questionnaires.FindByProductIDOrCategory(ctx, product.ID, string(product.Category))
+		if err == nil && len(qList) > 0 {
+			questions = qList
+		}
+	}
+
+	totalMultiplier := evaluateQuestionnairePricingMultiplier(questions, input.Answers)
+
+	finalPremium := quote.EstimatedPremium
+	if totalMultiplier > 0 && totalMultiplier != 1.0 {
+		finalPremium = roundUpToNearestThousand(float64(quote.EstimatedPremium) * totalMultiplier)
+	}
+
 	id, err := applicationID()
 	if err != nil {
 		return models.Application{}, err
+	}
+
+	var reviewChecks []models.ApplicationReviewCheck
+	if len(questions) > 0 && len(input.Answers) > 0 {
+		if err := validations.ValidateAnswers(questions, input.Answers); err != nil {
+			return models.Application{}, err
+		}
+		questionnaireService := NewQuestionnaireService(service.questionnaires, service.products)
+		reviewChecks = questionnaireService.EvaluateUnderwritingReviewChecks(id, questions, input.Answers)
+
+		answers := make([]models.ApplicationAnswer, 0, len(input.Answers))
+		for _, a := range input.Answers {
+			ansID, err := applicationID()
+			if err != nil {
+				return models.Application{}, err
+			}
+			answers = append(answers, models.ApplicationAnswer{
+				ID:            ansID,
+				ApplicationID: id,
+				QuestionID:    a.QuestionID,
+				Code:          a.Code,
+				AnswerValue:   a.Value,
+				CreatedAt:     time.Now().UTC(),
+			})
+		}
+		if err := service.questionnaires.SaveAnswers(ctx, answers); err != nil {
+			return models.Application{}, err
+		}
+	}
+	if len(reviewChecks) == 0 {
+		reviewChecks = defaultApplicationReviewChecks(id)
 	}
 
 	application := models.Application{
@@ -72,12 +125,9 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 		SumAssured:       input.SumAssured,
 		PaymentTerm:      input.PaymentTerm,
 		PaymentFrequency: input.PaymentFrequency,
-		Smoker:           input.Smoker,
-		OccupationClass:  input.OccupationClass,
-		HealthRisk:       input.HealthRisk,
-		Premium:          quote.EstimatedPremium,
+		Premium:          finalPremium,
 		Status:           models.ApplicationStatusSubmitted,
-		ReviewChecks:     defaultApplicationReviewChecks(id),
+		ReviewChecks:     reviewChecks,
 	}
 
 	if err := service.applications.Create(ctx, &application); err != nil {
@@ -308,4 +358,57 @@ func (service *ApplicationService) publishApplicationSubmitted(ctx context.Conte
 	}); err != nil {
 		log.Printf("[ApplicationService] warning: failed to publish %s event: %v", applicationSubmittedSubject, err)
 	}
+}
+
+func evaluateQuestionnairePricingMultiplier(questions []models.Question, answers []dtos.ApplicationAnswerInput) float64 {
+	if len(answers) == 0 || len(questions) == 0 {
+		return 1.0
+	}
+
+	answerMap := make(map[string]any, len(answers))
+	for _, a := range inputToMap(answers) {
+		answerMap[a.key] = a.val
+	}
+
+	totalMultiplier := 1.0
+
+	for _, q := range questions {
+		val, exists := answerMap[q.ID]
+		if !exists {
+			val, exists = answerMap[q.Code]
+		}
+		if !exists || val == nil {
+			continue
+		}
+
+		valStr := strings.TrimSpace(fmt.Sprintf("%v", val))
+		for _, opt := range q.Options {
+			if strings.EqualFold(opt.Value, valStr) {
+				if opt.Multiplier > 0 {
+					totalMultiplier *= opt.Multiplier
+				}
+				break
+			}
+		}
+	}
+
+	return totalMultiplier
+}
+
+type answerEntry struct {
+	key string
+	val any
+}
+
+func inputToMap(answers []dtos.ApplicationAnswerInput) []answerEntry {
+	entries := make([]answerEntry, 0, len(answers)*2)
+	for _, a := range answers {
+		if k := strings.TrimSpace(a.QuestionID); k != "" {
+			entries = append(entries, answerEntry{key: k, val: a.Value})
+		}
+		if k := strings.TrimSpace(a.Code); k != "" {
+			entries = append(entries, answerEntry{key: k, val: a.Value})
+		}
+	}
+	return entries
 }

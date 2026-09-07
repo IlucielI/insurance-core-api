@@ -21,15 +21,24 @@ func NewApplicationController(service *services.ApplicationService) *Application
 }
 
 func (controller *ApplicationController) Create(ctx *fiber.Ctx) error {
-	slug, err := validations.ValidateProductSlug(ctx.Params("slug"))
-	if err != nil {
-		return badRequest(ctx, err.Error())
-	}
+	rawSlug := strings.TrimSpace(ctx.Params("slug"))
 	var request dtos.CreateApplicationRequest
 	if err := ctx.BodyParser(&request); err != nil {
 		return badRequest(ctx, constants.ErrApplicationBodyInvalid)
 	}
+	var err error
 	request, err = validations.ValidateApplicationRequest(request)
+	if err != nil {
+		return badRequest(ctx, err.Error())
+	}
+	if rawSlug == "" {
+		if request.ProductSlug != "" {
+			rawSlug = request.ProductSlug
+		} else if request.ProductID != "" {
+			rawSlug = request.ProductID
+		}
+	}
+	slug, err := validations.ValidateProductSlug(rawSlug)
 	if err != nil {
 		return badRequest(ctx, err.Error())
 	}

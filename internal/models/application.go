@@ -24,9 +24,6 @@ type Application struct {
 	SumAssured       int64                    `gorm:"not null" json:"sum_assured"`
 	PaymentTerm      int                      `gorm:"not null" json:"payment_term"`
 	PaymentFrequency string                   `gorm:"type:varchar(16);not null" json:"payment_frequency"`
-	Smoker           string                   `gorm:"type:varchar(8);not null" json:"smoker"`
-	OccupationClass  string                   `gorm:"type:varchar(16);not null" json:"occupation_class"`
-	HealthRisk       string                   `gorm:"type:varchar(16);not null" json:"health_risk"`
 	Premium          int64                    `gorm:"not null" json:"premium"`
 	Status           ApplicationStatus        `gorm:"type:varchar(32);not null;index" json:"status"`
 	CreatedAt        time.Time                `json:"created_at"`

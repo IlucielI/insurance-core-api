@@ -376,3 +376,47 @@ func passedReviewChecks(applicationID string) []models.ApplicationReviewCheck {
 	}
 	return checks
 }
+
+func TestEvaluateQuestionnairePricingMultiplier(t *testing.T) {
+	questions := []models.Question{
+		{
+			ID:   "q_test_1",
+			Code: "custom_lifestyle",
+			Options: []models.QuestionOption{
+				{
+					Value:      "active_gym",
+					Label:      "Rutin Olahraga",
+					Multiplier: 0.95, // 0.95 Diskon 5%
+				},
+				{
+					Value:      "sedentary",
+					Label:      "Jarang Gerak",
+					Multiplier: 1.15, // 1.15 Loading 15%
+				},
+			},
+		},
+		{
+			ID:   "q_test_2",
+			Code: "custom_hobby",
+			Options: []models.QuestionOption{
+				{
+					Value:      "scuba_diving",
+					Label:      "Hobi Ekstrem",
+					Multiplier: 1.25, // 1.25 Loading 25%
+				},
+			},
+		},
+	}
+
+	answers := []dtos.ApplicationAnswerInput{
+		{QuestionID: "q_test_1", Code: "custom_lifestyle", Value: "active_gym"},
+		{QuestionID: "q_test_2", Code: "custom_hobby", Value: "scuba_diving"},
+	}
+
+	multiplier := evaluateQuestionnairePricingMultiplier(questions, answers)
+	expected := 0.95 * 1.25 // 1.1875
+
+	if multiplier < expected-0.0001 || multiplier > expected+0.0001 {
+		t.Fatalf("multiplier = %v, want %v", multiplier, expected)
+	}
+}
