@@ -16,6 +16,10 @@ import (
 
 const defaultRedisTimeout = 5 * time.Second
 
+var (
+	ErrClientClosed = errors.New("redis client is closed")
+)
+
 type Config struct {
 	Host     string
 	Port     int
@@ -31,6 +35,8 @@ type Client struct {
 	timeout  time.Duration
 
 	mu     sync.Mutex
+	closed bool
+	wg     sync.WaitGroup
 	client *redis.Client
 
 	connectFunc func() (*redis.Client, error)
@@ -123,24 +129,50 @@ func NewClient(config Config) (*Client, error) {
 	return client, nil
 }
 
+func (client *Client) acquire() error {
+	if client == nil {
+		return errors.New("redis client is required")
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.closed {
+		return ErrClientClosed
+	}
+	client.wg.Add(1)
+	return nil
+}
+
+func (client *Client) release() {
+	if client != nil {
+		client.wg.Done()
+	}
+}
+
 func (client *Client) Close() error {
 	if client == nil {
 		return nil
 	}
 	client.mu.Lock()
+	if client.closed {
+		client.mu.Unlock()
+		return nil
+	}
+	client.closed = true
+	client.mu.Unlock()
+
+	client.wg.Wait()
+
+	client.mu.Lock()
 	defer client.mu.Unlock()
 
+	var closeErr error
 	if client.closeFunc != nil {
-		if err := client.closeFunc(); err != nil {
-			return err
-		}
+		closeErr = client.closeFunc()
 	} else if client.client != nil {
-		if err := client.client.Close(); err != nil {
-			return err
-		}
+		closeErr = client.client.Close()
 	}
 	client.client = nil
-	return nil
+	return closeErr
 }
 
 func (client *Client) Get(ctx context.Context, key string) (string, error) {
@@ -151,6 +183,11 @@ func (client *Client) Get(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", errors.New("key is required")
 	}
+
+	if err := client.acquire(); err != nil {
+		return "", err
+	}
+	defer client.release()
 
 	return client.getFunc(ctx, key)
 }
@@ -163,6 +200,11 @@ func (client *Client) Set(ctx context.Context, key string, value any, expiration
 	if key == "" {
 		return errors.New("key is required")
 	}
+
+	if err := client.acquire(); err != nil {
+		return err
+	}
+	defer client.release()
 
 	return client.setFunc(ctx, key, value, expiration)
 }
@@ -198,6 +240,11 @@ func (client *Client) Delete(ctx context.Context, keys ...string) error {
 		return nil
 	}
 
+	if err := client.acquire(); err != nil {
+		return err
+	}
+	defer client.release()
+
 	return client.delFunc(ctx, validKeys...)
 }
 
@@ -210,6 +257,11 @@ func (client *Client) Exists(ctx context.Context, keys ...string) (bool, error) 
 		return false, nil
 	}
 
+	if err := client.acquire(); err != nil {
+		return false, err
+	}
+	defer client.release()
+
 	count, err := client.existsFunc(ctx, validKeys...)
 	if err != nil {
 		return false, err
@@ -221,6 +273,12 @@ func (client *Client) Ping(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
+	if err := client.acquire(); err != nil {
+		return err
+	}
+	defer client.release()
+
 	return client.pingFunc(ctx)
 }
 
@@ -231,6 +289,10 @@ func (client *Client) ensureClient() (*redis.Client, error) {
 
 	client.mu.Lock()
 	defer client.mu.Unlock()
+
+	if client.closed {
+		return nil, ErrClientClosed
+	}
 
 	if client.client != nil {
 		return client.client, nil

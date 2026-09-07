@@ -42,8 +42,10 @@ func (repository *PostgresProductRepository) WithCache(cache ports.Cache) *Postg
 	return repository
 }
 
+const defaultTenantScope = "global"
+
 func (repository *PostgresProductRepository) FindAll(ctx context.Context, filter ProductFilter) ([]models.Product, error) {
-	cacheKey := productFilterCacheKey(filter)
+	cacheKey := productFilterCacheKey(defaultTenantScope, filter)
 	if repository.cache != nil && cacheKey != "" {
 		var cached []models.Product
 		if err := repository.cache.GetJSON(ctx, cacheKey, &cached); err == nil && len(cached) > 0 {
@@ -84,7 +86,7 @@ func (repository *PostgresProductRepository) FindAll(ctx context.Context, filter
 }
 
 func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slug string) (models.Product, error) {
-	cacheKey := "catalog:products:slug:" + sanitizeCacheSegment(slug)
+	cacheKey := fmt.Sprintf("tenant:%s:catalog:products:slug:%s", defaultTenantScope, sanitizeCacheSegment(slug))
 	if repository.cache != nil {
 		var cachedProduct models.Product
 		if err := repository.cache.GetJSON(ctx, cacheKey, &cachedProduct); err == nil && cachedProduct.ID != "" {
@@ -110,7 +112,7 @@ func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slu
 	return product, nil
 }
 
-func productFilterCacheKey(filter ProductFilter) string {
+func productFilterCacheKey(tenant string, filter ProductFilter) string {
 	category := sanitizeCacheSegment(filter.Category)
 	featured := "all"
 	if filter.IsFeatured != nil {
@@ -120,7 +122,7 @@ func productFilterCacheKey(filter ProductFilter) string {
 			featured = "false"
 		}
 	}
-	return fmt.Sprintf("catalog:products:list:%s:%s:%d:%d", category, featured, filter.Limit, filter.Offset)
+	return fmt.Sprintf("tenant:%s:catalog:products:list:%s:%s:%d:%d", tenant, category, featured, filter.Limit, filter.Offset)
 }
 
 func sanitizeCacheSegment(val string) string {

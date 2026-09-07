@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -315,3 +316,75 @@ func TestContextCancelled(t *testing.T) {
 		t.Fatal("Ping() with cancelled ctx error = nil, want error")
 	}
 }
+
+func TestOperationAfterClose(t *testing.T) {
+	client, err := NewClient(Config{Host: "localhost"})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	client.closeFunc = func() error { return nil }
+	if err := client.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	// Multiple Close calls should succeed safely
+	if err := client.Close(); err != nil {
+		t.Fatalf("subsequent Close() error = %v", err)
+	}
+
+	// Operations after Close must return ErrClientClosed
+	if _, err := client.Get(context.Background(), "key"); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("Get after Close error = %v, want ErrClientClosed", err)
+	}
+	if err := client.Set(context.Background(), "key", "val", time.Minute); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("Set after Close error = %v, want ErrClientClosed", err)
+	}
+	if err := client.Delete(context.Background(), "key"); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("Delete after Close error = %v, want ErrClientClosed", err)
+	}
+	if _, err := client.Exists(context.Background(), "key"); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("Exists after Close error = %v, want ErrClientClosed", err)
+	}
+	if err := client.Ping(context.Background()); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("Ping after Close error = %v, want ErrClientClosed", err)
+	}
+}
+
+func TestCloseConcurrentWithOperations(t *testing.T) {
+	client, err := NewClient(Config{Host: "localhost"})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	client.getFunc = func(ctx context.Context, key string) (string, error) {
+		time.Sleep(2 * time.Millisecond)
+		return "val", nil
+	}
+	client.closeFunc = func() error {
+		time.Sleep(5 * time.Millisecond)
+		return nil
+	}
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := client.Get(context.Background(), "some-key")
+			if err != nil && !errors.Is(err, ErrClientClosed) {
+				t.Errorf("unexpected error: %v", err)
+			}
+		}()
+	}
+
+	time.Sleep(1 * time.Millisecond)
+	if err := client.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	wg.Wait()
+}
+

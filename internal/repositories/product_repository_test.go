@@ -80,7 +80,7 @@ func TestPostgresProductRepositoryWithCache(t *testing.T) {
 		Name: "Cached Product",
 		Slug: "cached-slug",
 	}
-	if err := cache.SetJSON(context.Background(), "catalog:products:slug:cached-slug", cachedProduct, time.Hour); err != nil {
+	if err := cache.SetJSON(context.Background(), "tenant:global:catalog:products:slug:cached-slug", cachedProduct, time.Hour); err != nil {
 		t.Fatalf("cache.SetJSON error = %v", err)
 	}
 
@@ -99,15 +99,15 @@ func TestPostgresProductRepositoryWithCache(t *testing.T) {
 	// Preload cache for FindAll
 	cachedList := []models.Product{cachedProduct}
 	filter := ProductFilter{Category: "life", Limit: 10, Offset: 0}
-	filterKey := productFilterCacheKey(filter)
-	if filterKey != "catalog:products:list:life:all:10:0" {
-		t.Fatalf("filterKey = %q, want catalog:products:list:life:all:10:0", filterKey)
+	filterKey := productFilterCacheKey(defaultTenantScope, filter)
+	if filterKey != "tenant:global:catalog:products:list:life:all:10:0" {
+		t.Fatalf("filterKey = %q, want tenant:global:catalog:products:list:life:all:10:0", filterKey)
 	}
 
 	filterPage2 := ProductFilter{Category: "life", Limit: 10, Offset: 10}
-	filterKeyPage2 := productFilterCacheKey(filterPage2)
-	if filterKeyPage2 != "catalog:products:list:life:all:10:10" {
-		t.Fatalf("filterKeyPage2 = %q, want catalog:products:list:life:all:10:10", filterKeyPage2)
+	filterKeyPage2 := productFilterCacheKey(defaultTenantScope, filterPage2)
+	if filterKeyPage2 != "tenant:global:catalog:products:list:life:all:10:10" {
+		t.Fatalf("filterKeyPage2 = %q, want tenant:global:catalog:products:list:life:all:10:10", filterKeyPage2)
 	}
 	if filterKey == filterKeyPage2 {
 		t.Fatal("cache key collision between page 1 and page 2")
@@ -127,8 +127,8 @@ func TestPostgresProductRepositoryWithCache(t *testing.T) {
 
 	// Delimiter sanitization test (cache poisoning prevention)
 	filterWithColon := ProductFilter{Category: "life:extra", Limit: 10, Offset: 0}
-	sanitizedKey := productFilterCacheKey(filterWithColon)
-	if sanitizedKey != "catalog:products:list:life_extra:all:10:0" {
-		t.Fatalf("sanitizedKey = %q, want catalog:products:list:life_extra:all:10:0", sanitizedKey)
+	sanitizedKey := productFilterCacheKey(defaultTenantScope, filterWithColon)
+	if sanitizedKey != "tenant:global:catalog:products:list:life_extra:all:10:0" {
+		t.Fatalf("sanitizedKey = %q, want tenant:global:catalog:products:list:life_extra:all:10:0", sanitizedKey)
 	}
 }
