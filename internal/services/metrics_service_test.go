@@ -77,8 +77,8 @@ func TestMetricsService_GetAdminMetrics(t *testing.T) {
 		if len(res.TopProducts) != 1 {
 			t.Fatalf("TopProducts len = %d, want 1", len(res.TopProducts))
 		}
-		if res.TopProducts[0].Category != "ASURANSI JIWA" {
-			t.Errorf("TopProducts category = %s, want ASURANSI JIWA", res.TopProducts[0].Category)
+		if res.TopProducts[0].Category != "life" {
+			t.Errorf("TopProducts category = %s, want life", res.TopProducts[0].Category)
 		}
 	})
 

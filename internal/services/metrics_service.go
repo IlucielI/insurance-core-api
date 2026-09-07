@@ -74,21 +74,11 @@ func (s *metricsService) GetAdminMetrics(ctx context.Context) (dtos.AdminMetrics
 
 	topProducts := make([]dtos.ProductPerformanceMetricDTO, 0, len(raw.TopProducts))
 	for _, tp := range raw.TopProducts {
-		categoryDisplay := string(tp.Category)
-		switch tp.Category {
-		case "life":
-			categoryDisplay = "ASURANSI JIWA"
-		case "health":
-			categoryDisplay = "ASURANSI KESEHATAN"
-		case "vehicle":
-			categoryDisplay = "ASURANSI KENDARAAN"
-		}
-
 		topProducts = append(topProducts, dtos.ProductPerformanceMetricDTO{
 			ProductID:           tp.ProductID,
 			ProductSlug:         tp.ProductSlug,
 			ProductName:         tp.ProductName,
-			Category:            categoryDisplay,
+			Category:            string(tp.Category),
 			ActivePoliciesCount: tp.ActivePoliciesCount,
 			TotalPremium:        tp.TotalPremium,
 			LossRatio:           0.15,
