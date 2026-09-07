@@ -18,6 +18,8 @@ type assistantLLMFake struct {
 	embedding             []float32
 	embedErr, chatErr     error
 	embedCalls, chatCalls int
+	toolCalls             []llm.ToolCall
+	chatWithToolsFn       func(context.Context, llm.ChatCompletionInput) (llm.ChatCompletionOutput, error)
 }
 
 func (f *assistantLLMFake) CreateEmbedding(context.Context, llm.EmbeddingInput) ([]float32, error) {
@@ -27,6 +29,23 @@ func (f *assistantLLMFake) CreateEmbedding(context.Context, llm.EmbeddingInput) 
 func (f *assistantLLMFake) CreateChatCompletion(context.Context, llm.ChatCompletionInput) (string, error) {
 	f.chatCalls++
 	return f.answer, f.chatErr
+}
+func (f *assistantLLMFake) CreateChatCompletionWithTools(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+	if f.chatWithToolsFn != nil {
+		return f.chatWithToolsFn(ctx, in)
+	}
+	f.chatCalls++
+	if f.chatErr != nil {
+		return llm.ChatCompletionOutput{}, f.chatErr
+	}
+	if len(f.toolCalls) > 0 {
+		tc := f.toolCalls
+		f.toolCalls = nil
+		return llm.ChatCompletionOutput{
+			ToolCalls: tc,
+		}, nil
+	}
+	return llm.ChatCompletionOutput{Content: f.answer}, nil
 }
 
 type knowledgeFake struct {
@@ -156,6 +175,148 @@ func TestAssistantChatWithQuoteRequiresQuoteServiceAndSlug(t *testing.T) {
 	_, err = NewAssistantService(repo, model, NewProductService(&fakeProductRepository{product: productFixture()})).ChatWithQuote(context.Background(), "hitung premi", &request, " ")
 	if err == nil {
 		t.Fatal("expected slug error")
+	}
+}
+
+func TestAssistantChatWithTools_CalculateQuote(t *testing.T) {
+	repo := &knowledgeFake{}
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+
+	// Simulated two-turn tool conversation:
+	// Turn 1: LLM returns tool_call calculate_quote
+	// Turn 2: LLM receives tool output and returns final natural language summary
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			// Check if previous message has role "tool" (second iteration)
+			if len(in.Messages) > 0 && in.Messages[len(in.Messages)-1].Role == "tool" {
+				toolMsg := in.Messages[len(in.Messages)-1]
+				if !strings.Contains(toolMsg.Content, "estimated_premium") {
+					t.Fatalf("tool message does not contain estimated_premium: %s", toolMsg.Content)
+				}
+				return llm.ChatCompletionOutput{
+					Content: "Estimasi premi Anda adalah Rp 100.000 per bulan.",
+				}, nil
+			}
+
+			// First iteration: request calculate_quote
+			return llm.ChatCompletionOutput{
+				ToolCalls: []llm.ToolCall{
+					{
+						ID:   "call_quote_1",
+						Type: "function",
+						Function: llm.ToolCallFunction{
+							Name:      "calculate_quote",
+							Arguments: `{"product_slug":"secure-life-plus","age":30,"gender":"male","sum_assured":100000000,"payment_term":10,"payment_frequency":"monthly"}`,
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	service := NewAssistantService(repo, model, productService)
+	resp, err := service.Chat(context.Background(), "Hitungkan premi asuransi secure life plus untuk saya")
+	if err != nil {
+		t.Fatalf("Chat() error = %v", err)
+	}
+
+	if resp.Answer != "Estimasi premi Anda adalah Rp 100.000 per bulan." {
+		t.Fatalf("Chat() answer = %q", resp.Answer)
+	}
+	if len(resp.ToolsUsed) != 1 || resp.ToolsUsed[0] != "calculate_quote" {
+		t.Fatalf("ToolsUsed = %+v, want ['calculate_quote']", resp.ToolsUsed)
+	}
+}
+
+func TestAssistantChatWithTools_ListProducts(t *testing.T) {
+	repo := &knowledgeFake{}
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			if len(in.Messages) > 0 && in.Messages[len(in.Messages)-1].Role == "tool" {
+				return llm.ChatCompletionOutput{
+					Content: "Produk yang tersedia adalah Secure Life Plus.",
+				}, nil
+			}
+
+			return llm.ChatCompletionOutput{
+				ToolCalls: []llm.ToolCall{
+					{
+						ID:   "call_list_1",
+						Type: "function",
+						Function: llm.ToolCallFunction{
+							Name:      "list_products",
+							Arguments: `{"category":"life"}`,
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	service := NewAssistantService(repo, model, productService)
+	resp, err := service.Chat(context.Background(), "Ada produk asuransi apa saja?")
+	if err != nil {
+		t.Fatalf("Chat() error = %v", err)
+	}
+
+	if resp.Answer != "Produk yang tersedia adalah Secure Life Plus." {
+		t.Fatalf("Chat() answer = %q", resp.Answer)
+	}
+	if len(resp.ToolsUsed) != 1 || resp.ToolsUsed[0] != "list_products" {
+		t.Fatalf("ToolsUsed = %+v, want ['list_products']", resp.ToolsUsed)
+	}
+}
+
+func TestAssistantChatWithTools_ToolErrorHandled(t *testing.T) {
+	repo := &knowledgeFake{}
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			if len(in.Messages) > 0 && in.Messages[len(in.Messages)-1].Role == "tool" {
+				toolMsg := in.Messages[len(in.Messages)-1]
+				if !strings.Contains(toolMsg.Content, "error") {
+					t.Fatalf("expected error in tool message: %s", toolMsg.Content)
+				}
+				return llm.ChatCompletionOutput{
+					Content: "Mohon maaf, uang pertanggungan di luar batas.",
+				}, nil
+			}
+
+			// Out of range sum_assured to trigger error in calculate_quote
+			return llm.ChatCompletionOutput{
+				ToolCalls: []llm.ToolCall{
+					{
+						ID:   "call_err_1",
+						Type: "function",
+						Function: llm.ToolCallFunction{
+							Name:      "calculate_quote",
+							Arguments: `{"product_slug":"secure-life-plus","age":30,"gender":"male","sum_assured":1,"payment_term":10}`,
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	service := NewAssistantService(repo, model, productService)
+	resp, err := service.Chat(context.Background(), "Hitung premi 1 rupiah")
+	if err != nil {
+		t.Fatalf("Chat() error = %v", err)
+	}
+	if resp.Answer != "Mohon maaf, uang pertanggungan di luar batas." {
+		t.Fatalf("Chat() answer = %q", resp.Answer)
+	}
+	if len(resp.ToolsUsed) != 1 || resp.ToolsUsed[0] != "calculate_quote" {
+		t.Fatalf("ToolsUsed = %+v", resp.ToolsUsed)
 	}
 }
 

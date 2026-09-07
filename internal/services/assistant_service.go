@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
+	"github.com/bayuanugerah/insurance-core-api/internal/validations"
 	pgvector "github.com/pgvector/pgvector-go"
 )
 
@@ -22,11 +24,16 @@ type AssistantService struct {
 
 type AssistantLLM interface {
 	CreateChatCompletion(context.Context, llm.ChatCompletionInput) (string, error)
+	CreateChatCompletionWithTools(context.Context, llm.ChatCompletionInput) (llm.ChatCompletionOutput, error)
 	CreateEmbedding(context.Context, llm.EmbeddingInput) ([]float32, error)
 }
 
 type AssistantQuoteService interface {
 	CreateProductQuote(context.Context, string, dtos.CreateProductQuoteInput) (dtos.ProductQuote, error)
+}
+
+type AssistantProductLister interface {
+	ListProducts(context.Context, dtos.ProductListQuery) ([]models.Product, error)
 }
 
 func (service *AssistantService) Chat(ctx context.Context, message string) (dtos.AssistantChatResponse, error) {
@@ -103,14 +110,59 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 	}
 
 	contextText := strings.TrimSpace(buildContext(matches) + "\n\n" + quoteContext)
-	answer, err := service.llm.CreateChatCompletion(ctx, llm.ChatCompletionInput{
-		Messages: []llm.Message{
-			{Role: "system", Content: "You are an insurance assistant. Answer using only the provided context. If the context is insufficient, say you do not know."},
-			{Role: "user", Content: "Context:\n" + contextText + "\n\nQuestion: " + message},
+	messages := []llm.Message{
+		{
+			Role:    "system",
+			Content: "You are an insurance assistant. Answer using only the provided context and tools. If the context is insufficient, say you do not know. If the user wants to calculate premium and provides the required details, call the calculate_quote tool. If required information is missing, ask the user to provide it. If the user asks about available products, call list_products.",
 		},
-	})
-	if err != nil {
-		return dtos.AssistantChatResponse{}, err
+		{
+			Role:    "user",
+			Content: strings.TrimSpace("Context:\n" + contextText + "\n\nQuestion: " + message),
+		},
+	}
+
+	tools := assistantTools()
+	toolsUsed := make([]string, 0)
+	var answer string
+
+	for iteration := 0; iteration < 3; iteration++ {
+		output, err := service.llm.CreateChatCompletionWithTools(ctx, llm.ChatCompletionInput{
+			Messages: messages,
+			Tools:    tools,
+		})
+		if err != nil {
+			return dtos.AssistantChatResponse{}, err
+		}
+
+		if len(output.ToolCalls) == 0 {
+			answer = output.Content
+			break
+		}
+
+		messages = append(messages, llm.Message{
+			Role:      "assistant",
+			Content:   output.Content,
+			ToolCalls: output.ToolCalls,
+		})
+
+		for _, toolCall := range output.ToolCalls {
+			toolsUsed = append(toolsUsed, toolCall.Function.Name)
+			toolResult := service.executeTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
+			messages = append(messages, llm.Message{
+				Role:       "tool",
+				Content:    toolResult,
+				ToolCallID: toolCall.ID,
+			})
+		}
+	}
+
+	if answer == "" {
+		fallback, err := service.llm.CreateChatCompletion(ctx, llm.ChatCompletionInput{
+			Messages: messages,
+		})
+		if err == nil {
+			answer = fallback
+		}
 	}
 
 	sources := make([]dtos.AssistantSource, 0, len(matches))
@@ -123,7 +175,197 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 		})
 	}
 
-	return dtos.AssistantChatResponse{Answer: answer, Sources: sources}, nil
+	return dtos.AssistantChatResponse{Answer: answer, Sources: sources, ToolsUsed: toolsUsed}, nil
+}
+
+func (service *AssistantService) executeTool(ctx context.Context, name string, rawArgs string) string {
+	switch name {
+	case "calculate_quote":
+		if service.quotes == nil {
+			return `{"error":"quote service is unavailable"}`
+		}
+		var args struct {
+			ProductSlug      string `json:"product_slug"`
+			Age              int    `json:"age"`
+			Gender           string `json:"gender"`
+			SumAssured       int64  `json:"sum_assured"`
+			PaymentTerm      int    `json:"payment_term"`
+			PaymentFrequency string `json:"payment_frequency"`
+			Smoker           string `json:"smoker"`
+			OccupationClass  string `json:"occupation_class"`
+			HealthRisk       string `json:"health_risk"`
+		}
+		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+			return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err.Error())
+		}
+		args.ProductSlug = strings.TrimSpace(args.ProductSlug)
+		if args.ProductSlug == "" {
+			return `{"error":"product_slug is required"}`
+		}
+
+		quoteReq := dtos.ProductQuoteRequest{
+			Age:              args.Age,
+			Gender:           strings.ToLower(strings.TrimSpace(args.Gender)),
+			SumAssured:       args.SumAssured,
+			PaymentTerm:      args.PaymentTerm,
+			PaymentFrequency: strings.ToLower(strings.TrimSpace(args.PaymentFrequency)),
+			Smoker:           strings.ToLower(strings.TrimSpace(args.Smoker)),
+			OccupationClass:  strings.ToLower(strings.TrimSpace(args.OccupationClass)),
+			HealthRisk:       strings.ToLower(strings.TrimSpace(args.HealthRisk)),
+		}
+		if quoteReq.PaymentFrequency == "" {
+			quoteReq.PaymentFrequency = constants.PaymentFrequencyMonthly
+		}
+		if quoteReq.Smoker == "" || quoteReq.Smoker == "non_smoker" {
+			quoteReq.Smoker = constants.SmokerNo
+		} else if quoteReq.Smoker == "smoker" {
+			quoteReq.Smoker = constants.SmokerYes
+		}
+		if quoteReq.OccupationClass == "" || quoteReq.OccupationClass == "1" || quoteReq.OccupationClass == "standard" {
+			quoteReq.OccupationClass = constants.OccupationStandard
+		} else if quoteReq.OccupationClass == "low" {
+			quoteReq.OccupationClass = constants.OccupationLow
+		} else if quoteReq.OccupationClass == "high" {
+			quoteReq.OccupationClass = constants.OccupationHigh
+		}
+		if quoteReq.HealthRisk == "" || quoteReq.HealthRisk == "standard" || quoteReq.HealthRisk == "low" {
+			quoteReq.HealthRisk = constants.HealthRiskLow
+		}
+
+		validatedReq, err := validations.ValidateProductQuoteRequest(quoteReq)
+		if err != nil {
+			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+		}
+
+		quote, err := service.quotes.CreateProductQuote(ctx, args.ProductSlug, dtos.ProductQuoteRequestToInput(validatedReq))
+		if err != nil {
+			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+		}
+		res, _ := json.Marshal(quote)
+		return string(res)
+
+	case "list_products":
+		lister, ok := service.quotes.(AssistantProductLister)
+		if !ok || lister == nil {
+			return `{"error":"product list service is unavailable"}`
+		}
+		var args struct {
+			Category string `json:"category"`
+			Search   string `json:"search"`
+		}
+		_ = json.Unmarshal([]byte(rawArgs), &args)
+		products, err := lister.ListProducts(ctx, dtos.ProductListQuery{
+			Category: strings.TrimSpace(args.Category),
+			Search:   strings.TrimSpace(args.Search),
+		})
+		if err != nil {
+			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+		}
+		type itemSummary struct {
+			Name          string `json:"name"`
+			Slug          string `json:"slug"`
+			Category      string `json:"category"`
+			MinSumAssured int64  `json:"min_sum_assured"`
+			MaxSumAssured int64  `json:"max_sum_assured"`
+			MinTerm       int    `json:"min_payment_term"`
+			MaxTerm       int    `json:"max_payment_term"`
+		}
+		items := make([]itemSummary, 0, len(products))
+		for _, p := range products {
+			items = append(items, itemSummary{
+				Name:          p.Name,
+				Slug:          p.Slug,
+				Category:      string(p.Category),
+				MinSumAssured: p.MinSumAssured,
+				MaxSumAssured: p.MaxSumAssured,
+				MinTerm:       p.MinPaymentTerm,
+				MaxTerm:       p.MaxPaymentTerm,
+			})
+		}
+		res, _ := json.Marshal(items)
+		return string(res)
+
+	default:
+		return fmt.Sprintf(`{"error":"unknown tool %s"}`, name)
+	}
+}
+
+func assistantTools() []llm.Tool {
+	return []llm.Tool{
+		{
+			Type: "function",
+			Function: llm.ToolFunction{
+				Name:        "calculate_quote",
+				Description: "Calculates estimated insurance premium for a product based on user parameters.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"product_slug": map[string]any{
+							"type":        "string",
+							"description": "The slug of the product to quote, e.g. 'secure-life-plus'",
+						},
+						"age": map[string]any{
+							"type":        "integer",
+							"description": "Age of the insured in years",
+						},
+						"gender": map[string]any{
+							"type":        "string",
+							"enum":        []string{"male", "female"},
+							"description": "Gender of the insured ('male' or 'female')",
+						},
+						"sum_assured": map[string]any{
+							"type":        "integer",
+							"description": "Sum assured / coverage amount in IDR",
+						},
+						"payment_term": map[string]any{
+							"type":        "integer",
+							"description": "Payment term duration in years",
+						},
+						"payment_frequency": map[string]any{
+							"type":        "string",
+							"enum":        []string{"monthly", "annual", "quarterly", "semi_annual"},
+							"description": "Payment frequency (default is 'monthly')",
+						},
+						"smoker": map[string]any{
+							"type":        "string",
+							"enum":        []string{"smoker", "non_smoker"},
+							"description": "Smoker status",
+						},
+						"occupation_class": map[string]any{
+							"type":        "string",
+							"description": "Occupation class ('1', '2', '3', '4')",
+						},
+						"health_risk": map[string]any{
+							"type":        "string",
+							"enum":        []string{"standard", "substandard"},
+							"description": "Health risk status",
+						},
+					},
+					"required": []string{"product_slug", "age", "gender", "sum_assured", "payment_term"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: llm.ToolFunction{
+				Name:        "list_products",
+				Description: "Lists or searches available insurance products and their coverage details.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"category": map[string]any{
+							"type":        "string",
+							"description": "Product category to filter by (e.g. 'life', 'health')",
+						},
+						"search": map[string]any{
+							"type":        "string",
+							"description": "Search keyword for product name",
+						},
+					},
+				},
+			},
+		},
+	}
 }
 
 func (service *AssistantService) buildQuoteContext(ctx context.Context, quoteRequest *dtos.ProductQuoteRequest, slug string) (string, error) {

@@ -15,6 +15,7 @@ type AssistantSource struct {
 }
 
 type AssistantChatResponse struct {
-	Answer  string            `json:"answer"`
-	Sources []AssistantSource `json:"sources"`
+	Answer    string            `json:"answer"`
+	Sources   []AssistantSource `json:"sources"`
+	ToolsUsed []string          `json:"tools_used,omitempty"`
 }

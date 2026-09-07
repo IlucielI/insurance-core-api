@@ -29,15 +29,46 @@ type Client struct {
 	httpClient      *http.Client
 }
 
+type ToolCallFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type ToolCall struct {
+	ID       string           `json:"id,omitempty"`
+	Type     string           `json:"type,omitempty"`
+	Function ToolCallFunction `json:"function"`
+}
+
+type ToolFunction struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Parameters  any    `json:"parameters,omitempty"`
+}
+
+type Tool struct {
+	Type     string       `json:"type"`
+	Function ToolFunction `json:"function"`
+}
+
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
 }
 
 type ChatCompletionInput struct {
 	Messages    []Message
 	Temperature *float64
 	MaxTokens   *int
+	Tools       []Tool
+	ToolChoice  any
+}
+
+type ChatCompletionOutput struct {
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 }
 
 type EmbeddingInput struct {
@@ -77,8 +108,19 @@ func NewClient(config Config) (*Client, error) {
 }
 
 func (client *Client) CreateChatCompletion(ctx context.Context, input ChatCompletionInput) (string, error) {
+	out, err := client.CreateChatCompletionWithTools(ctx, input)
+	if err != nil {
+		return "", err
+	}
+	if out.Content == "" && len(out.ToolCalls) == 0 {
+		return "", errors.New("chat completion content is empty")
+	}
+	return out.Content, nil
+}
+
+func (client *Client) CreateChatCompletionWithTools(ctx context.Context, input ChatCompletionInput) (ChatCompletionOutput, error) {
 	if len(input.Messages) == 0 {
-		return "", errors.New("messages are required")
+		return ChatCompletionOutput{}, errors.New("messages are required")
 	}
 
 	payload := chatCompletionRequest{
@@ -86,14 +128,16 @@ func (client *Client) CreateChatCompletion(ctx context.Context, input ChatComple
 		Messages:    input.Messages,
 		Temperature: input.Temperature,
 		MaxTokens:   input.MaxTokens,
+		Tools:       input.Tools,
+		ToolChoice:  input.ToolChoice,
 	}
 
 	raw, err := client.postRaw(ctx, "/chat/completions", payload)
 	if err != nil {
-		return "", err
+		return ChatCompletionOutput{}, err
 	}
 
-	return parseChatCompletionResponse(raw)
+	return parseChatCompletionResponseWithTools(raw)
 }
 
 func (client *Client) CreateEmbedding(ctx context.Context, input EmbeddingInput) ([]float32, error) {
@@ -181,14 +225,41 @@ func normalizeBaseURL(rawBaseURL string) (string, error) {
 }
 
 func parseChatCompletionResponse(raw []byte) (string, error) {
+	output, err := parseChatCompletionResponseWithTools(raw)
+	if err != nil {
+		return "", err
+	}
+	if output.Content == "" && len(output.ToolCalls) == 0 {
+		return "", errors.New("chat completion content is empty")
+	}
+	return output.Content, nil
+}
+
+func parseChatCompletionResponseWithTools(raw []byte) (ChatCompletionOutput, error) {
 	var result chatCompletionResponse
 	if err := json.Unmarshal(raw, &result); err == nil && len(result.Choices) > 0 {
-		return parseContent(result.Choices[0].Message.Content)
+		choice := result.Choices[0]
+		if len(choice.Message.ToolCalls) > 0 {
+			content, _ := parseContent(choice.Message.Content)
+			return ChatCompletionOutput{
+				Content:   content,
+				ToolCalls: choice.Message.ToolCalls,
+			}, nil
+		}
+		content, err := parseContent(choice.Message.Content)
+		if err != nil {
+			return ChatCompletionOutput{}, err
+		}
+		return ChatCompletionOutput{Content: content}, nil
 	} else if err != nil && !looksLikeSSE(raw) {
-		return "", fmt.Errorf("failed to parse chat completion response: %w", err)
+		return ChatCompletionOutput{}, fmt.Errorf("failed to parse chat completion response: %w", err)
 	}
 
-	return parseStreamingChatCompletionResponse(raw)
+	content, err := parseStreamingChatCompletionResponse(raw)
+	if err != nil {
+		return ChatCompletionOutput{}, err
+	}
+	return ChatCompletionOutput{Content: content}, nil
 }
 
 func looksLikeSSE(raw []byte) bool {
@@ -296,12 +367,16 @@ type chatCompletionRequest struct {
 	Messages    []Message `json:"messages"`
 	Temperature *float64  `json:"temperature,omitempty"`
 	MaxTokens   *int      `json:"max_tokens,omitempty"`
+	Tools       []Tool    `json:"tools,omitempty"`
+	ToolChoice  any       `json:"tool_choice,omitempty"`
 }
 
 type chatCompletionResponse struct {
 	Choices []struct {
 		Message struct {
-			Content json.RawMessage `json:"content"`
+			Role      string          `json:"role"`
+			Content   json.RawMessage `json:"content"`
+			ToolCalls []ToolCall      `json:"tool_calls,omitempty"`
 		} `json:"message"`
 	} `json:"choices"`
 }
