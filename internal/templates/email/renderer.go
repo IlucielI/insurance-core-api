@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"strconv"
 	"strings"
 	texttemplate "text/template"
 )
@@ -197,11 +198,15 @@ func sanitizeEmailText(value string) string {
 // FormatIDR formats an integer amount as Indonesian Rupiah (e.g. 1000000 -> "Rp 1.000.000")
 func FormatIDR(amount int64) string {
 	sign := ""
+	var uAmount uint64
 	if amount < 0 {
 		sign = "-"
-		amount = -amount
+		// Safe conversion preventing math.MinInt64 two's complement negation overflow
+		uAmount = uint64(-(amount + 1)) + 1
+	} else {
+		uAmount = uint64(amount)
 	}
-	s := fmt.Sprintf("%d", amount)
+	s := strconv.FormatUint(uAmount, 10)
 	n := len(s)
 	if n <= 3 {
 		return fmt.Sprintf("%sRp %s", sign, s)

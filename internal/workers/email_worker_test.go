@@ -82,7 +82,9 @@ func TestEmailNotificationWorkerHandleSubmitted(t *testing.T) {
 	}
 
 	worker := NewEmailNotificationWorker(sub, mailer, renderer, "https://app.example.com")
-	_ = worker.Start(context.Background())
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 
 	event := dtos.ApplicationSubmittedEvent{
 		ApplicationID:    "APP-123",
@@ -94,9 +96,15 @@ func TestEmailNotificationWorkerHandleSubmitted(t *testing.T) {
 		Premium:          1500000,
 		PaymentFrequency: "tahun",
 	}
-	data, _ := json.Marshal(event)
+	data, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
 
-	handler := sub.handlers[dtos.TopicApplicationSubmitted]
+	handler, exists := sub.handlers[dtos.TopicApplicationSubmitted]
+	if !exists || handler == nil {
+		t.Fatalf("expected handler for %s to be registered", dtos.TopicApplicationSubmitted)
+	}
 	if err := handler(context.Background(), data); err != nil {
 		t.Fatalf("handler error = %v", err)
 	}
@@ -106,7 +114,7 @@ func TestEmailNotificationWorkerHandleSubmitted(t *testing.T) {
 	}
 
 	msg := mailer.messages[0]
-	if msg.To[0] != "budi@example.com" {
+	if len(msg.To) == 0 || msg.To[0] != "budi@example.com" {
 		t.Errorf("To = %v, want budi@example.com", msg.To)
 	}
 	if !strings.Contains(msg.Subject, "APP-123") {
@@ -126,7 +134,9 @@ func TestEmailNotificationWorkerHandleApproved(t *testing.T) {
 	}
 
 	worker := NewEmailNotificationWorker(sub, mailer, renderer, "https://app.example.com")
-	_ = worker.Start(context.Background())
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 
 	event := dtos.ApplicationApprovedEvent{
 		ApplicationID:    "APP-123",
@@ -139,9 +149,15 @@ func TestEmailNotificationWorkerHandleApproved(t *testing.T) {
 		PaymentTerm:      10,
 		PaymentFrequency: "tahun",
 	}
-	data, _ := json.Marshal(event)
+	data, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
 
-	handler := sub.handlers[dtos.TopicApplicationApproved]
+	handler, exists := sub.handlers[dtos.TopicApplicationApproved]
+	if !exists || handler == nil {
+		t.Fatalf("expected handler for %s to be registered", dtos.TopicApplicationApproved)
+	}
 	if err := handler(context.Background(), data); err != nil {
 		t.Fatalf("handler error = %v", err)
 	}
@@ -151,6 +167,9 @@ func TestEmailNotificationWorkerHandleApproved(t *testing.T) {
 	}
 
 	msg := mailer.messages[0]
+	if len(msg.To) == 0 || msg.To[0] != "budi@example.com" {
+		t.Errorf("To = %v, want budi@example.com", msg.To)
+	}
 	if !strings.Contains(msg.Subject, "POL-2026-123") {
 		t.Errorf("Subject = %s, want POL-2026-123", msg.Subject)
 	}
@@ -168,7 +187,9 @@ func TestEmailNotificationWorkerHandleRejected(t *testing.T) {
 	}
 
 	worker := NewEmailNotificationWorker(sub, mailer, renderer, "https://app.example.com")
-	_ = worker.Start(context.Background())
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 
 	event := dtos.ApplicationRejectedEvent{
 		ApplicationID:       "APP-123",
@@ -181,9 +202,15 @@ func TestEmailNotificationWorkerHandleRejected(t *testing.T) {
 		LeadUnderwriterName: "dr. Hendra Kurniawan",
 		LeadUnderwriterNIP:  "UW-2026-042",
 	}
-	data, _ := json.Marshal(event)
+	data, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
 
-	handler := sub.handlers[dtos.TopicApplicationRejected]
+	handler, exists := sub.handlers[dtos.TopicApplicationRejected]
+	if !exists || handler == nil {
+		t.Fatalf("expected handler for %s to be registered", dtos.TopicApplicationRejected)
+	}
 	if err := handler(context.Background(), data); err != nil {
 		t.Fatalf("handler error = %v", err)
 	}
@@ -193,6 +220,9 @@ func TestEmailNotificationWorkerHandleRejected(t *testing.T) {
 	}
 
 	msg := mailer.messages[0]
+	if len(msg.To) == 0 || msg.To[0] != "budi@example.com" {
+		t.Errorf("To = %v, want budi@example.com", msg.To)
+	}
 	if !strings.Contains(msg.HTMLBody, "UW-DEC-401") {
 		t.Errorf("expected rejection code in HTML body")
 	}
@@ -210,7 +240,9 @@ func TestEmailNotificationWorkerHandleRFI(t *testing.T) {
 	}
 
 	worker := NewEmailNotificationWorker(sub, mailer, renderer, "https://app.example.com")
-	_ = worker.Start(context.Background())
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 
 	event := dtos.ApplicationRFIRequestedEvent{
 		ApplicationID: "APP-123",
@@ -221,9 +253,15 @@ func TestEmailNotificationWorkerHandleRFI(t *testing.T) {
 		RequiredDocs:  []string{"Scan KTP HD"},
 		SLADeadline:   "3 x 24 Jam",
 	}
-	data, _ := json.Marshal(event)
+	data, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
 
-	handler := sub.handlers[dtos.TopicApplicationRFIRequested]
+	handler, exists := sub.handlers[dtos.TopicApplicationRFIRequested]
+	if !exists || handler == nil {
+		t.Fatalf("expected handler for %s to be registered", dtos.TopicApplicationRFIRequested)
+	}
 	if err := handler(context.Background(), data); err != nil {
 		t.Fatalf("handler error = %v", err)
 	}
@@ -233,6 +271,9 @@ func TestEmailNotificationWorkerHandleRFI(t *testing.T) {
 	}
 
 	msg := mailer.messages[0]
+	if len(msg.To) == 0 || msg.To[0] != "budi@example.com" {
+		t.Errorf("To = %v, want budi@example.com", msg.To)
+	}
 	if !strings.Contains(msg.HTMLBody, "Mohon upload ulang KTP") {
 		t.Errorf("expected notes in HTML body")
 	}
@@ -243,9 +284,14 @@ func TestEmailNotificationWorkerValidationErrors(t *testing.T) {
 	mailer := &fakeMailer{}
 
 	worker := NewEmailNotificationWorker(sub, mailer, nil)
-	_ = worker.Start(context.Background())
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
 
-	handler := sub.handlers[dtos.TopicApplicationSubmitted]
+	handler, exists := sub.handlers[dtos.TopicApplicationSubmitted]
+	if !exists || handler == nil {
+		t.Fatalf("expected handler for %s to be registered", dtos.TopicApplicationSubmitted)
+	}
 
 	// Invalid json
 	if err := handler(context.Background(), []byte("{invalid")); err == nil {
@@ -254,7 +300,10 @@ func TestEmailNotificationWorkerValidationErrors(t *testing.T) {
 
 	// Missing email
 	event := dtos.ApplicationSubmittedEvent{ApplicationID: "APP-1"}
-	data, _ := json.Marshal(event)
+	data, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
 	if err := handler(context.Background(), data); err == nil {
 		t.Errorf("expected error for missing email")
 	}
@@ -262,7 +311,10 @@ func TestEmailNotificationWorkerValidationErrors(t *testing.T) {
 	// Mailer error
 	mailer.err = errors.New("smtp connection failed")
 	event.Email = "test@example.com"
-	data, _ = json.Marshal(event)
+	data, err = json.Marshal(event)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
 	if err := handler(context.Background(), data); err == nil {
 		t.Errorf("expected error when mailer fails")
 	}

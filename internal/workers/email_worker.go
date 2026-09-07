@@ -116,7 +116,9 @@ func (w *EmailNotificationWorker) Stop() {
 func (w *EmailNotificationWorker) unsubscribeAllLocked() {
 	for _, sub := range w.subscriptions {
 		if sub != nil && sub.IsValid() {
-			_ = sub.Unsubscribe()
+			if err := sub.Unsubscribe(); err != nil {
+				log.Printf("[EmailNotificationWorker] unsubscribe error: %v", err)
+			}
 		}
 	}
 	w.subscriptions = nil

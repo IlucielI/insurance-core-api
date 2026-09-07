@@ -1,6 +1,7 @@
 package email
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -118,6 +119,8 @@ func TestFormatIDR(t *testing.T) {
 		{2760000, "Rp 2.760.000"},
 		{1000000000, "Rp 1.000.000.000"},
 		{-50000, "-Rp 50.000"},
+		{math.MinInt64, "-Rp 9.223.372.036.854.775.808"},
+		{math.MaxInt64, "Rp 9.223.372.036.854.775.807"},
 	}
 
 	for _, c := range cases {
