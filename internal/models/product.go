@@ -10,11 +10,20 @@ const (
 	ProductCategoryVehicle ProductCategory = "vehicle"
 )
 
+type ProductStatus string
+
+const (
+	ProductStatusActive   ProductStatus = "active"
+	ProductStatusDraft    ProductStatus = "draft"
+	ProductStatusArchived ProductStatus = "archived"
+)
+
 type Product struct {
 	ID               string          `gorm:"primaryKey;type:varchar(64)" json:"id"`
 	Name             string          `gorm:"type:varchar(120);not null" json:"name"`
 	Slug             string          `gorm:"type:varchar(120);uniqueIndex;not null" json:"slug"`
 	Category         ProductCategory `gorm:"type:varchar(32);not null;index" json:"category"`
+	Status           ProductStatus   `gorm:"type:varchar(32);not null;default:'active';index" json:"status"`
 	ShortDescription string          `gorm:"type:varchar(255);not null" json:"short_description"`
 	Description      string          `gorm:"type:text;not null" json:"description"`
 	TargetCustomer   string          `gorm:"type:varchar(255);not null" json:"target_customer"`
@@ -23,6 +32,7 @@ type Product struct {
 	MinPaymentTerm   int             `gorm:"not null" json:"min_payment_term"`
 	MaxPaymentTerm   int             `gorm:"not null" json:"max_payment_term"`
 	StartingPremium  int64           `gorm:"not null" json:"starting_premium"`
+	NonMCULimit      int64           `gorm:"not null;default:500000000" json:"non_mcu_limit"`
 	PricingRules     PricingRules    `gorm:"type:jsonb;serializer:json" json:"pricing_rules"`
 	Benefits         []string        `gorm:"type:jsonb;serializer:json" json:"benefits"`
 	Exclusions       []string        `gorm:"type:jsonb;serializer:json" json:"exclusions"`

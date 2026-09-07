@@ -39,13 +39,14 @@ type Client struct {
 	wg     sync.WaitGroup
 	client *redis.Client
 
-	connectFunc func() (*redis.Client, error)
-	getFunc     func(ctx context.Context, key string) (string, error)
-	setFunc     func(ctx context.Context, key string, value any, expiration time.Duration) error
-	delFunc     func(ctx context.Context, keys ...string) error
-	existsFunc  func(ctx context.Context, keys ...string) (int64, error)
-	pingFunc    func(ctx context.Context) error
-	closeFunc   func() error
+	connectFunc   func() (*redis.Client, error)
+	getFunc       func(ctx context.Context, key string) (string, error)
+	setFunc       func(ctx context.Context, key string, value any, expiration time.Duration) error
+	delFunc       func(ctx context.Context, keys ...string) error
+	delPrefixFunc func(ctx context.Context, prefix string) error
+	existsFunc    func(ctx context.Context, keys ...string) (int64, error)
+	pingFunc      func(ctx context.Context) error
+	closeFunc     func() error
 }
 
 var _ ports.Cache = (*Client)(nil)
@@ -101,6 +102,30 @@ func NewClient(config Config) (*Client, error) {
 			return err
 		}
 		return rdb.Del(ctx, keys...).Err()
+	}
+
+	client.delPrefixFunc = func(ctx context.Context, prefix string) error {
+		rdb, err := client.ensureClient()
+		if err != nil {
+			return err
+		}
+		var cursor uint64
+		for {
+			keys, nextCursor, err := rdb.Scan(ctx, cursor, prefix+"*", 100).Result()
+			if err != nil {
+				return err
+			}
+			if len(keys) > 0 {
+				if err := rdb.Del(ctx, keys...).Err(); err != nil {
+					return err
+				}
+			}
+			cursor = nextCursor
+			if cursor == 0 {
+				break
+			}
+		}
+		return nil
 	}
 
 	client.existsFunc = func(ctx context.Context, keys ...string) (int64, error) {
@@ -246,6 +271,23 @@ func (client *Client) Delete(ctx context.Context, keys ...string) error {
 	defer client.release()
 
 	return client.delFunc(ctx, validKeys...)
+}
+
+func (client *Client) DeletePrefix(ctx context.Context, prefix string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return nil
+	}
+
+	if err := client.acquire(); err != nil {
+		return err
+	}
+	defer client.release()
+
+	return client.delPrefixFunc(ctx, prefix)
 }
 
 func (client *Client) Exists(ctx context.Context, keys ...string) (bool, error) {

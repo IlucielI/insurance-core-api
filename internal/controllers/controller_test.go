@@ -13,6 +13,7 @@ import (
 
 	"github.com/bayuanugerah/insurance-core-api/internal/config"
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
+	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
 	"github.com/bayuanugerah/insurance-core-api/internal/routes"
@@ -36,12 +37,86 @@ func (repository *controllerProductRepository) FindBySlug(ctx context.Context, s
 	if repository.err != nil {
 		return models.Product{}, repository.err
 	}
-	return repository.product, nil
+	if repository.product.Slug == slug || repository.product.ID == slug {
+		return repository.product, nil
+	}
+	for _, p := range repository.products {
+		if p.Slug == slug || p.ID == slug {
+			return p, nil
+		}
+	}
+	return models.Product{}, repositories.ErrProductNotFound
+}
+
+func (repository *controllerProductRepository) FindByID(ctx context.Context, id string) (models.Product, error) {
+	if repository.err != nil {
+		return models.Product{}, repository.err
+	}
+	if repository.product.ID == id || repository.product.Slug == id {
+		return repository.product, nil
+	}
+	for _, p := range repository.products {
+		if p.ID == id || p.Slug == id {
+			return p, nil
+		}
+	}
+	return models.Product{}, repositories.ErrProductNotFound
+}
+
+func (repository *controllerProductRepository) Create(ctx context.Context, product *models.Product) error {
+	if repository.err != nil {
+		return repository.err
+	}
+	repository.products = append(repository.products, *product)
+	repository.product = *product
+	return nil
+}
+
+func (repository *controllerProductRepository) Update(ctx context.Context, product *models.Product) error {
+	if repository.err != nil {
+		return repository.err
+	}
+	repository.product = *product
+	return nil
+}
+
+func (repository *controllerProductRepository) UpdateStatus(ctx context.Context, id string, status models.ProductStatus) error {
+	if repository.err != nil {
+		return repository.err
+	}
+	repository.product.Status = status
+	return nil
+}
+
+func (repository *controllerProductRepository) Delete(ctx context.Context, id string) error {
+	return repository.err
+}
+
+func (repository *controllerProductRepository) GetMetrics(ctx context.Context) (dtos.ProductManagementMetricsResponse, error) {
+	if repository.err != nil {
+		return dtos.ProductManagementMetricsResponse{}, repository.err
+	}
+	return dtos.ProductManagementMetricsResponse{
+		TotalProducts:  len(repository.products),
+		ActiveProducts: len(repository.products),
+	}, nil
+}
+
+func (repository *controllerProductRepository) HasApplications(ctx context.Context, productID string) (bool, error) {
+	return false, repository.err
 }
 
 type controllerPricingRuleRepository struct {
 	rules []models.ProductPricingRule
 	err   error
+}
+
+func (r *controllerPricingRuleRepository) SaveBatch(ctx context.Context, productID string, rules []models.ProductPricingRule) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.rules = rules
+	return nil
 }
 
 func (r *controllerPricingRuleRepository) FindByProductID(ctx context.Context, productID string) ([]models.ProductPricingRule, error) {

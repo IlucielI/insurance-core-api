@@ -6,6 +6,7 @@ import (
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
+	"github.com/bayuanugerah/insurance-core-api/internal/models"
 )
 
 func TestValidateProductListQuery(t *testing.T) {
@@ -39,6 +40,27 @@ func TestValidateProductListQuery(t *testing.T) {
 				t.Fatalf("ValidateProductListQuery() error = %v, want %q", err, tt.wantErr)
 			}
 		})
+	}
+
+	// Test default status is active
+	defaultQuery, err := ValidateProductListQuery("", "", "", "")
+	if err != nil {
+		t.Fatalf("ValidateProductListQuery() unexpected error = %v", err)
+	}
+	if defaultQuery.Status != string(models.ProductStatusActive) {
+		t.Fatalf("defaultQuery.Status = %q, want active", defaultQuery.Status)
+	}
+
+	// Test explicit status all
+	allQuery, err := ValidateProductListQuery("", "", "", "", "all")
+	if err != nil || allQuery.Status != "all" {
+		t.Fatalf("allQuery.Status = %q, want all", allQuery.Status)
+	}
+
+	// Test explicit status draft
+	draftQuery, err := ValidateProductListQuery("", "", "", "", "draft")
+	if err != nil || draftQuery.Status != "draft" {
+		t.Fatalf("draftQuery.Status = %q, want draft", draftQuery.Status)
 	}
 }
 
@@ -257,3 +279,91 @@ func TestValidateApplicationListQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateProductListQueryWithStatus(t *testing.T) {
+	query, err := ValidateProductListQuery("life", "", "10", "", "active")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if query.Status != "active" {
+		t.Fatalf("want status active, got %s", query.Status)
+	}
+
+	queryAll, err := ValidateProductListQuery("", "", "", "", "all")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if queryAll.Status != "all" {
+		t.Fatalf("want status all, got %s", queryAll.Status)
+	}
+
+	_, err = ValidateProductListQuery("", "", "", "", "invalid_status")
+	if err == nil || err.Error() != constants.ErrProductStatusInvalid {
+		t.Fatalf("want ErrProductStatusInvalid, got %v", err)
+	}
+}
+
+func TestValidateCreateProductRequest(t *testing.T) {
+	validReq := dtos.CreateProductRequest{
+		Name:             "Proteksi Jiwa Utama",
+		Slug:             "proteksi-jiwa-utama",
+		Category:         "life",
+		Status:           "active",
+		ShortDescription: "Asuransi jiwa murni",
+		Description:      "Deskripsi lengkap proteksi jiwa",
+		TargetCustomer:   "Keluarga muda",
+		MinSumAssured:    50000000,
+		MaxSumAssured:    1000000000,
+		MinPaymentTerm:   5,
+		MaxPaymentTerm:   20,
+		StartingPremium:  150000,
+		NonMCULimit:      500000000,
+		Benefits:         []string{" Santunan Meninggal Dunia ", " Santunan Cacat Tetap "},
+	}
+
+	res, err := ValidateCreateProductRequest(validReq)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Benefits[0] != "Santunan Meninggal Dunia" {
+		t.Fatalf("expected benefits trimmed, got %q", res.Benefits[0])
+	}
+
+	// Test invalid slug
+	invalidSlugReq := validReq
+	invalidSlugReq.Slug = "invalid slug with spaces"
+	_, err = ValidateCreateProductRequest(invalidSlugReq)
+	if err == nil || err.Error() != constants.ErrProductSlugInvalid {
+		t.Fatalf("want ErrProductSlugInvalid, got %v", err)
+	}
+
+	// Test min/max sum assured inverted
+	invalidSumReq := validReq
+	invalidSumReq.MinSumAssured = 1000000
+	invalidSumReq.MaxSumAssured = 500000
+	_, err = ValidateCreateProductRequest(invalidSumReq)
+	if err == nil || err.Error() != constants.ErrProductMaxSumAssuredInvalid {
+		t.Fatalf("want ErrProductMaxSumAssuredInvalid, got %v", err)
+	}
+}
+
+func TestValidateUpdateProductRequest(t *testing.T) {
+	name := "Updated Name"
+	slug := "updated-name"
+	minSum := int64(10000000)
+	maxSum := int64(500000000)
+	req := dtos.UpdateProductRequest{
+		Name:          &name,
+		Slug:          &slug,
+		MinSumAssured: &minSum,
+		MaxSumAssured: &maxSum,
+	}
+	valid, err := ValidateUpdateProductRequest(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if *valid.Name != "Updated Name" {
+		t.Fatalf("expected name updated, got %s", *valid.Name)
+	}
+}
+

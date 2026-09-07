@@ -16,6 +16,7 @@ type Cache interface {
 	GetJSON(ctx context.Context, key string, dest any) error
 	SetJSON(ctx context.Context, key string, value any, expiration time.Duration) error
 	Delete(ctx context.Context, keys ...string) error
+	DeletePrefix(ctx context.Context, prefix string) error
 	Exists(ctx context.Context, keys ...string) (bool, error)
 	Ping(ctx context.Context) error
 	Close() error

@@ -388,3 +388,33 @@ func TestCloseConcurrentWithOperations(t *testing.T) {
 	wg.Wait()
 }
 
+func TestClientDeletePrefix(t *testing.T) {
+	client, err := NewClient(Config{Host: "localhost"})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	var deletedPrefix string
+	client.delPrefixFunc = func(ctx context.Context, prefix string) error {
+		deletedPrefix = prefix
+		return nil
+	}
+
+	if err := client.DeletePrefix(context.Background(), "  tenant:global:catalog:products:list:  "); err != nil {
+		t.Fatalf("DeletePrefix() error = %v", err)
+	}
+	if deletedPrefix != "tenant:global:catalog:products:list:" {
+		t.Fatalf("deletedPrefix = %q, want trimmed prefix", deletedPrefix)
+	}
+
+	// Empty prefix is no-op
+	deletedPrefix = ""
+	if err := client.DeletePrefix(context.Background(), "   "); err != nil {
+		t.Fatalf("DeletePrefix(empty) error = %v", err)
+	}
+	if deletedPrefix != "" {
+		t.Fatalf("expected no-op for empty prefix, got %q", deletedPrefix)
+	}
+}
+
+

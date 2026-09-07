@@ -2,6 +2,7 @@ package validations
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -12,7 +13,9 @@ import (
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 )
 
-func ValidateProductListQuery(categoryValue string, featuredValue string, limitValue string, searchValue string) (dtos.ProductListQuery, error) {
+var slugRegex = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+func ValidateProductListQuery(categoryValue string, featuredValue string, limitValue string, searchValue string, statusValue ...string) (dtos.ProductListQuery, error) {
 	query := dtos.ProductListQuery{
 		Category: strings.TrimSpace(categoryValue),
 	}
@@ -23,6 +26,23 @@ func ValidateProductListQuery(categoryValue string, featuredValue string, limitV
 		string(models.ProductCategoryVehicle),
 	)) != nil {
 		return dtos.ProductListQuery{}, errors.New(constants.ErrProductCategoryInvalid)
+	}
+
+	query.Status = string(models.ProductStatusActive)
+	if len(statusValue) > 0 {
+		status := strings.ToLower(strings.TrimSpace(statusValue[0]))
+		if status != "" && status != "all" {
+			if validation.Validate(status, validation.In(
+				string(models.ProductStatusActive),
+				string(models.ProductStatusDraft),
+				string(models.ProductStatusArchived),
+			)) != nil {
+				return dtos.ProductListQuery{}, errors.New(constants.ErrProductStatusInvalid)
+			}
+			query.Status = status
+		} else if status == "all" {
+			query.Status = "all"
+		}
 	}
 
 	featuredValue = strings.TrimSpace(featuredValue)
@@ -209,4 +229,226 @@ func validApplicationReviewCheckStatus(status models.ApplicationReviewCheckStatu
 	default:
 		return false
 	}
+}
+
+func ValidateProductStatus(status string) (models.ProductStatus, error) {
+	status = strings.ToLower(strings.TrimSpace(status))
+	if validation.Validate(status, validation.Required, validation.In(
+		string(models.ProductStatusActive),
+		string(models.ProductStatusDraft),
+		string(models.ProductStatusArchived),
+	)) != nil {
+		return "", errors.New(constants.ErrProductStatusInvalid)
+	}
+	return models.ProductStatus(status), nil
+}
+
+func ValidateCreateProductRequest(req dtos.CreateProductRequest) (dtos.CreateProductRequest, error) {
+	req.Name = strings.TrimSpace(req.Name)
+	if validation.Validate(req.Name, validation.Required, validation.Length(3, 120)) != nil {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductNameInvalid)
+	}
+
+	req.Slug = strings.ToLower(strings.TrimSpace(req.Slug))
+	if req.Slug == "" || !slugRegex.MatchString(req.Slug) || len(req.Slug) > 120 {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductSlugInvalid)
+	}
+
+	req.Category = strings.ToLower(strings.TrimSpace(req.Category))
+	if validation.Validate(req.Category, validation.Required, validation.In(
+		string(models.ProductCategoryLife),
+		string(models.ProductCategoryHealth),
+		string(models.ProductCategoryVehicle),
+	)) != nil {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductCategoryInvalid)
+	}
+
+	if req.Status == "" {
+		req.Status = string(models.ProductStatusActive)
+	} else {
+		status, err := ValidateProductStatus(req.Status)
+		if err != nil {
+			return dtos.CreateProductRequest{}, err
+		}
+		req.Status = string(status)
+	}
+
+	req.ShortDescription = strings.TrimSpace(req.ShortDescription)
+	if validation.Validate(req.ShortDescription, validation.Required, validation.Length(3, 255)) != nil {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductShortDescriptionRequired)
+	}
+
+	req.Description = strings.TrimSpace(req.Description)
+	if validation.Validate(req.Description, validation.Required) != nil {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductDescriptionRequired)
+	}
+
+	req.TargetCustomer = strings.TrimSpace(req.TargetCustomer)
+	if validation.Validate(req.TargetCustomer, validation.Required, validation.Length(3, 255)) != nil {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductTargetCustomerRequired)
+	}
+
+	if req.MinSumAssured <= 0 {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductMinSumAssuredInvalid)
+	}
+	if req.MaxSumAssured < req.MinSumAssured {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductMaxSumAssuredInvalid)
+	}
+
+	if req.MinPaymentTerm < 1 {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductMinPaymentTermInvalid)
+	}
+	if req.MaxPaymentTerm < req.MinPaymentTerm {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductMaxPaymentTermInvalid)
+	}
+
+	if req.StartingPremium <= 0 {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductStartingPremiumInvalid)
+	}
+
+	if req.NonMCULimit < 0 {
+		return dtos.CreateProductRequest{}, errors.New(constants.ErrProductNonMCULimitInvalid)
+	}
+	if req.NonMCULimit == 0 {
+		req.NonMCULimit = 500000000
+	}
+
+	cleanedBenefits := make([]string, 0, len(req.Benefits))
+	for _, b := range req.Benefits {
+		b = strings.TrimSpace(b)
+		if b != "" {
+			cleanedBenefits = append(cleanedBenefits, b)
+		}
+	}
+	req.Benefits = cleanedBenefits
+
+	cleanedExclusions := make([]string, 0, len(req.Exclusions))
+	for _, e := range req.Exclusions {
+		e = strings.TrimSpace(e)
+		if e != "" {
+			cleanedExclusions = append(cleanedExclusions, e)
+		}
+	}
+	req.Exclusions = cleanedExclusions
+
+	return req, nil
+}
+
+func ValidateUpdateProductRequest(req dtos.UpdateProductRequest) (dtos.UpdateProductRequest, error) {
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if validation.Validate(name, validation.Required, validation.Length(3, 120)) != nil {
+			return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductNameInvalid)
+		}
+		req.Name = &name
+	}
+
+	if req.Slug != nil {
+		slug := strings.ToLower(strings.TrimSpace(*req.Slug))
+		if slug == "" || !slugRegex.MatchString(slug) || len(slug) > 120 {
+			return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductSlugInvalid)
+		}
+		req.Slug = &slug
+	}
+
+	if req.Category != nil {
+		category := strings.ToLower(strings.TrimSpace(*req.Category))
+		if validation.Validate(category, validation.Required, validation.In(
+			string(models.ProductCategoryLife),
+			string(models.ProductCategoryHealth),
+			string(models.ProductCategoryVehicle),
+		)) != nil {
+			return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductCategoryInvalid)
+		}
+		req.Category = &category
+	}
+
+	if req.Status != nil {
+		status, err := ValidateProductStatus(*req.Status)
+		if err != nil {
+			return dtos.UpdateProductRequest{}, err
+		}
+		statusStr := string(status)
+		req.Status = &statusStr
+	}
+
+	if req.ShortDescription != nil {
+		sd := strings.TrimSpace(*req.ShortDescription)
+		if validation.Validate(sd, validation.Required, validation.Length(3, 255)) != nil {
+			return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductShortDescriptionRequired)
+		}
+		req.ShortDescription = &sd
+	}
+
+	if req.Description != nil {
+		desc := strings.TrimSpace(*req.Description)
+		if validation.Validate(desc, validation.Required) != nil {
+			return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductDescriptionRequired)
+		}
+		req.Description = &desc
+	}
+
+	if req.TargetCustomer != nil {
+		tc := strings.TrimSpace(*req.TargetCustomer)
+		if validation.Validate(tc, validation.Required, validation.Length(3, 255)) != nil {
+			return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductTargetCustomerRequired)
+		}
+		req.TargetCustomer = &tc
+	}
+
+	if req.MinSumAssured != nil && *req.MinSumAssured <= 0 {
+		return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductMinSumAssuredInvalid)
+	}
+
+	if req.MaxSumAssured != nil && *req.MaxSumAssured <= 0 {
+		return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductMaxSumAssuredInvalid)
+	}
+
+	if req.MinSumAssured != nil && req.MaxSumAssured != nil && *req.MaxSumAssured < *req.MinSumAssured {
+		return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductMaxSumAssuredInvalid)
+	}
+
+	if req.MinPaymentTerm != nil && *req.MinPaymentTerm < 1 {
+		return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductMinPaymentTermInvalid)
+	}
+
+	if req.MaxPaymentTerm != nil && *req.MaxPaymentTerm < 1 {
+		return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductMaxPaymentTermInvalid)
+	}
+
+	if req.MinPaymentTerm != nil && req.MaxPaymentTerm != nil && *req.MaxPaymentTerm < *req.MinPaymentTerm {
+		return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductMaxPaymentTermInvalid)
+	}
+
+	if req.StartingPremium != nil && *req.StartingPremium <= 0 {
+		return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductStartingPremiumInvalid)
+	}
+
+	if req.NonMCULimit != nil && *req.NonMCULimit < 0 {
+		return dtos.UpdateProductRequest{}, errors.New(constants.ErrProductNonMCULimitInvalid)
+	}
+
+	if req.Benefits != nil {
+		cleaned := make([]string, 0, len(*req.Benefits))
+		for _, b := range *req.Benefits {
+			b = strings.TrimSpace(b)
+			if b != "" {
+				cleaned = append(cleaned, b)
+			}
+		}
+		req.Benefits = &cleaned
+	}
+
+	if req.Exclusions != nil {
+		cleaned := make([]string, 0, len(*req.Exclusions))
+		for _, e := range *req.Exclusions {
+			e = strings.TrimSpace(e)
+			if e != "" {
+				cleaned = append(cleaned, e)
+			}
+		}
+		req.Exclusions = &cleaned
+	}
+
+	return req, nil
 }
