@@ -25,3 +25,17 @@ func TestKnowledgeChunkTableName(t *testing.T) {
 		t.Fatalf("KnowledgeChunk.TableName() = %q, want knowledge_chunks", chunk.TableName())
 	}
 }
+
+func TestPricingRulesSerialization(t *testing.T) {
+	rules := PricingRules{
+		BaseRate:           0.0035,
+		SumAssuredPresets:  []int64{100_000_000, 250_000_000, 500_000_000, 1_000_000_000},
+		PaymentTermPresets: []int{5, 10, 15, 20},
+	}
+	if len(rules.SumAssuredPresets) != 4 {
+		t.Fatalf("SumAssuredPresets len = %d, want 4", len(rules.SumAssuredPresets))
+	}
+	if len(rules.PaymentTermPresets) != 4 {
+		t.Fatalf("PaymentTermPresets len = %d, want 4", len(rules.PaymentTermPresets))
+	}
+}

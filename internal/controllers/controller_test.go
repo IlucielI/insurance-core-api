@@ -105,7 +105,9 @@ func TestProductRoutes(t *testing.T) {
 
 	response = performRequest(t, app, http.MethodGet, "/api/v1/products/secure-life-plus", nil)
 	assertStatus(t, response, http.StatusOK)
-	assertBodyContains(t, readBody(t, response), "secure-life-plus")
+	detailBody := readBody(t, response)
+	assertBodyContains(t, detailBody, "secure-life-plus")
+	assertBodyContains(t, detailBody, "sum_assured_presets")
 
 	response = performRequest(t, app, http.MethodPost, "/api/v1/products/secure-life-plus/quotes", productQuoteBody())
 	assertStatus(t, response, http.StatusOK)
@@ -361,6 +363,8 @@ func controllerProductFixture() models.Product {
 				constants.PaymentFrequencyQuarterly:  1.06,
 				constants.PaymentFrequencyMonthly:    1.10,
 			},
+			SumAssuredPresets:  []int64{100_000_000, 250_000_000, 500_000_000, 1_000_000_000},
+			PaymentTermPresets: []int{5, 10, 15, 20},
 		},
 	}
 }
