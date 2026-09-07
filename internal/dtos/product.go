@@ -2,6 +2,7 @@ package dtos
 
 type ProductListQuery struct {
 	Category   string
+	Status     string
 	IsFeatured *bool
 	Limit      int
 	Search     string

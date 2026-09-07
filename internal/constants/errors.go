@@ -14,6 +14,29 @@ const (
 	ErrProductDetailFailed     = "failed to get product"
 	ErrProductQuoteFailed      = "failed to create product quote"
 	ErrProductQuoteBodyInvalid = "invalid product quote request body"
+	ErrProductNameRequired     = "product name is required"
+	ErrProductNameInvalid      = "product name must be between 3 and 120 characters"
+	ErrProductSlugInvalid      = "product slug must be a valid lowercase kebab-case string"
+	ErrProductSlugAlreadyExists = "product slug already exists"
+	ErrProductStatusInvalid    = "status must be one of: active, draft, archived"
+	ErrProductShortDescriptionRequired = "short_description is required"
+	ErrProductDescriptionRequired      = "description is required"
+	ErrProductTargetCustomerRequired   = "target_customer is required"
+	ErrProductMinSumAssuredInvalid     = "min_sum_assured must be greater than zero"
+	ErrProductMaxSumAssuredInvalid     = "max_sum_assured must be greater than or equal to min_sum_assured"
+	ErrProductMinPaymentTermInvalid    = "min_payment_term must be at least 1"
+	ErrProductMaxPaymentTermInvalid    = "max_payment_term must be greater than or equal to min_payment_term"
+	ErrProductStartingPremiumInvalid  = "starting_premium must be greater than zero"
+	ErrProductNonMCULimitInvalid       = "non_mcu_limit must be greater than or equal to zero"
+	ErrProductHasApplications          = "cannot delete product with existing applications; archive it instead"
+	ErrProductCreateFailed             = "failed to create product"
+	ErrProductUpdateFailed             = "failed to update product"
+	ErrProductDeleteFailed             = "failed to delete product"
+	ErrProductMetricsFailed            = "failed to get product metrics"
+	ErrProductPricingRulesUpdateFailed = "failed to update pricing rules"
+	ErrProductIDRequired               = "product id is required"
+	ErrProductRequestBodyInvalid       = "invalid product request body"
+	ErrPricingRulesBodyInvalid         = "invalid pricing rules body"
 )
 
 const (
@@ -38,6 +61,9 @@ var (
 	QuoteSumAssuredOutOfRangeError                 = errors.New(ErrQuoteSumAssuredOutOfRange)
 	QuotePaymentTermOutOfRangeError                = errors.New(ErrQuotePaymentTermOutOfRange)
 	QuotePricingRulesInvalidError                  = errors.New(ErrQuotePricingRulesInvalid)
+	ErrProductSlugAlreadyExistsError               = errors.New(ErrProductSlugAlreadyExists)
+	ErrProductHasApplicationsError                 = errors.New(ErrProductHasApplications)
+	ErrProductNotFoundError                        = errors.New(ErrProductNotFound)
 )
 
 func IsQuoteValidationError(err error) bool {

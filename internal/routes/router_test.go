@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/config"
+	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
 )
@@ -17,8 +18,36 @@ func (repository routeProductRepository) FindAll(ctx context.Context, filter rep
 	return nil, nil
 }
 
+func (repository routeProductRepository) FindByID(ctx context.Context, id string) (models.Product, error) {
+	return models.Product{}, repositories.ErrProductNotFound
+}
+
 func (repository routeProductRepository) FindBySlug(ctx context.Context, slug string) (models.Product, error) {
 	return models.Product{}, repositories.ErrProductNotFound
+}
+
+func (repository routeProductRepository) Create(ctx context.Context, product *models.Product) error {
+	return nil
+}
+
+func (repository routeProductRepository) Update(ctx context.Context, product *models.Product) error {
+	return nil
+}
+
+func (repository routeProductRepository) UpdateStatus(ctx context.Context, id string, status models.ProductStatus) error {
+	return nil
+}
+
+func (repository routeProductRepository) Delete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (repository routeProductRepository) GetMetrics(ctx context.Context) (dtos.ProductManagementMetricsResponse, error) {
+	return dtos.ProductManagementMetricsResponse{}, nil
+}
+
+func (repository routeProductRepository) HasApplications(ctx context.Context, productID string) (bool, error) {
+	return false, nil
 }
 
 type routeApplicationRepository struct{}

@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -10,11 +12,19 @@ import (
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
+	"github.com/bayuanugerah/insurance-core-api/internal/validations"
+	"github.com/google/uuid"
 )
+
+type ProductKnowledgeSyncer interface {
+	SyncProductKnowledge(ctx context.Context, product models.Product) error
+	RemoveProductKnowledge(ctx context.Context, productSlug string) error
+}
 
 type ProductService struct {
 	productRepository     repositories.ProductRepository
 	pricingRuleRepository repositories.PricingRuleRepository
+	knowledgeSyncer       ProductKnowledgeSyncer
 }
 
 func NewProductService(productRepository repositories.ProductRepository, pricingRuleRepository ...repositories.PricingRuleRepository) *ProductService {
@@ -25,9 +35,15 @@ func NewProductService(productRepository repositories.ProductRepository, pricing
 	return &ProductService{productRepository: productRepository, pricingRuleRepository: prRepo}
 }
 
+func (service *ProductService) WithKnowledgeSyncer(syncer ProductKnowledgeSyncer) *ProductService {
+	service.knowledgeSyncer = syncer
+	return service
+}
+
 func (service *ProductService) ListProducts(ctx context.Context, input dtos.ProductListQuery) ([]models.Product, error) {
 	return service.productRepository.FindAll(ctx, repositories.ProductFilter{
 		Category:   strings.TrimSpace(input.Category),
+		Status:     strings.TrimSpace(input.Status),
 		IsFeatured: input.IsFeatured,
 		Limit:      input.Limit,
 		Search:     strings.TrimSpace(input.Search),
@@ -36,6 +52,218 @@ func (service *ProductService) ListProducts(ctx context.Context, input dtos.Prod
 
 func (service *ProductService) GetProductBySlug(ctx context.Context, slug string) (models.Product, error) {
 	return service.productRepository.FindBySlug(ctx, slug)
+}
+
+func (service *ProductService) GetProductByID(ctx context.Context, id string) (models.Product, error) {
+	return service.productRepository.FindByID(ctx, id)
+}
+
+func (service *ProductService) CreateProduct(ctx context.Context, rawReq dtos.CreateProductRequest) (models.Product, error) {
+	req, err := validations.ValidateCreateProductRequest(rawReq)
+	if err != nil {
+		return models.Product{}, err
+	}
+
+	// Verify slug uniqueness
+	if _, err := service.productRepository.FindBySlug(ctx, req.Slug); err == nil {
+		return models.Product{}, constants.ErrProductSlugAlreadyExistsError
+	}
+
+	product := models.Product{
+		ID:               uuid.New().String(),
+		Name:             req.Name,
+		Slug:             req.Slug,
+		Category:         models.ProductCategory(req.Category),
+		Status:           models.ProductStatus(req.Status),
+		ShortDescription: req.ShortDescription,
+		Description:      req.Description,
+		TargetCustomer:   req.TargetCustomer,
+		MinSumAssured:    req.MinSumAssured,
+		MaxSumAssured:    req.MaxSumAssured,
+		MinPaymentTerm:   req.MinPaymentTerm,
+		MaxPaymentTerm:   req.MaxPaymentTerm,
+		StartingPremium:  req.StartingPremium,
+		NonMCULimit:      req.NonMCULimit,
+		Benefits:         req.Benefits,
+		Exclusions:       req.Exclusions,
+		IsFeatured:       req.IsFeatured,
+	}
+	if req.PricingRules != nil {
+		product.PricingRules = *req.PricingRules
+	}
+
+	if err := service.productRepository.Create(ctx, &product); err != nil {
+		return models.Product{}, err
+	}
+
+	service.syncKnowledge(ctx, product)
+
+	return product, nil
+}
+
+func (service *ProductService) UpdateProduct(ctx context.Context, id string, rawReq dtos.UpdateProductRequest) (models.Product, error) {
+	req, err := validations.ValidateUpdateProductRequest(rawReq)
+	if err != nil {
+		return models.Product{}, err
+	}
+
+	product, err := service.productRepository.FindByID(ctx, id)
+	if err != nil {
+		product, err = service.productRepository.FindBySlug(ctx, id)
+		if err != nil {
+			return models.Product{}, constants.ErrProductNotFoundError
+		}
+	}
+
+	if req.Slug != nil && *req.Slug != product.Slug {
+		if existing, err := service.productRepository.FindBySlug(ctx, *req.Slug); err == nil && existing.ID != product.ID {
+			return models.Product{}, constants.ErrProductSlugAlreadyExistsError
+		}
+		product.Slug = *req.Slug
+	}
+
+	if req.Name != nil {
+		product.Name = *req.Name
+	}
+	if req.Category != nil {
+		product.Category = models.ProductCategory(*req.Category)
+	}
+	if req.Status != nil {
+		product.Status = models.ProductStatus(*req.Status)
+	}
+	if req.ShortDescription != nil {
+		product.ShortDescription = *req.ShortDescription
+	}
+	if req.Description != nil {
+		product.Description = *req.Description
+	}
+	if req.TargetCustomer != nil {
+		product.TargetCustomer = *req.TargetCustomer
+	}
+	if req.MinSumAssured != nil {
+		product.MinSumAssured = *req.MinSumAssured
+	}
+	if req.MaxSumAssured != nil {
+		product.MaxSumAssured = *req.MaxSumAssured
+	}
+	if req.MinPaymentTerm != nil {
+		product.MinPaymentTerm = *req.MinPaymentTerm
+	}
+	if req.MaxPaymentTerm != nil {
+		product.MaxPaymentTerm = *req.MaxPaymentTerm
+	}
+	if req.StartingPremium != nil {
+		product.StartingPremium = *req.StartingPremium
+	}
+	if req.NonMCULimit != nil {
+		product.NonMCULimit = *req.NonMCULimit
+	}
+	if req.Benefits != nil {
+		product.Benefits = *req.Benefits
+	}
+	if req.Exclusions != nil {
+		product.Exclusions = *req.Exclusions
+	}
+	if req.IsFeatured != nil {
+		product.IsFeatured = *req.IsFeatured
+	}
+	if req.PricingRules != nil {
+		product.PricingRules = *req.PricingRules
+	}
+
+	if product.MaxSumAssured < product.MinSumAssured {
+		return models.Product{}, errors.New(constants.ErrProductMaxSumAssuredInvalid)
+	}
+	if product.MaxPaymentTerm < product.MinPaymentTerm {
+		return models.Product{}, errors.New(constants.ErrProductMaxPaymentTermInvalid)
+	}
+
+	if err := service.productRepository.Update(ctx, &product); err != nil {
+		return models.Product{}, err
+	}
+
+	service.syncKnowledge(ctx, product)
+
+	return product, nil
+}
+
+func (service *ProductService) UpdateProductStatus(ctx context.Context, id string, status models.ProductStatus) (models.Product, error) {
+	product, err := service.productRepository.FindByID(ctx, id)
+	if err != nil {
+		product, err = service.productRepository.FindBySlug(ctx, id)
+		if err != nil {
+			return models.Product{}, constants.ErrProductNotFoundError
+		}
+	}
+
+	if err := service.productRepository.UpdateStatus(ctx, product.ID, status); err != nil {
+		return models.Product{}, err
+	}
+
+	product.Status = status
+	service.syncKnowledge(ctx, product)
+
+	return product, nil
+}
+
+func (service *ProductService) ToggleProductStatus(ctx context.Context, id string) (models.Product, error) {
+	product, err := service.productRepository.FindByID(ctx, id)
+	if err != nil {
+		product, err = service.productRepository.FindBySlug(ctx, id)
+		if err != nil {
+			return models.Product{}, constants.ErrProductNotFoundError
+		}
+	}
+
+	targetStatus := models.ProductStatusActive
+	if product.Status == models.ProductStatusActive {
+		targetStatus = models.ProductStatusDraft
+	}
+
+	return service.UpdateProductStatus(ctx, product.ID, targetStatus)
+}
+
+func (service *ProductService) DeleteProduct(ctx context.Context, id string) error {
+	product, err := service.productRepository.FindByID(ctx, id)
+	if err != nil {
+		product, err = service.productRepository.FindBySlug(ctx, id)
+		if err != nil {
+			return constants.ErrProductNotFoundError
+		}
+	}
+
+	hasApps, err := service.productRepository.HasApplications(ctx, product.ID)
+	if err != nil {
+		return err
+	}
+	if hasApps {
+		return constants.ErrProductHasApplicationsError
+	}
+
+	if err := service.productRepository.Delete(ctx, product.ID); err != nil {
+		return err
+	}
+
+	service.removeKnowledge(ctx, product.Slug)
+
+	return nil
+}
+
+func (service *ProductService) GetProductManagementMetrics(ctx context.Context) (dtos.ProductManagementMetricsResponse, error) {
+	return service.productRepository.GetMetrics(ctx)
+}
+
+func (service *ProductService) UpdatePricingRules(ctx context.Context, slug string, rules []models.ProductPricingRule) error {
+	product, err := service.productRepository.FindBySlug(ctx, slug)
+	if err != nil {
+		return constants.ErrProductNotFoundError
+	}
+
+	if service.pricingRuleRepository == nil {
+		return errors.New("pricing rule repository not configured")
+	}
+
+	return service.pricingRuleRepository.SaveBatch(ctx, product.ID, rules)
 }
 
 func (service *ProductService) GetPricingRules(ctx context.Context, slug string) ([]models.ProductPricingRule, error) {
@@ -49,6 +277,10 @@ func (service *ProductService) CreateProductQuote(ctx context.Context, slug stri
 	product, err := service.productRepository.FindBySlug(ctx, slug)
 	if err != nil {
 		return dtos.ProductQuote{}, err
+	}
+
+	if product.Status == models.ProductStatusDraft || product.Status == models.ProductStatusArchived {
+		return dtos.ProductQuote{}, repositories.ErrProductNotFound
 	}
 
 	if input.SumAssured < product.MinSumAssured || input.SumAssured > product.MaxSumAssured {
@@ -340,4 +572,28 @@ func findAnswerForRule(rule models.ProductPricingRule, input dtos.CreateProductQ
 	}
 
 	return ""
+}
+
+func (service *ProductService) syncKnowledge(ctx context.Context, product models.Product) {
+	if service.knowledgeSyncer == nil {
+		return
+	}
+	if product.Status == models.ProductStatusArchived {
+		if err := service.knowledgeSyncer.RemoveProductKnowledge(ctx, product.Slug); err != nil {
+			log.Printf("[ProductService] warning: failed to remove knowledge for %s: %v", product.Slug, err)
+		}
+	} else {
+		if err := service.knowledgeSyncer.SyncProductKnowledge(ctx, product); err != nil {
+			log.Printf("[ProductService] warning: failed to sync knowledge for %s: %v", product.Slug, err)
+		}
+	}
+}
+
+func (service *ProductService) removeKnowledge(ctx context.Context, slug string) {
+	if service.knowledgeSyncer == nil {
+		return
+	}
+	if err := service.knowledgeSyncer.RemoveProductKnowledge(ctx, slug); err != nil {
+		log.Printf("[ProductService] warning: failed to remove knowledge for %s: %v", slug, err)
+	}
 }

@@ -154,7 +154,7 @@ func sqliteDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v", err)
 	}
-	if err := db.AutoMigrate(&models.Product{}, &models.Application{}, &models.ApplicationReviewCheck{}, &models.KnowledgeChunk{}); err != nil {
+	if err := db.AutoMigrate(&models.Product{}, &models.ProductPricingRule{}, &models.Application{}, &models.ApplicationReviewCheck{}, &models.KnowledgeChunk{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}
 	return db

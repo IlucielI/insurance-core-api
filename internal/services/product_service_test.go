@@ -26,8 +26,83 @@ func (repository *fakeProductRepository) FindAll(ctx context.Context, filter rep
 
 func (repository *fakeProductRepository) FindBySlug(ctx context.Context, slug string) (models.Product, error) {
 	repository.slug = slug
-	return repository.product, repository.err
+	if repository.err != nil {
+		return models.Product{}, repository.err
+	}
+	if repository.product.Slug == slug || repository.product.ID == slug {
+		return repository.product, nil
+	}
+	for _, p := range repository.products {
+		if p.Slug == slug || p.ID == slug {
+			return p, nil
+		}
+	}
+	return models.Product{}, repositories.ErrProductNotFound
 }
+
+func (repository *fakeProductRepository) FindByID(ctx context.Context, id string) (models.Product, error) {
+	if repository.err != nil {
+		return models.Product{}, repository.err
+	}
+	if repository.product.ID == id || (repository.product.Slug == id && repository.product.ID != "") {
+		return repository.product, nil
+	}
+	for _, p := range repository.products {
+		if p.ID == id || (p.Slug == id && p.ID != "") {
+			return p, nil
+		}
+	}
+	return models.Product{}, repositories.ErrProductNotFound
+}
+
+func (repository *fakeProductRepository) Create(ctx context.Context, product *models.Product) error {
+	if repository.err != nil {
+		return repository.err
+	}
+	repository.products = append(repository.products, *product)
+	repository.product = *product
+	return nil
+}
+
+func (repository *fakeProductRepository) Update(ctx context.Context, product *models.Product) error {
+	if repository.err != nil {
+		return repository.err
+	}
+	repository.product = *product
+	return nil
+}
+
+func (repository *fakeProductRepository) UpdateStatus(ctx context.Context, id string, status models.ProductStatus) error {
+	if repository.err != nil {
+		return repository.err
+	}
+	repository.product.Status = status
+	return nil
+}
+
+func (repository *fakeProductRepository) Delete(ctx context.Context, id string) error {
+	return repository.err
+}
+
+func (repository *fakeProductRepository) GetMetrics(ctx context.Context) (dtos.ProductManagementMetricsResponse, error) {
+	if repository.err != nil {
+		return dtos.ProductManagementMetricsResponse{}, repository.err
+	}
+	return dtos.ProductManagementMetricsResponse{
+		TotalProducts:       len(repository.products),
+		ActiveProducts:      len(repository.products),
+		TotalActivePolicies: 10,
+		TotalGWPVolume:      1000000,
+	}, nil
+}
+
+func (repository *fakeProductRepository) HasApplications(ctx context.Context, productID string) (bool, error) {
+	if repository.err != nil {
+		return false, repository.err
+	}
+	return false, nil
+}
+
 
 func TestProductServiceListProducts(t *testing.T) {
 	featured := true
@@ -133,6 +208,28 @@ func TestProductServiceCreateProductQuoteRequiresCompletePricingRules(t *testing
 	_, err := service.CreateProductQuote(context.Background(), "secure-life-plus", quoteInputFixture())
 	if !errors.Is(err, constants.QuotePricingRulesInvalidError) {
 		t.Fatalf("CreateProductQuote() error = %v, want %v", err, constants.QuotePricingRulesInvalidError)
+	}
+}
+
+func TestProductServiceCreateProductQuoteRejectsDraftOrArchived(t *testing.T) {
+	draftProd := productFixture()
+	draftProd.Slug = "draft-prod"
+	draftProd.Status = models.ProductStatusDraft
+	serviceDraft := NewProductService(&fakeProductRepository{product: draftProd})
+
+	_, err := serviceDraft.CreateProductQuote(context.Background(), "draft-prod", quoteInputFixture())
+	if !errors.Is(err, repositories.ErrProductNotFound) {
+		t.Fatalf("expected ErrProductNotFound for draft product quote, got: %v", err)
+	}
+
+	archivedProd := productFixture()
+	archivedProd.Slug = "archived-prod"
+	archivedProd.Status = models.ProductStatusArchived
+	serviceArchived := NewProductService(&fakeProductRepository{product: archivedProd})
+
+	_, err = serviceArchived.CreateProductQuote(context.Background(), "archived-prod", quoteInputFixture())
+	if !errors.Is(err, repositories.ErrProductNotFound) {
+		t.Fatalf("expected ErrProductNotFound for archived product quote, got: %v", err)
 	}
 }
 
@@ -243,6 +340,14 @@ func (r *fakePricingRuleRepository) FindByProductSlug(ctx context.Context, slug 
 func (r *fakePricingRuleRepository) Create(ctx context.Context, rule *models.ProductPricingRule) error {
 	r.rules = append(r.rules, *rule)
 	return r.err
+}
+
+func (r *fakePricingRuleRepository) SaveBatch(ctx context.Context, productID string, rules []models.ProductPricingRule) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.rules = rules
+	return nil
 }
 
 func TestProductServiceGetPricingRules(t *testing.T) {
@@ -369,3 +474,240 @@ func TestProductServiceCreateProductQuoteDynamicRules(t *testing.T) {
 		t.Fatalf("SmokerFactor = %f, want 1.35", quote.Breakdown.SmokerFactor)
 	}
 }
+
+type fakeKnowledgeSyncer struct {
+	syncedProduct   models.Product
+	removedSlug     string
+	syncCallCount   int
+	removeCallCount int
+}
+
+func (s *fakeKnowledgeSyncer) SyncProductKnowledge(ctx context.Context, product models.Product) error {
+	s.syncedProduct = product
+	s.syncCallCount++
+	return nil
+}
+
+func (s *fakeKnowledgeSyncer) RemoveProductKnowledge(ctx context.Context, slug string) error {
+	s.removedSlug = slug
+	s.removeCallCount++
+	return nil
+}
+
+func TestProductServiceCreateProduct(t *testing.T) {
+	prodRepo := &fakeProductRepository{
+		products: []models.Product{
+			{ID: "existing-1", Slug: "existing-slug"},
+		},
+	}
+	syncer := &fakeKnowledgeSyncer{}
+	service := NewProductService(prodRepo).WithKnowledgeSyncer(syncer)
+
+	ctx := context.Background()
+
+	// 1. Success
+	req := dtos.CreateProductRequest{
+		Name:             "Jiwa Maxima",
+		Slug:             "jiwa-maxima",
+		Category:         "life",
+		Status:           "active",
+		ShortDescription: "Asuransi jiwa terbaik",
+		Description:      "Deskripsi lengkap",
+		TargetCustomer:   "Nasabah premium",
+		MinSumAssured:    50000000,
+		MaxSumAssured:    2000000000,
+		MinPaymentTerm:   5,
+		MaxPaymentTerm:   30,
+		StartingPremium:  250000,
+		NonMCULimit:      750000000,
+		Benefits:         []string{"Santunan Jiwa"},
+	}
+
+	created, err := service.CreateProduct(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateProduct() error = %v", err)
+	}
+	if created.Name != "Jiwa Maxima" || created.Slug != "jiwa-maxima" {
+		t.Fatalf("created product unexpected: %+v", created)
+	}
+	if syncer.syncCallCount != 1 || syncer.syncedProduct.Slug != "jiwa-maxima" {
+		t.Fatalf("expected syncer called once for jiwa-maxima, got %d", syncer.syncCallCount)
+	}
+
+	// 2. Duplicate slug
+	duplicateReq := req
+	duplicateReq.Slug = "existing-slug"
+	_, err = service.CreateProduct(ctx, duplicateReq)
+	if !errors.Is(err, constants.ErrProductSlugAlreadyExistsError) {
+		t.Fatalf("expected ErrProductSlugAlreadyExistsError, got %v", err)
+	}
+}
+
+func TestProductServiceUpdateProductAndArchiveSync(t *testing.T) {
+	initial := models.Product{
+		ID:               "prod-1",
+		Name:             "Jiwa Mantap",
+		Slug:             "jiwa-mantap",
+		Category:         models.ProductCategoryLife,
+		Status:           models.ProductStatusActive,
+		MinSumAssured:    10000000,
+		MaxSumAssured:    100000000,
+		MinPaymentTerm:   5,
+		MaxPaymentTerm:   20,
+		StartingPremium:  100000,
+		NonMCULimit:      500000000,
+	}
+	prodRepo := &fakeProductRepository{product: initial}
+	syncer := &fakeKnowledgeSyncer{}
+	service := NewProductService(prodRepo).WithKnowledgeSyncer(syncer)
+
+	ctx := context.Background()
+
+	// Update name and status to archived
+	newName := "Jiwa Mantap Legacy"
+	archivedStatus := "archived"
+	updateReq := dtos.UpdateProductRequest{
+		Name:   &newName,
+		Status: &archivedStatus,
+	}
+
+	updated, err := service.UpdateProduct(ctx, "prod-1", updateReq)
+	if err != nil {
+		t.Fatalf("UpdateProduct() error = %v", err)
+	}
+	if updated.Name != "Jiwa Mantap Legacy" || updated.Status != models.ProductStatusArchived {
+		t.Fatalf("updated product unexpected: %+v", updated)
+	}
+	// Since status is archived, remove call count should increment
+	if syncer.removeCallCount != 1 || syncer.removedSlug != "jiwa-mantap" {
+		t.Fatalf("expected vector removal on archive, got removeCallCount=%d", syncer.removeCallCount)
+	}
+}
+
+func TestProductServiceToggleProductStatus(t *testing.T) {
+	initial := models.Product{
+		ID:     "prod-toggle",
+		Slug:   "prod-toggle",
+		Status: models.ProductStatusActive,
+	}
+	prodRepo := &fakeProductRepository{product: initial}
+	service := NewProductService(prodRepo)
+
+	ctx := context.Background()
+
+	// 1. Active to Draft
+	res1, err := service.ToggleProductStatus(ctx, "prod-toggle")
+	if err != nil {
+		t.Fatalf("ToggleProductStatus() error = %v", err)
+	}
+	if res1.Status != models.ProductStatusDraft {
+		t.Fatalf("expected draft, got %s", res1.Status)
+	}
+
+	// 2. Draft to Active
+	prodRepo.product.Status = models.ProductStatusDraft
+	res2, err := service.ToggleProductStatus(ctx, "prod-toggle")
+	if err != nil {
+		t.Fatalf("ToggleProductStatus() error = %v", err)
+	}
+	if res2.Status != models.ProductStatusActive {
+		t.Fatalf("expected active, got %s", res2.Status)
+	}
+}
+
+type fakeProductRepositoryWithApps struct {
+	fakeProductRepository
+	hasApps bool
+}
+
+func (r *fakeProductRepositoryWithApps) HasApplications(ctx context.Context, productID string) (bool, error) {
+	return r.hasApps, nil
+}
+
+func TestProductServiceDeleteProduct_WithApplicationsGuard(t *testing.T) {
+	ctx := context.Background()
+	initial := models.Product{ID: "prod-del", Slug: "prod-del"}
+
+	// 1. Blocked when has applications
+	repoBlocked := &fakeProductRepositoryWithApps{
+		fakeProductRepository: fakeProductRepository{product: initial},
+		hasApps:                true,
+	}
+	serviceBlocked := NewProductService(repoBlocked)
+	err := serviceBlocked.DeleteProduct(ctx, "prod-del")
+	if !errors.Is(err, constants.ErrProductHasApplicationsError) {
+		t.Fatalf("expected ErrProductHasApplicationsError, got %v", err)
+	}
+
+	// 2. Allowed when no applications
+	syncer := &fakeKnowledgeSyncer{}
+	repoAllowed := &fakeProductRepositoryWithApps{
+		fakeProductRepository: fakeProductRepository{product: initial},
+		hasApps:                false,
+	}
+	serviceAllowed := NewProductService(repoAllowed).WithKnowledgeSyncer(syncer)
+	err = serviceAllowed.DeleteProduct(ctx, "prod-del")
+	if err != nil {
+		t.Fatalf("DeleteProduct() error = %v", err)
+	}
+	if syncer.removeCallCount != 1 {
+		t.Fatalf("expected vector removal on delete, got count=%d", syncer.removeCallCount)
+	}
+}
+
+func TestProductServiceUpdatePricingRules(t *testing.T) {
+	ctx := context.Background()
+	prodRepo := &fakeProductRepository{product: models.Product{ID: "prod-1", Slug: "prod-slug"}}
+	ruleRepo := &fakePricingRuleRepository{}
+	service := NewProductService(prodRepo, ruleRepo)
+
+	rules := []models.ProductPricingRule{
+		{RuleCode: "base_rate", RuleName: "Base Rate", RuleType: "base_rate"},
+	}
+
+	if err := service.UpdatePricingRules(ctx, "prod-slug", rules); err != nil {
+		t.Fatalf("UpdatePricingRules() error = %v", err)
+	}
+	if len(ruleRepo.rules) != 1 || ruleRepo.rules[0].RuleCode != "base_rate" {
+		t.Fatalf("rules not saved: %+v", ruleRepo.rules)
+	}
+}
+
+func TestProductServiceGetProductManagementMetrics(t *testing.T) {
+	ctx := context.Background()
+	prodRepo := &fakeProductRepository{
+		products: []models.Product{
+			{ID: "p1", Status: models.ProductStatusActive},
+			{ID: "p2", Status: models.ProductStatusDraft},
+		},
+	}
+	service := NewProductService(prodRepo)
+
+	metrics, err := service.GetProductManagementMetrics(ctx)
+	if err != nil {
+		t.Fatalf("GetProductManagementMetrics() error = %v", err)
+	}
+	if metrics.TotalProducts != 2 {
+		t.Fatalf("metrics.TotalProducts = %d, want 2", metrics.TotalProducts)
+	}
+}
+
+func TestFakeProductRepositoryFindByIDAccuracy(t *testing.T) {
+	ctx := context.Background()
+	repo := &fakeProductRepository{
+		product: models.Product{ID: "prod-1", Slug: "prod-slug"},
+	}
+
+	// 1. Happy path: matching ID
+	p, err := repo.FindByID(ctx, "prod-1")
+	if err != nil || p.ID != "prod-1" {
+		t.Fatalf("FindByID(prod-1) = %+v, error = %v", p, err)
+	}
+
+	// 2. Edge case: unknown ID should return ErrProductNotFound
+	_, err = repo.FindByID(ctx, "unknown-id")
+	if !errors.Is(err, repositories.ErrProductNotFound) {
+		t.Fatalf("FindByID(unknown-id) expected ErrProductNotFound, got: %v", err)
+	}
+}
+
