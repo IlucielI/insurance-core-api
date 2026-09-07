@@ -101,7 +101,7 @@ func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slu
 	}
 
 	var product models.Product
-	err := repository.db.WithContext(ctx).Where("slug = ?", slug).First(&product).Error
+	err := repository.db.WithContext(ctx).Where("slug = ? OR id = ?", slug, slug).First(&product).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return models.Product{}, ErrProductNotFound
 	}

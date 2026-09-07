@@ -86,6 +86,10 @@ func ValidateProductQuoteRequest(request dtos.ProductQuoteRequest) (dtos.Product
 		request.HealthRisk = constants.HealthRiskLow
 	}
 
+	if request.Smoker == "" {
+		request.Smoker = constants.SmokerNo
+	}
+
 	if validation.Validate(request.Age, validation.Min(constants.MinQuoteAge), validation.Max(constants.MaxQuoteAge)) != nil {
 		return dtos.ProductQuoteRequest{}, errors.New(constants.ErrQuoteAgeInvalid)
 	}
@@ -135,6 +139,8 @@ func contains(value string, allowedValues ...string) bool {
 }
 
 func ValidateApplicationRequest(request dtos.CreateApplicationRequest) (dtos.CreateApplicationRequest, error) {
+	request.ProductSlug = strings.TrimSpace(request.ProductSlug)
+	request.ProductID = strings.TrimSpace(request.ProductID)
 	request.FullName = strings.TrimSpace(request.FullName)
 	request.Email = strings.TrimSpace(request.Email)
 	request.Phone = strings.TrimSpace(request.Phone)

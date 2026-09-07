@@ -3,9 +3,12 @@ package dtos
 import "github.com/bayuanugerah/insurance-core-api/internal/models"
 
 type CreateApplicationRequest struct {
-	FullName string `json:"full_name"`
-	Email    string `json:"email"`
-	Phone    string `json:"phone"`
+	ProductSlug string                   `json:"product_slug,omitempty"`
+	ProductID   string                   `json:"product_id,omitempty"`
+	FullName    string                   `json:"full_name"`
+	Email       string                   `json:"email"`
+	Phone       string                   `json:"phone"`
+	Answers     []ApplicationAnswerInput `json:"answers,omitempty"`
 	ProductQuoteRequest
 }
 

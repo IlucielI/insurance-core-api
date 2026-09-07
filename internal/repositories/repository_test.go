@@ -65,7 +65,7 @@ func TestPostgresApplicationRepository(t *testing.T) {
 	seedProduct(t, db, product)
 
 	repository := NewPostgresApplicationRepository(db)
-	application := models.Application{ID: "application-1", ProductID: product.ID, FullName: "Bayu", Email: "bayu@example.com", Phone: "+628123456789", Age: 35, Gender: "male", SumAssured: 300000000, PaymentTerm: 10, PaymentFrequency: "monthly", Smoker: "no", OccupationClass: "standard", HealthRisk: "low", Premium: 139000, Status: models.ApplicationStatusSubmitted, ReviewChecks: []models.ApplicationReviewCheck{{ID: "check-1", ApplicationID: "application-1", CheckType: models.ApplicationReviewCheckTypeIdentityVerified, Status: models.ApplicationReviewCheckStatusPending}}}
+	application := models.Application{ID: "application-1", ProductID: product.ID, FullName: "Bayu", Email: "bayu@example.com", Phone: "+628123456789", Age: 35, Gender: "male", SumAssured: 300000000, PaymentTerm: 10, PaymentFrequency: "monthly", Premium: 139000, Status: models.ApplicationStatusSubmitted, ReviewChecks: []models.ApplicationReviewCheck{{ID: "check-1", ApplicationID: "application-1", CheckType: models.ApplicationReviewCheckTypeIdentityVerified, Status: models.ApplicationReviewCheckStatusPending}}}
 	if err := repository.Create(context.Background(), &application); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -111,7 +111,7 @@ func TestPostgresApplicationReviewCheckRepository(t *testing.T) {
 	db := sqliteDB(t)
 	product := models.Product{ID: "product-1", Name: "Secure Life Plus", Slug: "secure-life-plus", Category: models.ProductCategoryLife, IsFeatured: true}
 	seedProduct(t, db, product)
-	application := models.Application{ID: "application-1", ProductID: product.ID, FullName: "Bayu", Email: "bayu@example.com", Phone: "+628123456789", Age: 35, Gender: "male", SumAssured: 300000000, PaymentTerm: 10, PaymentFrequency: "monthly", Smoker: "no", OccupationClass: "standard", HealthRisk: "low", Premium: 139000, Status: models.ApplicationStatusSubmitted}
+	application := models.Application{ID: "application-1", ProductID: product.ID, FullName: "Bayu", Email: "bayu@example.com", Phone: "+628123456789", Age: 35, Gender: "male", SumAssured: 300000000, PaymentTerm: 10, PaymentFrequency: "monthly", Premium: 139000, Status: models.ApplicationStatusSubmitted}
 	if err := db.Create(&application).Error; err != nil {
 		t.Fatalf("seed application error = %v", err)
 	}
