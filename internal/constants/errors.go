@@ -40,6 +40,25 @@ const (
 )
 
 const (
+	ErrKnowledgeDocNotFound           = "knowledge document not found"
+	ErrKnowledgeDocSlugAlreadyExists   = "knowledge document slug already exists"
+	ErrKnowledgeDocTitleRequired      = "title is required"
+	ErrKnowledgeDocTitleInvalid       = "title must be between 3 and 255 characters"
+	ErrKnowledgeDocSlugInvalid        = "slug must be a valid lowercase kebab-case string"
+	ErrKnowledgeDocCategoryInvalid    = "category must be one of: underwriting, product, claim_faq, compliance, company"
+	ErrKnowledgeDocStatusInvalid      = "status must be one of: indexed, syncing, draft"
+	ErrKnowledgeDocSummaryRequired    = "summary is required"
+	ErrKnowledgeDocContentRequired    = "content is required"
+	ErrKnowledgeDocIDRequired         = "document id is required"
+	ErrKnowledgeDocRequestBodyInvalid = "invalid knowledge document request body"
+	ErrKnowledgeDocListFailed         = "failed to list knowledge documents"
+	ErrKnowledgeDocDetailFailed       = "failed to get knowledge document"
+	ErrKnowledgeDocCreateFailed       = "failed to create knowledge document"
+	ErrKnowledgeDocUpdateFailed       = "failed to update knowledge document"
+	ErrKnowledgeDocDeleteFailed       = "failed to delete knowledge document"
+)
+
+const (
 	ErrQuoteAgeInvalid              = "age must be between 18 and 60"
 	ErrQuoteGenderInvalid           = "gender must be male or female"
 	ErrQuoteSmokerInvalid           = "smoker must be yes or no"

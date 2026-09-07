@@ -27,6 +27,8 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	var pricingRuleRepository repositories.PricingRuleRepository
 	var metricsRepository repositories.MetricsRepository
 	var metricsService services.MetricsService
+	var knowledgeDocRepository repositories.KnowledgeDocumentRepository
+	var knowledgeDocService services.KnowledgeDocumentService
 
 	for _, repo := range optionalRepositories {
 		switch r := repo.(type) {
@@ -38,11 +40,19 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 			metricsRepository = r
 		case services.MetricsService:
 			metricsService = r
+		case repositories.KnowledgeDocumentRepository:
+			knowledgeDocRepository = r
+		case services.KnowledgeDocumentService:
+			knowledgeDocService = r
 		}
 	}
 
 	if metricsService == nil && metricsRepository != nil {
 		metricsService = services.NewMetricsService(metricsRepository)
+	}
+
+	if knowledgeDocService == nil && knowledgeDocRepository != nil {
+		knowledgeDocService = services.NewKnowledgeDocumentService(knowledgeDocRepository)
 	}
 
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
@@ -97,6 +107,15 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	if metricsService != nil {
 		adminMetricsController := controllers.NewAdminMetricsController(metricsService)
 		api.Get("/admin/metrics", adminMetricsController.GetMetrics)
+	}
+	if knowledgeDocService != nil {
+		knowledgeDocController := controllers.NewKnowledgeDocumentController(knowledgeDocService)
+		api.Get("/knowledge/documents", knowledgeDocController.List)
+		api.Post("/knowledge/documents", knowledgeDocController.Create)
+		api.Get("/knowledge/documents/slug/:slug", knowledgeDocController.GetBySlug)
+		api.Get("/knowledge/documents/:id", knowledgeDocController.Get)
+		api.Put("/knowledge/documents/:id", knowledgeDocController.Update)
+		api.Delete("/knowledge/documents/:id", knowledgeDocController.Delete)
 	}
 
 	return app

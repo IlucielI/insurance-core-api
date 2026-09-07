@@ -8,6 +8,7 @@ import (
 
 type KnowledgeChunk struct {
 	ID         string          `gorm:"primaryKey;type:varchar(64)" json:"id"`
+	DocumentID string          `gorm:"type:varchar(64);index" json:"document_id,omitempty"`
 	SourceType string          `gorm:"type:varchar(64);not null;index" json:"source_type"`
 	Title      string          `gorm:"type:varchar(120);not null" json:"title"`
 	Content    string          `gorm:"type:text;not null" json:"content"`

@@ -1,0 +1,87 @@
+INSERT INTO knowledge_documents (id, title, slug, category, summary, content, tags, chunk_count, status, last_synced_at, created_at, updated_at)
+VALUES
+(
+    'doc_underwriting_up_medical',
+    'Pedoman Batas Uang Pertanggungan & Medical Check-Up',
+    'pedoman-batas-up-dan-medical-check-up',
+    'underwriting',
+    'Ketentuan limit uang pertanggungan tanpa pemeriksaan medis (Non-Medical Limit) berdasarkan kelompok usia nasabah dan riwayat kesehatan.',
+    E'1. Batas Non-Medical Limit (Tanpa MCU):\n- Usia 18 - 35 tahun: Uang Pertanggungan (UP) hingga Rp 500.000.000 dapat disetujui otomatis melalui deklarasi kesehatan digital.\n- Usia 36 - 45 tahun: Batas Non-Medical Limit adalah Rp 350.000.000. Pengajuan di atas Rp 350.000.000 mewajibkan Tele-Interview Underwriting.\n- Usia 46 - 60 tahun: Batas Non-Medical Limit adalah Rp 200.000.000. Pengajuan di atas Rp 200.000.000 wajib melakukan tes darah rutin dan EKG.\n\n2. Indikasi Pemeriksaan Tambahan:\n- BMI (Indeks Massa Tubuh) > 30 atau < 16.\n- Riwayat hipertensi dengan tekanan darah sistolik > 140 mmHg atau diastolik > 90 mmHg.\n- Riwayat keluarga memiliki penyakit jantung atau diabetes pada usia dini (< 50 tahun).',
+    '["underwriting", "medical-checkup", "uang-pertanggungan", "non-medical-limit"]'::jsonb,
+    16,
+    'indexed',
+    NOW(),
+    NOW(),
+    NOW()
+),
+(
+    'doc_critical_illness_waiting',
+    'Klausul Pengecualian & Waiting Period Penyakit Kritis',
+    'klausul-pengecualian-dan-waiting-period-penyakit-kritis',
+    'product',
+    'Masa tunggu 90 hari pertama dan ketentuan pre-existing conditions untuk perlindungan penyakit kritis stadium awal dan lanjutan.',
+    E'1. Masa Tunggu (Waiting Period):\n- Berlaku masa tunggu standar selama 90 (sembilan puluh) hari kalender terhitung sejak tanggal penerbitan polis resmi atau pemulihan polis.\n- Gejala atau diagnosis penyakit kritis yang muncul dalam kurun waktu 90 hari pertama tidak dapat dibayarkan santunannya dan premi dikembalikan dikurangi biaya administrasi.\n\n2. Pre-Existing Conditions:\n- Penyakit kritis atau kondisi medis yang tanda atau gejalanya telah diketahui tertanggung sebelum tanggal berlakunya polis tidak ditanggung.\n- Deklarasi jujur pada surat permohonan asuransi mutlak diperlukan untuk menghindari pembatalan polis sepihak.',
+    '["penyakit-kritis", "waiting-period", "exclusions", "pre-existing"]'::jsonb,
+    12,
+    'indexed',
+    NOW(),
+    NOW(),
+    NOW()
+),
+(
+    'doc_dukcapil_biometric_ocr',
+    'Prosedur Verifikasi Dokumen Dukcapil & Biometrik',
+    'prosedur-verifikasi-dokumen-dukcapil-dan-biometrik',
+    'compliance',
+    'Standar Operasional Prosedur (SOP) pencocokan NIK, data kependudukan Dukcapil, dan verifikasi biometrik liveness nasabah.',
+    E'1. Verifikasi NIK & Data Kependudukan:\n- NIK 16 digit divalidasi ke database Ditjen Dukcapil Kemendagri secara online via Core API.\n- Parameter wajib cocok: Nama lengkap sesuai KTP, Tanggal lahir, Alamat domisili provinsi dan kota/kabupaten.\n- Toleransi ketidakcocokan karakter nama maksimal 2 karakter (typo) untuk review manual underwriter.\n\n2. Verifikasi Wajah & Biometrik (Liveness Detection):\n- Skor kemiripan biometrik (Facial Match Score) minimal 80%.\n- Liveness check wajib mendeteksi kedipan mata dan rotasi kepala untuk mencegah spoofing foto atau topeng buatan.',
+    '["dukcapil", "nik", "biometrik", "ocr", "compliance"]'::jsonb,
+    14,
+    'indexed',
+    NOW(),
+    NOW(),
+    NOW()
+),
+(
+    'doc_claim_cashless_inpatient',
+    'Alur Klaim Rawat Inap Cashless & Dokumen Rumah Sakit',
+    'alur-klaim-rawat-inap-cashless-dan-dokumen-rumah-sakit',
+    'claim_faq',
+    'Panduan nasabah dan rumah sakit rekanan mengenai penjaminan rawat inap tanpa uang tunai (cashless) dan syarat reimbursement.',
+    E'1. Penjaminan Awal (Pre-Admission):\n- Tunjukkan kartu digital Bayu Insurance atau sebutkan NIK kepada petugas admisi rumah sakit rekanan AdMedika.\n- Rumah sakit menerbitkan Surat Jaminan Awal (SJA) dalam waktu maksimal 30 menit.\n\n2. Penjaminan Akhir & Pemulangan (Discharge):\n- Resume medis dan rincian biaya tagihan dikirimkan oleh pihak RS ke Third Party Administrator (TPA).\n- Surat Jaminan Akhir diterbitkan, nasabah hanya membayar biaya yang tidak dijamin (excess/selisih kamar).',
+    '["klaim", "cashless", "rawat-inap", "rumah-sakit", "admedika"]'::jsonb,
+    18,
+    'indexed',
+    NOW(),
+    NOW(),
+    NOW()
+),
+(
+    'doc_vehicle_allrisk_workshop',
+    'Ketentuan Bengkel Rekanan & Kerugian All-Risk Auto Shield',
+    'ketentuan-bengkel-rekanan-dan-kerugian-allrisk-auto-shield',
+    'product',
+    'Prosedur pelaporan klaim kecelakaan mobil, bengkel resmi authorized, dan ketentuan biaya risiko sendiri (Own Risk).',
+    E'1. Batas Waktu Pelaporan Kecelakaan:\n- Insiden kecelakaan, tabrakan, atau pencurian wajib dilaporkan selambat-lambatnya 5 x 24 jam kalender sejak kejadian.\n- Laporan disertai foto 4 sisi kendaraan, SIM pengemudi aktif, dan STNK kendaraan.\n\n2. Risiko Sendiri (Own Risk / Deductible):\n- Biaya risiko sendiri yang ditanggung tertanggung adalah Rp 300.000 per kejadian klaim kecelakaan sebagian (partial loss).\n- Kerugian total (Total Loss Only / TLO) di atas 75% harga pasar tidak dikenakan biaya risiko sendiri.',
+    '["auto-shield", "kendaraan", "bengkel", "own-risk", "klaim-mobil"]'::jsonb,
+    15,
+    'indexed',
+    NOW(),
+    NOW(),
+    NOW()
+),
+(
+    'doc_aml_pep_screening',
+    'Kepatuhan Anti-Pencucian Uang (AML) & Screening PEP',
+    'kepatuhan-anti-pencucian-uang-aml-dan-screening-pep',
+    'compliance',
+    'Kebijakan verifikasi profil nasabah berisiko tinggi, Politically Exposed Persons (PEP), dan pelaporan transaksi mencurigakan PPATK.',
+    E'1. Definisi & Kategori PEP (Politically Exposed Persons):\n- Pejabat negara, anggota parlemen, kepala daerah, perwira tinggi militer/polisi, serta keluarga inti garis lurus.\n- Setiap pengajuan aplikasi dari nasabah berstatus PEP wajib melalui proses Enhanced Due Diligence (EDD) oleh Compliance Officer.\n\n2. Batasan Transaksi Tunai & Sumber Dana:\n- Pembayaran premi menggunakan uang tunai di atas Rp 100.000.000 wajib menyertakan formulir deklarasi sumber dana (Source of Wealth / Source of Funds).\n- Transaksi anomali dilaporkan melalui Laporan Transaksi Keuangan Mencurigakan (LTKM) ke PPATK.',
+    '["aml", "pep", "compliance", "ppatk", "enhanced-due-diligence"]'::jsonb,
+    20,
+    'indexed',
+    NOW(),
+    NOW(),
+    NOW()
+)
+ON CONFLICT (id) DO NOTHING;
