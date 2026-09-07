@@ -197,6 +197,7 @@ func TestValidateApplicationListQuery(t *testing.T) {
 	cases := []struct{ name, status, product, page, limit, want string }{
 		{"defaults", "", "", "", "", ""},
 		{"status", "submitted", " product-1 ", "2", "10", ""},
+		{"status draft", "draft", "", "", "", ""},
 		{"bad status", "unknown", "", "", "", constants.ErrApplicationStatusInvalid},
 		{"bad product", "", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "", "", constants.ErrApplicationListFilterInvalid},
 		{"bad page", "", "", "x", "", constants.ErrApplicationPageInvalid},
