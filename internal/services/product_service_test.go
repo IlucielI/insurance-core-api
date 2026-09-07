@@ -75,6 +75,9 @@ func TestProductServiceCreateProductQuote(t *testing.T) {
 	if quote.ProductID != "product-1" {
 		t.Fatalf("ProductID = %q, want product-1", quote.ProductID)
 	}
+	if quote.ProductSlug != "secure-life-plus" {
+		t.Fatalf("ProductSlug = %q, want secure-life-plus", quote.ProductSlug)
+	}
 	if quote.Currency != constants.CurrencyIDR {
 		t.Fatalf("Currency = %q, want %q", quote.Currency, constants.CurrencyIDR)
 	}

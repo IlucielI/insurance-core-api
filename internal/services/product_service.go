@@ -61,6 +61,7 @@ func (service *ProductService) CreateProductQuote(ctx context.Context, slug stri
 	return dtos.ProductQuote{
 		ProductID:              product.ID,
 		ProductName:            product.Name,
+		ProductSlug:            product.Slug,
 		Currency:               constants.CurrencyIDR,
 		Age:                    input.Age,
 		Gender:                 input.Gender,

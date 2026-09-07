@@ -32,6 +32,7 @@ type CreateProductQuoteInput struct {
 type ProductQuote struct {
 	ProductID              string                `json:"product_id"`
 	ProductName            string                `json:"product_name"`
+	ProductSlug            string                `json:"product_slug"`
 	Currency               string                `json:"currency"`
 	Age                    int                   `json:"age"`
 	Gender                 string                `json:"gender"`
