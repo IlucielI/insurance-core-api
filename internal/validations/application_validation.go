@@ -64,7 +64,8 @@ func parsePositiveInt(value string, errorMessage string) (int, error) {
 
 func validApplicationStatusFilter(status models.ApplicationStatus) bool {
 	switch status {
-	case models.ApplicationStatusSubmitted,
+	case models.ApplicationStatusDraft,
+		models.ApplicationStatusSubmitted,
 		models.ApplicationStatusUnderReview,
 		models.ApplicationStatusApproved,
 		models.ApplicationStatusRejected:

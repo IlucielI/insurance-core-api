@@ -5,6 +5,7 @@ import "time"
 type ApplicationStatus string
 
 const (
+	ApplicationStatusDraft       ApplicationStatus = "draft"
 	ApplicationStatusSubmitted   ApplicationStatus = "submitted"
 	ApplicationStatusUnderReview ApplicationStatus = "under_review"
 	ApplicationStatusApproved    ApplicationStatus = "approved"

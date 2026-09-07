@@ -242,6 +242,8 @@ func TestApplicationServiceUpdateStatus(t *testing.T) {
 		input   dtos.UpdateApplicationStatusRequest
 		wantErr error
 	}{
+		{name: "draft to submitted", current: models.ApplicationStatusDraft, input: statusRequest(models.ApplicationStatusSubmitted, "system", "")},
+		{name: "draft to approved invalid", current: models.ApplicationStatusDraft, input: statusRequest(models.ApplicationStatusApproved, "underwriter", ""), wantErr: constants.ErrApplicationStatusTransitionInvalidError},
 		{name: "submit to review", current: models.ApplicationStatusSubmitted, input: statusRequest(models.ApplicationStatusUnderReview, "underwriter", "")},
 		{name: "review to approved", current: models.ApplicationStatusUnderReview, input: statusRequest(models.ApplicationStatusApproved, "underwriter", "")},
 		{name: "review to rejected", current: models.ApplicationStatusUnderReview, input: statusRequest(models.ApplicationStatusRejected, "underwriter", "documents incomplete")},

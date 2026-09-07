@@ -202,6 +202,8 @@ func (service *ApplicationService) UpdateReviewCheck(ctx context.Context, applic
 
 func validApplicationTransition(current, next models.ApplicationStatus) bool {
 	switch current {
+	case models.ApplicationStatusDraft:
+		return next == models.ApplicationStatusSubmitted
 	case models.ApplicationStatusSubmitted:
 		return next == models.ApplicationStatusUnderReview
 	case models.ApplicationStatusUnderReview:
