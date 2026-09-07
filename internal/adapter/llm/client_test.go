@@ -242,6 +242,71 @@ func TestClientCreateChatCompletionWithTools(t *testing.T) {
 	}
 }
 
+func TestParseChatCompletionResponseWithTools_ContentHandling(t *testing.T) {
+	// Happy path: tool calls with valid content
+	withContent := []byte(`{
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": "Let me calculate that for you.",
+				"tool_calls": [{
+					"id": "call_1",
+					"type": "function",
+					"function": {"name": "calculate_quote", "arguments": "{}"}
+				}]
+			}
+		}]
+	}`)
+	out, err := parseChatCompletionResponseWithTools(withContent)
+	if err != nil {
+		t.Fatalf("parseChatCompletionResponseWithTools(withContent) error = %v", err)
+	}
+	if out.Content != "Let me calculate that for you." || len(out.ToolCalls) != 1 {
+		t.Fatalf("unexpected output: %+v", out)
+	}
+
+	// Edge case: tool calls with null content
+	nullContent := []byte(`{
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": null,
+				"tool_calls": [{
+					"id": "call_2",
+					"type": "function",
+					"function": {"name": "calculate_quote", "arguments": "{}"}
+				}]
+			}
+		}]
+	}`)
+	out, err = parseChatCompletionResponseWithTools(nullContent)
+	if err != nil {
+		t.Fatalf("parseChatCompletionResponseWithTools(nullContent) error = %v", err)
+	}
+	if out.Content != "" || len(out.ToolCalls) != 1 {
+		t.Fatalf("unexpected output for null content: %+v", out)
+	}
+
+	// Problematic edge case: tool calls with invalid/unparsable content format
+	invalidContent := []byte(`{
+		"choices": [{
+			"message": {
+				"role": "assistant",
+				"content": 12345,
+				"tool_calls": [{
+					"id": "call_3",
+					"type": "function",
+					"function": {"name": "calculate_quote", "arguments": "{}"}
+				}]
+			}
+		}]
+	}`)
+	_, err = parseChatCompletionResponseWithTools(invalidContent)
+	if err == nil {
+		t.Fatal("parseChatCompletionResponseWithTools(invalidContent) expected error, got nil")
+	}
+}
+
 func writeJSON(t *testing.T, writer http.ResponseWriter, value any) {
 	t.Helper()
 	if err := json.NewEncoder(writer).Encode(value); err != nil {

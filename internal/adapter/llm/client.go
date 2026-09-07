@@ -240,7 +240,15 @@ func parseChatCompletionResponseWithTools(raw []byte) (ChatCompletionOutput, err
 	if err := json.Unmarshal(raw, &result); err == nil && len(result.Choices) > 0 {
 		choice := result.Choices[0]
 		if len(choice.Message.ToolCalls) > 0 {
-			content, _ := parseContent(choice.Message.Content)
+			var content string
+			rawContent := bytes.TrimSpace(choice.Message.Content)
+			if len(rawContent) > 0 && !bytes.Equal(rawContent, []byte("null")) && !bytes.Equal(rawContent, []byte(`""`)) {
+				var err error
+				content, err = parseContent(choice.Message.Content)
+				if err != nil {
+					return ChatCompletionOutput{}, err
+				}
+			}
 			return ChatCompletionOutput{
 				Content:   content,
 				ToolCalls: choice.Message.ToolCalls,

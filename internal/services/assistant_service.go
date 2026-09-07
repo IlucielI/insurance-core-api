@@ -241,7 +241,10 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		if err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
 		}
-		res, _ := json.Marshal(quote)
+		res, err := json.Marshal(quote)
+		if err != nil {
+			return fmt.Sprintf(`{"error":"failed to serialize quote: %s"}`, err.Error())
+		}
 		return string(res)
 
 	case "list_products":
@@ -253,7 +256,11 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			Category string `json:"category"`
 			Search   string `json:"search"`
 		}
-		_ = json.Unmarshal([]byte(rawArgs), &args)
+		if len(strings.TrimSpace(rawArgs)) > 0 {
+			if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+				return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err.Error())
+			}
+		}
 		products, err := lister.ListProducts(ctx, dtos.ProductListQuery{
 			Category: strings.TrimSpace(args.Category),
 			Search:   strings.TrimSpace(args.Search),
@@ -282,7 +289,10 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 				MaxTerm:       p.MaxPaymentTerm,
 			})
 		}
-		res, _ := json.Marshal(items)
+		res, err := json.Marshal(items)
+		if err != nil {
+			return fmt.Sprintf(`{"error":"failed to serialize products: %s"}`, err.Error())
+		}
 		return string(res)
 
 	default:
