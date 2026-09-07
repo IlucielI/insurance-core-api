@@ -150,15 +150,22 @@ func (w *AdminNotificationWorker) runSLALoop() {
 		case <-w.stopChan:
 			return
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			count, err := w.CheckSLANow(ctx)
-			cancel()
-			if err != nil {
-				log.Printf("[AdminNotificationWorker] SLA check failed: %v", err)
-			} else if count > 0 {
-				log.Printf("[AdminNotificationWorker] SLA check generated %d warning notifications", count)
-			}
+			w.triggerSLACheck()
 		}
+	}
+}
+
+func (w *AdminNotificationWorker) triggerSLACheck() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	count, err := w.CheckSLANow(ctx)
+	if err != nil {
+		log.Printf("[AdminNotificationWorker] SLA check failed: %v", err)
+		return
+	}
+	if count > 0 {
+		log.Printf("[AdminNotificationWorker] SLA check generated %d warning notifications", count)
 	}
 }
 
