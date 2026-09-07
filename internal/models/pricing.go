@@ -6,8 +6,10 @@ type PricingRules struct {
 	GenderFactors     map[string]float64 `json:"gender_factors"`
 	SmokerFactors     map[string]float64 `json:"smoker_factors"`
 	OccupationFactors map[string]float64 `json:"occupation_factors"`
-	HealthFactors     map[string]float64 `json:"health_factors"`
-	FrequencyLoading  map[string]float64 `json:"frequency_loading"`
+	HealthFactors      map[string]float64 `json:"health_factors"`
+	FrequencyLoading   map[string]float64 `json:"frequency_loading"`
+	SumAssuredPresets  []int64            `json:"sum_assured_presets,omitempty"`
+	PaymentTermPresets []int              `json:"payment_term_presets,omitempty"`
 }
 
 type AgeFactor struct {
