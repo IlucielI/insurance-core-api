@@ -25,6 +25,8 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 
 	var questionnaireRepository repositories.QuestionnaireRepository
 	var pricingRuleRepository repositories.PricingRuleRepository
+	var metricsRepository repositories.MetricsRepository
+	var metricsService services.MetricsService
 
 	for _, repo := range optionalRepositories {
 		switch r := repo.(type) {
@@ -32,7 +34,15 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 			questionnaireRepository = r
 		case repositories.PricingRuleRepository:
 			pricingRuleRepository = r
+		case repositories.MetricsRepository:
+			metricsRepository = r
+		case services.MetricsService:
+			metricsService = r
 		}
+	}
+
+	if metricsService == nil && metricsRepository != nil {
+		metricsService = services.NewMetricsService(metricsRepository)
 	}
 
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
@@ -73,6 +83,10 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api.Get("/assistant/conversations/:id", assistantController.GetConversation)
 	api.Delete("/assistant/conversations/:id", assistantController.DeleteConversation)
 	api.Get("/storage/presign", storageController.Presign)
+	if metricsService != nil {
+		adminMetricsController := controllers.NewAdminMetricsController(metricsService)
+		api.Get("/admin/metrics", adminMetricsController.GetMetrics)
+	}
 
 	return app
 }
