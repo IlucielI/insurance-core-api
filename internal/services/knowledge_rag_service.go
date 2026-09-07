@@ -65,7 +65,9 @@ func (s *DefaultKnowledgeRAGService) SyncDocumentChunks(ctx context.Context, doc
 	chunks := ChunkKnowledgeDocument(doc)
 	if len(chunks) == 0 {
 		if s.chunkRepo != nil {
-			_ = s.chunkRepo.ReplaceByDocumentID(ctx, doc.ID, nil)
+			if err := s.chunkRepo.ReplaceByDocumentID(ctx, doc.ID, nil); err != nil {
+				return 0, err
+			}
 		}
 		return 0, nil
 	}
@@ -91,7 +93,9 @@ func (s *DefaultKnowledgeRAGService) SyncDocumentChunks(ctx context.Context, doc
 	doc.UpdatedAt = now
 
 	if s.docRepo != nil {
-		_ = s.docRepo.Update(ctx, doc.ID, &doc)
+		if err := s.docRepo.Update(ctx, doc.ID, &doc); err != nil {
+			return 0, err
+		}
 	}
 
 	return len(chunks), nil
@@ -120,7 +124,9 @@ func (s *DefaultKnowledgeRAGService) ReindexDocument(ctx context.Context, id str
 	doc.Status = models.IndexingStatusSyncing
 	now := time.Now().UTC()
 	doc.UpdatedAt = now
-	_ = s.docRepo.Update(ctx, doc.ID, &doc)
+	if err := s.docRepo.Update(ctx, doc.ID, &doc); err != nil {
+		return dtos.ReindexDocumentResponse{}, err
+	}
 
 	count, err := s.SyncDocumentChunks(ctx, doc)
 	if err != nil {
