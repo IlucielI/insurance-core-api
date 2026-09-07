@@ -1,0 +1,22 @@
+Halo {{.FullName}},
+
+Terima kasih telah mengajukan permohonan asuransi {{.ProductName}} kepada Bayu Insurance (Aplikasi #{{.ApplicationID}}).
+
+HASIL EVALUASI UNDERWRITING:
+Setelah melakukan peninjauan mendalam sesuai pedoman underwriting dan standar regulasi OJK, dengan berat hati kami sampaikan bahwa kami belum dapat menyetujui pengajuan polis Anda pada saat ini.
+
+DASAR PERTIMBANGAN PENILAIAN:
+- Kode OJK: {{.RejectionCode}}
+- Kategori: Profil Risiko Melebihi Batas Toleransi Produk
+- Alasan: {{.RejectionReason}}
+- Lead Underwriter: {{.LeadUnderwriterName}} (NIP: {{.LeadUnderwriterNIP}})
+
+JAMINAN PENGEMBALIAN DANA (REFUND 100%):
+Apabila terdapat dana premi atau deposit yang telah terdebet sebesar {{.RefundAmountFormatted}}, dana akan dikembalikan secara utuh ke rekening asal Anda dalam 2-3 hari kerja tanpa potongan administrasi.
+
+SOLUSI & KONSULTASI ALTERNATIF:
+Anda dapat berkonsultasi mengenai produk proteksi mikro alternatif atau mengajukan evaluasi ulang setelah periode cooling-off 6 bulan:
+{{.ConsultationURL}}
+
+Layanan Konsumen & Bantuan: 1500-888 | care@bayuinsurance.co.id
+PT Bayu Insurance Digital Indonesia • Berizin & Diawasi OJK

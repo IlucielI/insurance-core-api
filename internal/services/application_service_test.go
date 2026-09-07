@@ -131,8 +131,9 @@ func TestApplicationServiceCreate(t *testing.T) {
 	if len(applications.created.ReviewChecks) != 4 {
 		t.Fatalf("created review checks = %+v, want 4 default checks", applications.created.ReviewChecks)
 	}
-	if len(mailer.message.To) != 1 || mailer.message.To[0] != application.Email || mailer.message.Subject == "" || mailer.message.TextBody == "" || mailer.message.HTMLBody == "" {
-		t.Fatalf("mailer message = %+v, want application confirmation email", mailer.message)
+	// When messageBus is present, email is offloaded to worker via messageBus, direct mailer is skipped to avoid duplicates
+	if len(mailer.message.To) != 0 {
+		t.Fatalf("mailer message = %+v, want no direct email sent when messageBus is active", mailer.message)
 	}
 	if messageBus.subject != "application.submitted" {
 		t.Fatalf("messageBus subject = %q, want application.submitted", messageBus.subject)
@@ -143,6 +144,21 @@ func TestApplicationServiceCreate(t *testing.T) {
 	}
 	if event.ApplicationID != application.ID || event.ProductID != application.ProductID || event.Email != application.Email || event.Premium != application.Premium || event.Status != string(models.ApplicationStatusSubmitted) {
 		t.Fatalf("messageBus payload = %+v, want submitted event", event)
+	}
+}
+
+func TestApplicationServiceCreateFallbackMailerWhenMessageBusNil(t *testing.T) {
+	products := &fakeProductRepository{product: productFixture()}
+	applications := &fakeApplicationRepository{}
+	mailer := &fakeMailer{}
+	service := NewApplicationService(products, applications, &fakeReviewCheckRepository{}, NewProductService(products), mailer, nil)
+
+	application, err := service.Create(context.Background(), "secure-life-plus", applicationRequestFixture())
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if len(mailer.message.To) != 1 || mailer.message.To[0] != application.Email || mailer.message.Subject == "" || mailer.message.TextBody == "" || mailer.message.HTMLBody == "" {
+		t.Fatalf("mailer message = %+v, want fallback application confirmation email", mailer.message)
 	}
 }
 
@@ -178,6 +194,33 @@ func TestApplicationSubmittedEmailEscapesFallbackHTML(t *testing.T) {
 		t.Fatalf("HTMLBody = %q, want escaped dynamic values", message.HTMLBody)
 	}
 }
+
+func TestApplicationSubmittedEmailUsesAppBaseURL(t *testing.T) {
+	service := NewApplicationService(nil, nil, nil, nil, nil, nil)
+	service.SetAppBaseURL("https://portal.myinsurance.com")
+	application := models.Application{
+		ID:               "APP-TEST-1234",
+		FullName:         "Bayu",
+		Email:            "bayu@example.com",
+		SumAssured:       100000000,
+		Premium:          150000,
+		PaymentFrequency: "bulan",
+	}
+
+	message, err := service.applicationSubmittedEmail(application, "Secure Life")
+	if err != nil {
+		t.Fatalf("applicationSubmittedEmail() error = %v", err)
+	}
+
+	expectedURL := "https://portal.myinsurance.com/portal/status/APP-TEST-1234"
+	if !strings.Contains(message.TextBody, expectedURL) {
+		t.Fatalf("TextBody does not contain expected PortalURL %q, got: %s", expectedURL, message.TextBody)
+	}
+	if !strings.Contains(message.HTMLBody, expectedURL) {
+		t.Fatalf("HTMLBody does not contain expected PortalURL %q, got: %s", expectedURL, message.HTMLBody)
+	}
+}
+
 
 func TestApplicationServiceCreateValidatesDependenciesAndProduct(t *testing.T) {
 	_, err := NewApplicationService(nil, nil, nil, nil, nil, nil).Create(context.Background(), "secure-life-plus", applicationRequestFixture())
@@ -418,5 +461,105 @@ func TestEvaluateQuestionnairePricingMultiplier(t *testing.T) {
 
 	if multiplier < expected-0.0001 || multiplier > expected+0.0001 {
 		t.Fatalf("multiplier = %v, want %v", multiplier, expected)
+	}
+}
+
+func TestApplicationServiceUpdateStatusPublishesApprovedEvent(t *testing.T) {
+	app := models.Application{
+		ID:          "APP-2026-8819",
+		ProductID:   "product-1",
+		FullName:    "Bayu Pratama",
+		Email:       "bayu@example.com",
+		SumAssured:  1000000000,
+		Premium:     2760000,
+		PaymentTerm: 10,
+		Status:      models.ApplicationStatusUnderReview,
+	}
+	repo := &fakeApplicationRepository{application: app}
+	checks := passedReviewChecks(app.ID)
+	checkRepo := &fakeReviewCheckRepository{checks: checks}
+	msgBus := &fakeMessageBus{}
+
+	service := NewApplicationService(nil, repo, checkRepo, nil, nil, msgBus)
+	err := service.UpdateStatus(context.Background(), app.ID, dtos.UpdateApplicationStatusRequest{
+		Status:     models.ApplicationStatusApproved,
+		ReviewedBy: "Lead Underwriter",
+	})
+	if err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+
+	if msgBus.subject != dtos.TopicApplicationApproved {
+		t.Fatalf("msgBus subject = %q, want %q", msgBus.subject, dtos.TopicApplicationApproved)
+	}
+	event, ok := msgBus.payload.(dtos.ApplicationApprovedEvent)
+	if !ok {
+		t.Fatalf("payload type = %T, want ApplicationApprovedEvent", msgBus.payload)
+	}
+	if event.ApplicationID != app.ID || event.Email != app.Email || event.SumAssured != app.SumAssured {
+		t.Fatalf("event payload = %+v, want approved event", event)
+	}
+}
+
+func TestApplicationServiceUpdateStatusPublishesRejectedEvent(t *testing.T) {
+	app := models.Application{
+		ID:        "APP-2026-8819",
+		ProductID: "product-1",
+		FullName:  "Bayu Pratama",
+		Email:     "bayu@example.com",
+		Premium:   2760000,
+		Status:    models.ApplicationStatusUnderReview,
+	}
+	repo := &fakeApplicationRepository{application: app}
+	msgBus := &fakeMessageBus{}
+
+	service := NewApplicationService(nil, repo, &fakeReviewCheckRepository{}, nil, nil, msgBus)
+	err := service.UpdateStatus(context.Background(), app.ID, dtos.UpdateApplicationStatusRequest{
+		Status:          models.ApplicationStatusRejected,
+		ReviewedBy:      "dr. Hendra Kurniawan",
+		RejectionReason: "Riwayat kardiovaskular melebihi limit produk",
+	})
+	if err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+
+	if msgBus.subject != dtos.TopicApplicationRejected {
+		t.Fatalf("msgBus subject = %q, want %q", msgBus.subject, dtos.TopicApplicationRejected)
+	}
+	event, ok := msgBus.payload.(dtos.ApplicationRejectedEvent)
+	if !ok {
+		t.Fatalf("payload type = %T, want ApplicationRejectedEvent", msgBus.payload)
+	}
+	if event.ApplicationID != app.ID || event.RejectionReason != "Riwayat kardiovaskular melebihi limit produk" {
+		t.Fatalf("event payload = %+v, want rejected event", event)
+	}
+}
+
+func TestApplicationServiceRequestDocumentsPublishesRFIEvent(t *testing.T) {
+	app := models.Application{
+		ID:        "APP-2026-8819",
+		ProductID: "product-1",
+		FullName:  "Bayu Pratama",
+		Email:     "bayu@example.com",
+		Status:    models.ApplicationStatusUnderReview,
+	}
+	repo := &fakeApplicationRepository{application: app}
+	msgBus := &fakeMessageBus{}
+
+	service := NewApplicationService(nil, repo, &fakeReviewCheckRepository{}, nil, nil, msgBus)
+	err := service.RequestDocuments(context.Background(), app.ID, "Mohon unggah ulang e-KTP dan slip gaji", []string{"KTP", "Slip Gaji"})
+	if err != nil {
+		t.Fatalf("RequestDocuments() error = %v", err)
+	}
+
+	if msgBus.subject != dtos.TopicApplicationRFIRequested {
+		t.Fatalf("msgBus subject = %q, want %q", msgBus.subject, dtos.TopicApplicationRFIRequested)
+	}
+	event, ok := msgBus.payload.(dtos.ApplicationRFIRequestedEvent)
+	if !ok {
+		t.Fatalf("payload type = %T, want ApplicationRFIRequestedEvent", msgBus.payload)
+	}
+	if event.ApplicationID != app.ID || len(event.RequiredDocs) != 2 {
+		t.Fatalf("event payload = %+v, want RFI event", event)
 	}
 }

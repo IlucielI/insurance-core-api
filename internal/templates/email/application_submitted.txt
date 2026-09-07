@@ -1,5 +1,21 @@
 Halo {{.FullName}},
 
-Pengajuan polis {{.ProductName}} berhasil diterima dengan nomor aplikasi {{.ApplicationID}}. Tim kami akan meninjau data Anda dan menghubungi Anda untuk proses berikutnya.
+Pengajuan asuransi jiwa dan kesehatan Anda melalui formulir digital Bayu Insurance telah berhasil kami catat di sistem Core Underwriting Engine.
 
-Terima kasih.
+NOMOR APLIKASI PENGAJUAN: #{{.ApplicationID}}
+STATUS: UNDER_REVIEW
+
+RINCIAN PENGAJUAN:
+- Produk Dipilih: {{.ProductName}}
+- Uang Pertanggungan (UP): {{.SumAssuredFormatted}}
+- Estimasi Premi: {{.PremiumFormatted}} / {{.PaymentFrequency}}
+- Nama Pemohon: {{.FullName}}
+
+STATUS UNDERWRITING:
+95% pengajuan otomatis diproses dalam hitungan menit oleh AI Risk Engine. Jika berkas Anda memerlukan verifikasi dokumen tambahan (RFI), kami akan mengirimkan instruksi resmi dalam waktu 1x24 jam kerja.
+
+Pantau status pengajuan Anda:
+{{.PortalURL}}
+
+Layanan Nasabah: 1500-888 | support@bayuinsurance.co.id
+PT Bayu Insurance Digital Indonesia • Berizin & Diawasi OJK

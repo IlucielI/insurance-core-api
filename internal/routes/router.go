@@ -51,6 +51,9 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	questionnaireService := services.NewQuestionnaireService(questionnaireRepository, productRepository)
 	questionnaireController := controllers.NewQuestionnaireController(questionnaireService)
 	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer, messageBus, questionnaireRepository)
+	if applicationService != nil && cfg.CustomerAppBaseURL != "" {
+		applicationService.SetAppBaseURL(cfg.CustomerAppBaseURL)
+	}
 	applicationController := controllers.NewApplicationController(applicationService)
 	var assistantChatService controllers.AssistantChatService
 	if assistantService != nil {

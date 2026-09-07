@@ -16,6 +16,8 @@ import (
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
 	"github.com/bayuanugerah/insurance-core-api/internal/routes"
 	"github.com/bayuanugerah/insurance-core-api/internal/services"
+	emailtemplate "github.com/bayuanugerah/insurance-core-api/internal/templates/email"
+	"github.com/bayuanugerah/insurance-core-api/internal/workers"
 )
 
 func main() {
@@ -136,6 +138,20 @@ func main() {
 			log.Printf("smtp disabled: %v", err)
 		} else {
 			mailer = smtpClient
+		}
+	}
+
+	if natsClient != nil && mailer != nil {
+		renderer, err := emailtemplate.NewRenderer()
+		if err != nil {
+			log.Printf("email renderer init failed: %v", err)
+		} else {
+			emailWorker := workers.NewEmailNotificationWorker(natsClient, mailer, renderer, cfg.CustomerAppBaseURL)
+			if err := emailWorker.Start(context.Background()); err != nil {
+				log.Printf("failed to start email worker: %v", err)
+			} else {
+				defer emailWorker.Stop()
+			}
 		}
 	}
 

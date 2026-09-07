@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 	"github.com/bayuanugerah/insurance-core-api/internal/validations"
 )
 
-const applicationSubmittedSubject = "application.submitted"
+const applicationSubmittedSubject = dtos.TopicApplicationSubmitted
 
 type ApplicationService struct {
 	products       repositories.ProductRepository
@@ -31,6 +32,7 @@ type ApplicationService struct {
 	mailer         ports.Mailer
 	messageBus     ports.MessageBus
 	emailRenderer  *emailtemplate.Renderer
+	appBaseURL     string
 }
 
 func NewApplicationService(products repositories.ProductRepository, applications repositories.ApplicationRepository, reviewChecks repositories.ApplicationReviewCheckRepository, quotes *ProductService, mailer ports.Mailer, messageBus ports.MessageBus, questionnaires ...repositories.QuestionnaireRepository) *ApplicationService {
@@ -42,7 +44,33 @@ func NewApplicationService(products repositories.ProductRepository, applications
 	if len(questionnaires) > 0 {
 		qRepo = questionnaires[0]
 	}
-	return &ApplicationService{products: products, applications: applications, reviewChecks: reviewChecks, questionnaires: qRepo, quotes: quotes, mailer: mailer, messageBus: messageBus, emailRenderer: renderer}
+	return &ApplicationService{
+		products:       products,
+		applications:   applications,
+		reviewChecks:   reviewChecks,
+		questionnaires: qRepo,
+		quotes:         quotes,
+		mailer:         mailer,
+		messageBus:     messageBus,
+		emailRenderer:  renderer,
+	}
+}
+
+func (service *ApplicationService) SetAppBaseURL(url string) {
+	service.appBaseURL = strings.TrimRight(strings.TrimSpace(url), "/")
+}
+
+func (service *ApplicationService) getAppBaseURL() string {
+	if service.appBaseURL != "" {
+		return service.appBaseURL
+	}
+	if env := strings.TrimSpace(os.Getenv("CUSTOMER_APP_BASE_URL")); env != "" {
+		return strings.TrimRight(env, "/")
+	}
+	if env := strings.TrimSpace(os.Getenv("APP_BASE_URL")); env != "" {
+		return strings.TrimRight(env, "/")
+	}
+	return "http://localhost:3000"
 }
 
 func (service *ApplicationService) Create(ctx context.Context, slug string, input dtos.CreateApplicationRequest) (models.Application, error) {
@@ -133,8 +161,8 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 	if err := service.applications.Create(ctx, &application); err != nil {
 		return models.Application{}, err
 	}
-	service.publishApplicationSubmitted(ctx, application)
-	if service.mailer != nil {
+	service.publishApplicationSubmitted(ctx, application, product.Name)
+	if service.messageBus == nil && service.mailer != nil {
 		message, err := service.applicationSubmittedEmail(application, product.Name)
 		if err != nil {
 			return models.Application{}, err
@@ -152,10 +180,18 @@ func (service *ApplicationService) applicationSubmittedEmail(application models.
 	htmlBody := ""
 	if service.emailRenderer != nil {
 		var err error
+		paymentFreq := application.PaymentFrequency
+		if paymentFreq == "" {
+			paymentFreq = "tahun"
+		}
 		textBody, htmlBody, err = service.emailRenderer.RenderApplicationSubmitted(emailtemplate.ApplicationSubmittedData{
-			FullName:      application.FullName,
-			ProductName:   productName,
-			ApplicationID: application.ID,
+			FullName:            application.FullName,
+			ProductName:         productName,
+			ApplicationID:       application.ID,
+			SumAssuredFormatted: emailtemplate.FormatIDR(application.SumAssured),
+			PremiumFormatted:    emailtemplate.FormatIDR(application.Premium),
+			PaymentFrequency:    paymentFreq,
+			PortalURL:           fmt.Sprintf("%s/portal/status/%s", service.getAppBaseURL(), application.ID),
 		})
 		if err != nil {
 			return ports.EmailMessage{}, err
@@ -180,19 +216,14 @@ func (service *ApplicationService) applicationSubmittedEmail(application models.
 
 	return ports.EmailMessage{
 		To:       []string{application.Email},
-		Subject:  "Pengajuan polis berhasil diterima",
+		Subject:  fmt.Sprintf("[KONFIRMASI] Pengajuan Aplikasi Asuransi #%s Berhasil Diterima", application.ID),
 		TextBody: textBody,
 		HTMLBody: htmlBody,
 	}, nil
 }
 
-type applicationSubmittedEvent struct {
-	ApplicationID string `json:"application_id"`
-	ProductID     string `json:"product_id"`
-	Email         string `json:"email"`
-	Premium       int64  `json:"premium"`
-	Status        string `json:"status"`
-}
+type applicationSubmittedEvent = dtos.ApplicationSubmittedEvent
+
 
 func sanitizeEmailText(value string) string {
 	value = strings.ReplaceAll(value, "\r", "")
@@ -243,11 +274,51 @@ func (service *ApplicationService) UpdateReviewCheck(ctx context.Context, applic
 		return errors.New(constants.ErrApplicationServiceUnavailable)
 	}
 
-	if _, err := service.applications.FindByID(ctx, applicationID); err != nil {
+	app, err := service.applications.FindByID(ctx, applicationID)
+	if err != nil {
 		return err
 	}
 
-	return service.reviewChecks.UpdateStatus(ctx, applicationID, checkType, input.Status, input.ReviewedBy, input.Notes, time.Now().UTC())
+	if err := service.reviewChecks.UpdateStatus(ctx, applicationID, checkType, input.Status, input.ReviewedBy, input.Notes, time.Now().UTC()); err != nil {
+		return err
+	}
+
+	if input.Status == models.ApplicationReviewCheckStatusFailed {
+		productName := service.getProductName(ctx, app)
+		service.publishApplicationRFIRequested(ctx, app, productName, input.Notes)
+	}
+
+	return nil
+}
+
+func (service *ApplicationService) RequestDocuments(ctx context.Context, applicationID string, notes string, requiredDocs []string) error {
+	if service.applications == nil {
+		return errors.New(constants.ErrApplicationServiceUnavailable)
+	}
+
+	app, err := service.applications.FindByID(ctx, applicationID)
+	if err != nil {
+		return err
+	}
+
+	productName := service.getProductName(ctx, app)
+
+	if service.messageBus != nil {
+		if err := service.messageBus.PublishJSON(ctx, dtos.TopicApplicationRFIRequested, dtos.ApplicationRFIRequestedEvent{
+			ApplicationID: app.ID,
+			ProductID:     app.ProductID,
+			ProductName:   productName,
+			FullName:      app.FullName,
+			Email:         app.Email,
+			Notes:         notes,
+			RequiredDocs:  requiredDocs,
+			SLADeadline:   "3 x 24 Jam",
+		}); err != nil {
+			log.Printf("[ApplicationService] warning: failed to publish %s event: %v", dtos.TopicApplicationRFIRequested, err)
+		}
+	}
+
+	return nil
 }
 
 func validApplicationTransition(current, next models.ApplicationStatus) bool {
@@ -286,7 +357,19 @@ func (service *ApplicationService) UpdateStatus(ctx context.Context, id string, 
 	if input.Status == models.ApplicationStatusRejected && input.RejectionReason == "" {
 		return constants.ErrApplicationRejectionReasonRequiredError
 	}
-	return service.applications.UpdateStatus(ctx, id, input.Status, input.ReviewedBy, input.RejectionReason, time.Now().UTC())
+	if err := service.applications.UpdateStatus(ctx, id, input.Status, input.ReviewedBy, input.RejectionReason, time.Now().UTC()); err != nil {
+		return err
+	}
+
+	productName := service.getProductName(ctx, application)
+
+	if input.Status == models.ApplicationStatusApproved {
+		service.publishApplicationApproved(ctx, application, productName, input.ReviewedBy)
+	} else if input.Status == models.ApplicationStatusRejected {
+		service.publishApplicationRejected(ctx, application, productName, input.ReviewedBy, input.RejectionReason)
+	}
+
+	return nil
 }
 
 func (service *ApplicationService) applicationChecklistComplete(ctx context.Context, applicationID string) (bool, error) {
@@ -345,19 +428,107 @@ func applicationID() (string, error) {
 	return hex.EncodeToString(value), nil
 }
 
-func (service *ApplicationService) publishApplicationSubmitted(ctx context.Context, application models.Application) {
+func (service *ApplicationService) publishApplicationSubmitted(ctx context.Context, application models.Application, productName ...string) {
 	if service.messageBus == nil {
 		return
 	}
+	pName := ""
+	if len(productName) > 0 {
+		pName = productName[0]
+	}
 	if err := service.messageBus.PublishJSON(ctx, applicationSubmittedSubject, applicationSubmittedEvent{
-		ApplicationID: application.ID,
-		ProductID:     application.ProductID,
-		Email:         application.Email,
-		Premium:       application.Premium,
-		Status:        string(application.Status),
+		ApplicationID:    application.ID,
+		ProductID:        application.ProductID,
+		ProductName:      pName,
+		FullName:         application.FullName,
+		Email:            application.Email,
+		Phone:            application.Phone,
+		SumAssured:       application.SumAssured,
+		Premium:          application.Premium,
+		PaymentFrequency: application.PaymentFrequency,
+		Status:           string(application.Status),
 	}); err != nil {
 		log.Printf("[ApplicationService] warning: failed to publish %s event: %v", applicationSubmittedSubject, err)
 	}
+}
+
+func (service *ApplicationService) publishApplicationApproved(ctx context.Context, application models.Application, productName, reviewedBy string) {
+	if service.messageBus == nil {
+		return
+	}
+	policyNo := fmt.Sprintf("POL-2026-%s", strings.TrimPrefix(application.ID, "APP-2026-"))
+	if err := service.messageBus.PublishJSON(ctx, dtos.TopicApplicationApproved, dtos.ApplicationApprovedEvent{
+		ApplicationID:    application.ID,
+		PolicyNumber:     policyNo,
+		ProductID:        application.ProductID,
+		ProductName:      productName,
+		FullName:         application.FullName,
+		Email:            application.Email,
+		SumAssured:       application.SumAssured,
+		Premium:          application.Premium,
+		PaymentTerm:      application.PaymentTerm,
+		PaymentFrequency: application.PaymentFrequency,
+		ReviewedBy:       reviewedBy,
+	}); err != nil {
+		log.Printf("[ApplicationService] warning: failed to publish %s event: %v", dtos.TopicApplicationApproved, err)
+	}
+}
+
+func (service *ApplicationService) publishApplicationRejected(ctx context.Context, application models.Application, productName, reviewedBy, rejectionReason string) {
+	if service.messageBus == nil {
+		return
+	}
+	if err := service.messageBus.PublishJSON(ctx, dtos.TopicApplicationRejected, dtos.ApplicationRejectedEvent{
+		ApplicationID:       application.ID,
+		ProductID:           application.ProductID,
+		ProductName:         productName,
+		FullName:            application.FullName,
+		Email:               application.Email,
+		Premium:             application.Premium,
+		RejectionCode:       "UW-DEC-401",
+		RejectionReason:     rejectionReason,
+		LeadUnderwriterName: reviewedBy,
+		LeadUnderwriterNIP:  "UW-2026-042",
+	}); err != nil {
+		log.Printf("[ApplicationService] warning: failed to publish %s event: %v", dtos.TopicApplicationRejected, err)
+	}
+}
+
+func (service *ApplicationService) publishApplicationRFIRequested(ctx context.Context, application models.Application, productName, notes string) {
+	if service.messageBus == nil {
+		return
+	}
+	if err := service.messageBus.PublishJSON(ctx, dtos.TopicApplicationRFIRequested, dtos.ApplicationRFIRequestedEvent{
+		ApplicationID: application.ID,
+		ProductID:     application.ProductID,
+		ProductName:   productName,
+		FullName:      application.FullName,
+		Email:         application.Email,
+		Notes:         notes,
+		RequiredDocs: []string{
+			"1. Foto Ulang Fisik e-KTP (Resolusi Tinggi & Tanpa Pantulan Cahaya)",
+			"2. Slip Gaji 3 Bulan Terakhir / Rekening Koran Legalisir Bank",
+		},
+		SLADeadline: "3 x 24 Jam",
+	}); err != nil {
+		log.Printf("[ApplicationService] warning: failed to publish %s event: %v", dtos.TopicApplicationRFIRequested, err)
+	}
+}
+
+func (service *ApplicationService) getProductName(ctx context.Context, app models.Application) string {
+	if app.Product.Name != "" {
+		return app.Product.Name
+	}
+	if service.products != nil {
+		if prods, err := service.products.FindAll(ctx, repositories.ProductFilter{}); err == nil {
+			for _, p := range prods {
+				if p.ID == app.ProductID {
+					return p.Name
+				}
+			}
+		}
+	}
+	return app.ProductID
 }
 
 func evaluateQuestionnairePricingMultiplier(questions []models.Question, answers []dtos.ApplicationAnswerInput) float64 {

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pemberitahuan Keputusan Aplikasi Polis</title>
+</head>
+<body style="margin: 0; padding: 24px 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <!-- Simulation Header Bar -->
+    <tr>
+      <td style="background-color: #ffffff; padding: 14px 24px; border-bottom: 1px solid #e2e8f0;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="font-size: 13px; font-weight: 700; color: #0f172a;">
+              ✉️ Bayu Insurance Mail Gateway
+            </td>
+            <td align="right">
+              <span style="display: inline-block; background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px;">
+                🔒 DKIM & SPF PASS
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Brand Header -->
+    <tr>
+      <td style="background-color: #0f172a; padding: 24px 32px; border-bottom: 3px solid #ef4444;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td width="48" valign="middle">
+              <div style="width: 40px; height: 40px; background-color: #2563eb; border-radius: 8px; text-align: center; line-height: 40px; font-size: 16px; font-weight: 800; color: #ffffff;">
+                BI
+              </div>
+            </td>
+            <td style="padding-left: 14px;" valign="middle">
+              <div style="font-size: 17px; font-weight: 700; color: #ffffff; line-height: 1.2;">Bayu Insurance</div>
+              <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Digital Life & Health Protection</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Content Body -->
+    <tr>
+      <td style="padding: 32px 32px 24px 32px;">
+        <!-- Status Pill -->
+        <div style="display: inline-block; background-color: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 12px; margin-bottom: 18px;">
+          📋 HASIL EVALUASI RESMI UNDERWRITING
+        </div>
+
+        <h1 style="font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 12px 0; line-height: 1.3;">
+          Pemberitahuan Keputusan Aplikasi Polis
+        </h1>
+
+        <p style="font-size: 14px; font-weight: 600; color: #334155; margin: 0 0 8px 0;">
+          Halo {{.FullName}},
+        </p>
+        <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 18px 0;">
+          Terima kasih atas minat dan kepercayaan Anda mengajukan permohonan asuransi {{.ProductName}} kepada Bayu Insurance (Aplikasi #{{.ApplicationID}}). Kami sangat menghargai waktu dan kelengkapan data yang telah Anda berikan.
+        </p>
+
+        <!-- Decision Statement Box -->
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px; margin-bottom: 24px;">
+          <div style="font-size: 13px; line-height: 1.6; color: #334155;">
+            Setelah melakukan peninjauan mendalam bersama tim medis dan aktuarial sesuai pedoman underwriting yang diawasi OJK, dengan berat hati kami sampaikan bahwa kami <strong>belum dapat menyetujui</strong> pengajuan polis Anda pada saat ini.
+          </div>
+        </div>
+
+        <!-- Reason & Regulation Breakdown -->
+        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 10px;">
+          Dasar Pertimbangan Penilaian (Kepatuhan Standar OJK & AAJI):
+        </div>
+        <div style="background-color: #fff1f2; border: 1px solid #ffe4e6; border-radius: 8px; padding: 16px 18px; margin-bottom: 24px;">
+          <div style="margin-bottom: 8px;">
+            <span style="background-color: #fee2e2; color: #991b1b; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; display: inline-block;">
+              KODE OJK: {{.RejectionCode}}
+            </span>
+          </div>
+          <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">
+            Kategori: Profil Risiko Melebihi Batas Toleransi Produk
+          </div>
+          <div style="font-size: 12px; line-height: 1.6; color: #4c0519; margin-bottom: 10px; font-style: italic;">
+            "{{.RejectionReason}}"
+          </div>
+          <div style="font-size: 11px; color: #881337; font-weight: 600;">
+            Lead Underwriter: {{.LeadUnderwriterName}} &bull; NIP: {{.LeadUnderwriterNIP}}
+          </div>
+        </div>
+
+        <!-- 100% Refund Guarantee Box -->
+        <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px 18px; margin-bottom: 24px;">
+          <div style="font-size: 12px; font-weight: 700; color: #15803d; margin-bottom: 4px;">
+            ✓ Jaminan Pengembalian Dana Premi 100% (Refund Guarantee)
+          </div>
+          <div style="font-size: 12px; line-height: 1.5; color: #166534;">
+            Apabila terdapat premi pendahuluan atau deposit rekening yang telah terdebet sebesar {{.RefundAmountFormatted}}, dana akan ditransfer kembali secara utuh ke rekening asal Anda dalam waktu 2-3 hari kerja tanpa dikenakan potongan biaya administrasi apapun.
+          </div>
+        </div>
+
+        <!-- Alternative Consultation -->
+        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">
+          Opsi Solusi Proteksi Alternatif Untuk Anda:
+        </div>
+        <p style="font-size: 12px; line-height: 1.6; color: #64748b; margin: 0 0 22px 0;">
+          Keputusan ini tidak menutup peluang perlindungan di masa mendatang. Anda dapat berkonsultasi mengenai produk proteksi mikro bersyarat fleksibel, atau mengajukan peninjauan ulang setelah periode cooling-off selama 6 bulan.
+        </p>
+
+        <!-- CTA Button -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
+          <tr>
+            <td align="center">
+              <a href="{{.ConsultationURL}}" style="display: inline-block; width: 85%; max-width: 440px; background-color: #334155; color: #ffffff; font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; padding: 14px 20px; border-radius: 8px;">
+                Konsultasi Opsi Alternatif dengan Advisor Kami 💬 →
+              </a>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 10px;">
+                Atau hubungi konsultan kami: {{.ConsultationURL}}
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Footer -->
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 18px;">
+          <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+            🔒 Kerahasiaan Rekam Medis Terjamin
+          </div>
+          <div style="font-size: 11px; line-height: 1.5; color: #64748b; margin-bottom: 12px;">
+            Seluruh informasi riwayat kesehatan Anda diarsipkan secara terenkripsi sesuai Peraturan OJK dan kode etik underwriting AAJI. Data Anda tidak pernah dialihkan ke pihak komersial lain.
+          </div>
+          <div style="font-size: 11px; color: #2563eb; font-weight: 600; margin-bottom: 4px;">
+            Layanan Konsumen & Bantuan: 1500-888 &bull; care@bayuinsurance.co.id
+          </div>
+          <div style="font-size: 10px; color: #94a3b8;">
+            PT Bayu Insurance Digital Indonesia &bull; Menara Asuransi Lt. 18, Jakarta &bull; Terdaftar & Diawasi OJK
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

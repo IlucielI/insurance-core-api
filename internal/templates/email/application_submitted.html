@@ -1,4 +1,157 @@
-<p>Halo {{.FullName}},</p>
-<p>Pengajuan polis <strong>{{.ProductName}}</strong> berhasil diterima dengan nomor aplikasi <strong>{{.ApplicationID}}</strong>.</p>
-<p>Tim kami akan meninjau data Anda dan menghubungi Anda untuk proses berikutnya.</p>
-<p>Terima kasih.</p>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pengajuan Asuransi Diterima</title>
+</head>
+<body style="margin: 0; padding: 24px 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <!-- Simulation Header Bar -->
+    <tr>
+      <td style="background-color: #ffffff; padding: 14px 24px; border-bottom: 1px solid #e2e8f0;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="font-size: 13px; font-weight: 700; color: #0f172a;">
+              ✉️ Bayu Insurance Mail Gateway
+            </td>
+            <td align="right">
+              <span style="display: inline-block; background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px;">
+                🔒 DKIM & SPF PASS
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Brand Header -->
+    <tr>
+      <td style="background-color: #0f172a; padding: 24px 32px; border-bottom: 3px solid #2563eb;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td width="48" valign="middle">
+              <div style="width: 40px; height: 40px; background-color: #2563eb; border-radius: 8px; text-align: center; line-height: 40px; font-size: 16px; font-weight: 800; color: #ffffff;">
+                BI
+              </div>
+            </td>
+            <td style="padding-left: 14px;" valign="middle">
+              <div style="font-size: 17px; font-weight: 700; color: #ffffff; line-height: 1.2;">Bayu Insurance</div>
+              <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Digital Life & Health Protection</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Content Body -->
+    <tr>
+      <td style="padding: 32px 32px 24px 32px;">
+        <!-- Status Pill -->
+        <div style="display: inline-block; background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 12px; margin-bottom: 18px;">
+          📝 PENGAJUAN DITERIMA & DALAM REVIEW
+        </div>
+
+        <h1 style="font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 12px 0; line-height: 1.3;">
+          Terima Kasih, Aplikasi Pengajuan Anda Telah Diterima!
+        </h1>
+
+        <p style="font-size: 14px; font-weight: 600; color: #334155; margin: 0 0 8px 0;">
+          Halo {{.FullName}},
+        </p>
+        <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">
+          Pengajuan asuransi jiwa dan kesehatan Anda melalui formulir digital Bayu Insurance telah berhasil kami catat di sistem Core Underwriting Engine dengan nomor tanda terima resmi berikut:
+        </p>
+
+        <!-- App ID Box -->
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td>
+                <div style="font-size: 10px; font-weight: 700; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase;">
+                  Nomor Aplikasi Pengajuan (Application ID)
+                </div>
+                <div style="font-size: 18px; font-weight: 800; color: #2563eb; margin-top: 4px;">
+                  #{{.ApplicationID}}
+                </div>
+              </td>
+              <td align="right" valign="middle">
+                <span style="background-color: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 700; padding: 6px 12px; border-radius: 6px;">
+                  STATUS: UNDER_REVIEW
+                </span>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Details Grid -->
+        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 10px;">
+          Ringkasan Rincian Pengajuan Asuransi:
+        </div>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 24px;">
+          <tr>
+            <td style="padding: 14px 18px; border-bottom: 1px solid #f1f5f9;" width="50%">
+              <div style="font-size: 11px; color: #64748b; font-weight: 500;">Produk Dipilih</div>
+              <div style="font-size: 14px; color: #0f172a; font-weight: 700; margin-top: 3px;">{{.ProductName}}</div>
+            </td>
+            <td style="padding: 14px 18px; border-bottom: 1px solid #f1f5f9;" width="50%">
+              <div style="font-size: 11px; color: #64748b; font-weight: 500;">Uang Pertanggungan (UP)</div>
+              <div style="font-size: 14px; color: #0f172a; font-weight: 700; margin-top: 3px;">{{.SumAssuredFormatted}}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 14px 18px;" width="50%">
+              <div style="font-size: 11px; color: #64748b; font-weight: 500;">Estimasi Premi</div>
+              <div style="font-size: 14px; color: #2563eb; font-weight: 700; margin-top: 3px;">{{.PremiumFormatted}} / {{.PaymentFrequency}}</div>
+            </td>
+            <td style="padding: 14px 18px;" width="50%">
+              <div style="font-size: 11px; color: #64748b; font-weight: 500;">Nama Pemohon</div>
+              <div style="font-size: 13px; color: #0f172a; font-weight: 600; margin-top: 3px;">{{.FullName}}</div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- SLA Notice Box -->
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px;">
+          <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+            ⚡ Proses Underwriting Cepat & Transparan
+          </div>
+          <div style="font-size: 12px; line-height: 1.5; color: #64748b;">
+            95% pengajuan otomatis diproses dalam hitungan menit oleh AI Risk Engine. Jika berkas Anda memerlukan verifikasi dokumen tambahan (RFI) oleh underwriter medis, tim kami akan segera mengirimkan instruksi resmi ke email ini dalam waktu 1x24 jam kerja.
+          </div>
+        </div>
+
+        <!-- CTA Button -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 28px;">
+          <tr>
+            <td align="center">
+              <a href="{{.PortalURL}}" style="display: inline-block; width: 85%; max-width: 440px; background-color: #2563eb; color: #ffffff; font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; padding: 14px 20px; border-radius: 8px;">
+                Pantau Status Pengajuan Real-time 🔍 →
+              </a>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 10px;">
+                Atau buka: {{.PortalURL}}
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Security & Regulatory Footer -->
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 18px;">
+          <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+            🔒 Keamanan Data & Regulasi Resmi OJK
+          </div>
+          <div style="font-size: 11px; line-height: 1.5; color: #64748b; margin-bottom: 12px;">
+            Seluruh data identitas dan skrining kesehatan Anda dilindungi enkripsi SSL 256-bit dan dikelola sesuai standar UU Perlindungan Data Pribadi (PDP) serta regulasi Otoritas Jasa Keuangan (OJK).
+          </div>
+          <div style="font-size: 11px; color: #2563eb; font-weight: 600; margin-bottom: 4px;">
+            Layanan Nasabah: 1500-888 • Email: support@bayuinsurance.co.id
+          </div>
+          <div style="font-size: 10px; color: #94a3b8;">
+            PT Bayu Insurance Digital Indonesia • Menara Asuransi Lt. 18, Jakarta Selatan • Berizin & Diawasi OJK
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
