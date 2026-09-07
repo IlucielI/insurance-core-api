@@ -26,6 +26,7 @@ type ProductFilter struct {
 	IsFeatured *bool
 	Limit      int
 	Offset     int
+	Search     string
 }
 
 type PostgresProductRepository struct {
@@ -61,6 +62,11 @@ func (repository *PostgresProductRepository) FindAll(ctx context.Context, filter
 
 	if filter.IsFeatured != nil {
 		query = query.Where("is_featured = ?", *filter.IsFeatured)
+	}
+
+	if filter.Search != "" {
+		searchTerm := "%" + strings.ToLower(filter.Search) + "%"
+		query = query.Where("LOWER(name) LIKE ? OR LOWER(short_description) LIKE ?", searchTerm, searchTerm)
 	}
 
 	if filter.Limit > 0 {
@@ -122,7 +128,8 @@ func productFilterCacheKey(tenant string, filter ProductFilter) string {
 			featured = "false"
 		}
 	}
-	return fmt.Sprintf("tenant:%s:catalog:products:list:%s:%s:%d:%d", tenant, category, featured, filter.Limit, filter.Offset)
+	search := sanitizeCacheSegment(filter.Search)
+	return fmt.Sprintf("tenant:%s:catalog:products:list:%s:%s:%s:%d:%d", tenant, category, featured, search, filter.Limit, filter.Offset)
 }
 
 func sanitizeCacheSegment(val string) string {

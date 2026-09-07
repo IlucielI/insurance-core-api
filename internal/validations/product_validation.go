@@ -12,7 +12,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 )
 
-func ValidateProductListQuery(categoryValue string, featuredValue string, limitValue string) (dtos.ProductListQuery, error) {
+func ValidateProductListQuery(categoryValue string, featuredValue string, limitValue string, searchValue string) (dtos.ProductListQuery, error) {
 	query := dtos.ProductListQuery{
 		Category: strings.TrimSpace(categoryValue),
 	}
@@ -48,6 +48,12 @@ func ValidateProductListQuery(categoryValue string, featuredValue string, limitV
 
 		query.Limit = limit
 	}
+
+	searchValue = strings.TrimSpace(searchValue)
+	if len(searchValue) > constants.MaxProductSearchLength {
+		return dtos.ProductListQuery{}, errors.New(constants.ErrProductSearchInvalid)
+	}
+	query.Search = searchValue
 
 	return query, nil
 }

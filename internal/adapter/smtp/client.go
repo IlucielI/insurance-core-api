@@ -194,7 +194,7 @@ func buildMIMEMessage(from string, message ports.EmailMessage) []byte {
 	var buffer bytes.Buffer
 	writeHeader(&buffer, "From", from)
 	writeHeader(&buffer, "To", strings.Join(message.To, ", "))
-	writeHeader(&buffer, "Subject", mime.QEncoding.Encode("utf-8", message.Subject))
+	writeHeader(&buffer, "Subject", mime.QEncoding.Encode("utf-8", sanitizeHeaderValue(message.Subject)))
 	writeHeader(&buffer, "MIME-Version", "1.0")
 
 	textBody := sanitizeEmailBody(message.TextBody)
@@ -237,9 +237,10 @@ func writeHeader(buffer *bytes.Buffer, key string, value string) {
 }
 
 func sanitizeHeaderValue(value string) string {
-	value = strings.ReplaceAll(value, "\r", "")
-	value = strings.ReplaceAll(value, "\n", "")
-	return value
+	if idx := strings.IndexAny(value, "\r\n"); idx != -1 {
+		value = value[:idx]
+	}
+	return strings.TrimSpace(value)
 }
 
 func sanitizeEmailBody(value string) string {

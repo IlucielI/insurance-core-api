@@ -24,6 +24,7 @@ func (controller *ProductController) List(ctx *fiber.Ctx) error {
 		ctx.Query(constants.ProductQueryCategory),
 		ctx.Query(constants.ProductQueryFeatured),
 		ctx.Query(constants.ProductQueryLimit),
+		ctx.Query(constants.ProductQuerySearch),
 	)
 	if err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{

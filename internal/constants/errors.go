@@ -8,6 +8,7 @@ const (
 	ErrProductFeaturedInvalid  = "featured must be true or false"
 	ErrProductLimitInvalid     = "limit must be a positive integer"
 	ErrProductLimitTooHigh     = "limit must be less than or equal to 50"
+	ErrProductSearchInvalid    = "search must be 100 characters or less"
 	ErrProductNotFound         = "product not found"
 	ErrProductListFailed       = "failed to list products"
 	ErrProductDetailFailed     = "failed to get product"

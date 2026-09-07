@@ -1,6 +1,7 @@
 package validations
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
@@ -8,11 +9,11 @@ import (
 )
 
 func TestValidateProductListQuery(t *testing.T) {
-	query, err := ValidateProductListQuery(" life ", "true", "10")
+	query, err := ValidateProductListQuery(" life ", "true", "10", " term ")
 	if err != nil {
 		t.Fatalf("ValidateProductListQuery() error = %v", err)
 	}
-	if query.Category != "life" || query.IsFeatured == nil || !*query.IsFeatured || query.Limit != 10 {
+	if query.Category != "life" || query.IsFeatured == nil || !*query.IsFeatured || query.Limit != 10 || query.Search != "term" {
 		t.Fatalf("ValidateProductListQuery() = %+v, want normalized values", query)
 	}
 
@@ -21,17 +22,19 @@ func TestValidateProductListQuery(t *testing.T) {
 		category string
 		featured string
 		limit    string
+		search   string
 		wantErr  string
 	}{
 		{name: "invalid category", category: "travel", wantErr: constants.ErrProductCategoryInvalid},
 		{name: "invalid featured", featured: "yes", wantErr: constants.ErrProductFeaturedInvalid},
 		{name: "invalid limit", limit: "0", wantErr: constants.ErrProductLimitInvalid},
 		{name: "limit too high", limit: "51", wantErr: constants.ErrProductLimitTooHigh},
+		{name: "search too long", search: strings.Repeat("a", 101), wantErr: constants.ErrProductSearchInvalid},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ValidateProductListQuery(tt.category, tt.featured, tt.limit)
+			_, err := ValidateProductListQuery(tt.category, tt.featured, tt.limit, tt.search)
 			if err == nil || err.Error() != tt.wantErr {
 				t.Fatalf("ValidateProductListQuery() error = %v, want %q", err, tt.wantErr)
 			}
