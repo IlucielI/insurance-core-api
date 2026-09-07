@@ -40,6 +40,11 @@ type Config struct {
 	S3UploadUrlLifetime int
 	S3DownloadUrlLifetime int
 	S3OverrideBaseURL    string
+	RedisHost           string
+	RedisPort           int
+	RedisPassword       string
+	RedisDB             int
+	RedisTimeout        int // in seconds
 }
 
 func Load() (Config, error) {
@@ -81,6 +86,11 @@ func Load() (Config, error) {
 		S3UploadUrlLifetime: getEnvInt("S3_UPLOAD_URL_LIFETIME", 15),
 		S3DownloadUrlLifetime: getEnvInt("S3_DOWNLOAD_URL_LIFETIME", 1440),
 		S3OverrideBaseURL:   os.Getenv("S3_OVERRIDE_BASE_URL"),
+		RedisHost:           os.Getenv("REDIS_HOST"),
+		RedisPort:           getEnvInt("REDIS_PORT", 6379),
+		RedisPassword:       os.Getenv("REDIS_PASSWORD"),
+		RedisDB:             getEnvInt("REDIS_DB", 0),
+		RedisTimeout:        getEnvInt("REDIS_TIMEOUT", 5),
 	}, nil
 }
 

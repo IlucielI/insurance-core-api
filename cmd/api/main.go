@@ -7,6 +7,7 @@ import (
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
 	natsadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/nats"
+	redisadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/redis"
 	s3adapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/s3"
 	llmadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
 	smtpadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/smtp"
@@ -39,7 +40,32 @@ func main() {
 		log.Fatal(err)
 	}
 
+	var redisClient *redisadapter.Client
+	if cfg.RedisHost != "" {
+		client, err := redisadapter.NewClient(redisadapter.Config{
+			Host:     cfg.RedisHost,
+			Port:     cfg.RedisPort,
+			Password: cfg.RedisPassword,
+			DB:       cfg.RedisDB,
+			// cfg.RedisTimeout is configured in seconds (integer)
+			Timeout:  time.Duration(cfg.RedisTimeout) * time.Second,
+		})
+		if err != nil {
+			log.Printf("redis disabled: %v", err)
+		} else {
+			redisClient = client
+			defer func() {
+				if err := redisClient.Close(); err != nil {
+					log.Printf("failed to close redis connection: %v", err)
+				}
+			}()
+		}
+	}
+
 	productRepository := repositories.NewPostgresProductRepository(postgres.DB())
+	if redisClient != nil {
+		productRepository = productRepository.WithCache(redisClient)
+	}
 	applicationRepository := repositories.NewPostgresApplicationRepository(postgres.DB())
 	reviewCheckRepository := repositories.NewPostgresApplicationReviewCheckRepository(postgres.DB())
 	knowledgeRepository := repositories.NewPostgresKnowledgeRepository(postgres.DB())
@@ -115,7 +141,7 @@ func main() {
 	}
 }
 
-func initStorageRepository(cfg *config.Config) repositories.StorageRepository {
+func initStorageRepository(cfg config.Config) repositories.StorageRepository {
 	if cfg.S3Endpoint == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" || cfg.S3Bucket == "" {
 		return nil
 	}
