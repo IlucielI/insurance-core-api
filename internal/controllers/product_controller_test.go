@@ -146,7 +146,7 @@ func TestProductManagement_UpdateStatusAndToggle(t *testing.T) {
 	}
 	app := routes.NewRouter(config.Config{AppName: "test"}, prodRepo, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil)
 
-	// 1. Update status to active
+	// 1. Dispatch status update to active via HTTP PATCH
 	statusReq := dtos.UpdateProductStatusRequest{Status: "active"}
 	payload, err := json.Marshal(statusReq)
 	if err != nil {
@@ -162,7 +162,7 @@ func TestProductManagement_UpdateStatusAndToggle(t *testing.T) {
 		t.Fatalf("resp.StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	// 2. Toggle status
+	// 2. Dispatch status toggle via HTTP POST
 	toggleReq := httptest.NewRequest(http.MethodPost, "/api/v1/products/prod-status-1/toggle-status", nil)
 	toggleResp, err := app.Test(toggleReq)
 	if err != nil {

@@ -262,7 +262,7 @@ func (controller *ProductController) UpdateStatus(ctx *fiber.Ctx) error {
 			})
 		}
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to update product status",
+			"error": constants.ErrProductUpdateFailed,
 		})
 	}
 
@@ -287,7 +287,7 @@ func (controller *ProductController) ToggleStatus(ctx *fiber.Ctx) error {
 			})
 		}
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to toggle product status",
+			"error": constants.ErrProductUpdateFailed,
 		})
 	}
 
