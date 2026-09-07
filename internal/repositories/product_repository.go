@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
@@ -83,7 +84,7 @@ func (repository *PostgresProductRepository) FindAll(ctx context.Context, filter
 }
 
 func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slug string) (models.Product, error) {
-	cacheKey := "catalog:products:slug:" + slug
+	cacheKey := "catalog:products:slug:" + sanitizeCacheSegment(slug)
 	if repository.cache != nil {
 		var cachedProduct models.Product
 		if err := repository.cache.GetJSON(ctx, cacheKey, &cachedProduct); err == nil && cachedProduct.ID != "" {
@@ -110,6 +111,7 @@ func (repository *PostgresProductRepository) FindBySlug(ctx context.Context, slu
 }
 
 func productFilterCacheKey(filter ProductFilter) string {
+	category := sanitizeCacheSegment(filter.Category)
 	featured := "all"
 	if filter.IsFeatured != nil {
 		if *filter.IsFeatured {
@@ -118,5 +120,9 @@ func productFilterCacheKey(filter ProductFilter) string {
 			featured = "false"
 		}
 	}
-	return fmt.Sprintf("catalog:products:list:%s:%s:%d:%d", filter.Category, featured, filter.Limit, filter.Offset)
+	return fmt.Sprintf("catalog:products:list:%s:%s:%d:%d", category, featured, filter.Limit, filter.Offset)
+}
+
+func sanitizeCacheSegment(val string) string {
+	return strings.ReplaceAll(strings.TrimSpace(val), ":", "_")
 }

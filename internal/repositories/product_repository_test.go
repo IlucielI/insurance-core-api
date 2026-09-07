@@ -124,4 +124,11 @@ func TestPostgresProductRepositoryWithCache(t *testing.T) {
 	if len(list) != 1 || list[0].ID != "cached-prod-1" {
 		t.Fatalf("list = %+v, want cached-prod-1", list)
 	}
+
+	// Delimiter sanitization test (cache poisoning prevention)
+	filterWithColon := ProductFilter{Category: "life:extra", Limit: 10, Offset: 0}
+	sanitizedKey := productFilterCacheKey(filterWithColon)
+	if sanitizedKey != "catalog:products:list:life_extra:all:10:0" {
+		t.Fatalf("sanitizedKey = %q, want catalog:products:list:life_extra:all:10:0", sanitizedKey)
+	}
 }
