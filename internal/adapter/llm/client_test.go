@@ -320,3 +320,45 @@ func writeString(t *testing.T, writer http.ResponseWriter, value string) {
 		t.Fatalf("Fprint() error = %v", err)
 	}
 }
+
+func TestClient_StreamChatCompletion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+
+		events := []string{
+			`data: {"choices":[{"delta":{"content":"Halo"}}]}`,
+			`data: {"choices":[{"delta":{"content":"!"}}]}`,
+			`data: {"choices":[{"delta":{"content":" Ada yang bisa dibantu?"}}]}`,
+			`data: [DONE]`,
+		}
+		for _, e := range events {
+			_, _ = fmt.Fprintf(w, "%s\n\n", e)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, CompletionModel: "chat", EmbeddingModel: "embed"})
+	if err != nil {
+		t.Fatalf("NewClient error: %v", err)
+	}
+
+	var collected []string
+	err = client.StreamChatCompletion(context.Background(), ChatCompletionInput{
+		Messages: []Message{{Role: "user", Content: "Halo"}},
+	}, func(token string) error {
+		collected = append(collected, token)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("StreamChatCompletion error: %v", err)
+	}
+
+	full := strings.Join(collected, "")
+	if full != "Halo! Ada yang bisa dibantu?" {
+		t.Fatalf("unexpected streamed text: %s", full)
+	}
+}

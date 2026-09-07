@@ -40,3 +40,23 @@ type AssistantConversationResponse struct {
 	UpdatedAt string                     `json:"updated_at"`
 	Messages  []AssistantMessageResponse `json:"messages"`
 }
+
+type AssistantStreamEventType string
+
+const (
+	StreamEventToken      AssistantStreamEventType = "token"
+	StreamEventToolCall   AssistantStreamEventType = "tool_call"
+	StreamEventToolResult AssistantStreamEventType = "tool_result"
+	StreamEventDone       AssistantStreamEventType = "done"
+	StreamEventError      AssistantStreamEventType = "error"
+)
+
+type AssistantStreamEvent struct {
+	Type           AssistantStreamEventType `json:"type"`
+	Content        string                   `json:"content,omitempty"`
+	ToolName       string                   `json:"tool_name,omitempty"`
+	ConversationID string                   `json:"conversation_id,omitempty"`
+	Sources        []AssistantSource        `json:"sources,omitempty"`
+	ToolsUsed      []string                 `json:"tools_used,omitempty"`
+	Error          string                   `json:"error,omitempty"`
+}

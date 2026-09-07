@@ -116,3 +116,82 @@ func TestAssistantController_Conversations(t *testing.T) {
 		t.Fatalf("GetConversation(nil) status = %d, want 503", resp503.StatusCode)
 	}
 }
+
+type assistantStreamServiceFake struct {
+	events []dtos.AssistantStreamEvent
+	err    error
+}
+
+func (f assistantStreamServiceFake) ChatWithQuote(context.Context, string, *dtos.ProductQuoteRequest, string) (dtos.AssistantChatResponse, error) {
+	return dtos.AssistantChatResponse{}, nil
+}
+
+func (f assistantStreamServiceFake) ChatStream(ctx context.Context, req dtos.AssistantChatRequest, onEvent func(event dtos.AssistantStreamEvent) error) error {
+	if f.err != nil {
+		return f.err
+	}
+	for _, ev := range f.events {
+		if err := onEvent(ev); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestAssistantController_ChatStream(t *testing.T) {
+	fakeService := assistantStreamServiceFake{
+		events: []dtos.AssistantStreamEvent{
+			{Type: dtos.StreamEventToken, Content: "Hello "},
+			{Type: dtos.StreamEventToken, Content: "world!"},
+			{Type: dtos.StreamEventDone, ConversationID: "conv-123"},
+		},
+	}
+
+	app := fiber.New()
+	controller := NewAssistantController(fakeService)
+	app.Post("/assistant/chat/stream", controller.ChatStream)
+
+	// 1. Success case
+	req := httptest.NewRequest("POST", "/assistant/chat/stream", strings.NewReader(`{"message":"Hello"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("expected Content-Type text/event-stream, got %s", resp.Header.Get("Content-Type"))
+	}
+
+	// 2. Empty message
+	reqBad := httptest.NewRequest("POST", "/assistant/chat/stream", strings.NewReader(`{"message":""}`))
+	reqBad.Header.Set("Content-Type", "application/json")
+	respBad, err := app.Test(reqBad)
+	if err != nil || respBad.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", respBad.StatusCode)
+	}
+
+	// 3. Nil service
+	nilApp := fiber.New()
+	nilController := NewAssistantController(nil)
+	nilApp.Post("/assistant/chat/stream", nilController.ChatStream)
+	reqNil := httptest.NewRequest("POST", "/assistant/chat/stream", strings.NewReader(`{"message":"Hello"}`))
+	reqNil.Header.Set("Content-Type", "application/json")
+	respNil, err := nilApp.Test(reqNil)
+	if err != nil || respNil.StatusCode != fiber.StatusServiceUnavailable {
+		t.Fatalf("expected status 503, got %d", respNil.StatusCode)
+	}
+
+	// 4. Non-stream service
+	nonStreamApp := fiber.New()
+	nonStreamController := NewAssistantController(assistantServiceFake{})
+	nonStreamApp.Post("/assistant/chat/stream", nonStreamController.ChatStream)
+	reqNon := httptest.NewRequest("POST", "/assistant/chat/stream", strings.NewReader(`{"message":"Hello"}`))
+	reqNon.Header.Set("Content-Type", "application/json")
+	respNon, err := nonStreamApp.Test(reqNon)
+	if err != nil || respNon.StatusCode != fiber.StatusNotImplemented {
+		t.Fatalf("expected status 501, got %d", respNon.StatusCode)
+	}
+}
