@@ -331,11 +331,19 @@ func generateID() string {
 	return hex.EncodeToString(value)
 }
 
+func toolError(msg string) string {
+	b, err := json.Marshal(map[string]string{"error": msg})
+	if err != nil {
+		return `{"error":"internal tool error"}`
+	}
+	return string(b)
+}
+
 func (service *AssistantService) executeTool(ctx context.Context, name string, rawArgs string) string {
 	switch name {
 	case "calculate_quote":
 		if service.quotes == nil {
-			return `{"error":"quote service is unavailable"}`
+			return toolError("quote service is unavailable")
 		}
 		var args struct {
 			ProductSlug      string `json:"product_slug"`
@@ -349,11 +357,11 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			HealthRisk       string `json:"health_risk"`
 		}
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
-			return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err.Error())
+			return toolError("invalid arguments: " + err.Error())
 		}
 		args.ProductSlug = strings.TrimSpace(args.ProductSlug)
 		if args.ProductSlug == "" {
-			return `{"error":"product_slug is required"}`
+			return toolError("product_slug is required")
 		}
 
 		quoteReq := dtos.ProductQuoteRequest{
@@ -387,23 +395,23 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 
 		validatedReq, err := validations.ValidateProductQuoteRequest(quoteReq)
 		if err != nil {
-			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+			return toolError(err.Error())
 		}
 
 		quote, err := service.quotes.CreateProductQuote(ctx, args.ProductSlug, dtos.ProductQuoteRequestToInput(validatedReq))
 		if err != nil {
-			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+			return toolError(err.Error())
 		}
 		res, err := json.Marshal(quote)
 		if err != nil {
-			return fmt.Sprintf(`{"error":"failed to serialize quote: %s"}`, err.Error())
+			return toolError("failed to serialize quote: " + err.Error())
 		}
 		return string(res)
 
 	case "list_products":
 		lister, ok := service.quotes.(AssistantProductLister)
 		if !ok || lister == nil {
-			return `{"error":"product list service is unavailable"}`
+			return toolError("product list service is unavailable")
 		}
 		var args struct {
 			Category string `json:"category"`
@@ -411,7 +419,7 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		}
 		if len(strings.TrimSpace(rawArgs)) > 0 {
 			if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
-				return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err.Error())
+				return toolError("invalid arguments: " + err.Error())
 			}
 		}
 		products, err := lister.ListProducts(ctx, dtos.ProductListQuery{
@@ -419,7 +427,7 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			Search:   strings.TrimSpace(args.Search),
 		})
 		if err != nil {
-			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+			return toolError(err.Error())
 		}
 		type itemSummary struct {
 			Name          string `json:"name"`
@@ -444,13 +452,13 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		}
 		res, err := json.Marshal(items)
 		if err != nil {
-			return fmt.Sprintf(`{"error":"failed to serialize products: %s"}`, err.Error())
+			return toolError("failed to serialize products: " + err.Error())
 		}
 		return string(res)
 
 	case "submit_application":
 		if service.applications == nil {
-			return `{"error":"application service is unavailable"}`
+			return toolError("application service is unavailable")
 		}
 		var args struct {
 			ProductSlug      string `json:"product_slug"`
@@ -467,18 +475,20 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			HealthRisk       string `json:"health_risk"`
 		}
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
-			return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err.Error())
+			return toolError("invalid arguments: " + err.Error())
 		}
 		args.ProductSlug = strings.TrimSpace(args.ProductSlug)
 		if args.ProductSlug == "" {
-			return `{"error":"product_slug is required"}`
+			return toolError("product_slug is required")
 		}
+
+		cleanPhone := strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(args.Phone), "-", ""), " ", "")
 
 		appReq := dtos.CreateApplicationRequest{
 			ProductSlug: args.ProductSlug,
 			FullName:    strings.TrimSpace(args.FullName),
 			Email:       strings.TrimSpace(args.Email),
-			Phone:       strings.TrimSpace(args.Phone),
+			Phone:       cleanPhone,
 			ProductQuoteRequest: dtos.ProductQuoteRequest{
 				Age:              args.Age,
 				Gender:           strings.ToLower(strings.TrimSpace(args.Gender)),
@@ -515,13 +525,16 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 
 		validatedReq, err := validations.ValidateApplicationRequest(appReq)
 		if err != nil {
-			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+			return toolError(err.Error())
 		}
 
 		createdApp, err := service.applications.Create(ctx, args.ProductSlug, validatedReq)
 		if err != nil {
-			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+			return toolError(err.Error())
 		}
+
+		log.Printf("[AssistantService] insurance application submitted via chat: id=%s product=%s name=%s premium=%d",
+			createdApp.ID, args.ProductSlug, createdApp.FullName, createdApp.Premium)
 
 		result := map[string]any{
 			"status":         "submitted",
@@ -533,12 +546,12 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		}
 		res, err := json.Marshal(result)
 		if err != nil {
-			return fmt.Sprintf(`{"error":"failed to serialize application result: %s"}`, err.Error())
+			return toolError("failed to serialize application result: " + err.Error())
 		}
 		return string(res)
 
 	default:
-		return fmt.Sprintf(`{"error":"unknown tool %s"}`, name)
+		return toolError("unknown tool " + name)
 	}
 }
 
