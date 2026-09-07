@@ -93,6 +93,38 @@ func TestValidateProductQuoteRequest(t *testing.T) {
 	}
 }
 
+func TestValidateProductQuoteRequestDefaultsAndNormalization(t *testing.T) {
+	req := dtos.ProductQuoteRequest{
+		Age:              25,
+		Gender:           "FEMALE",
+		SumAssured:       100_000_000,
+		PaymentTerm:      10,
+		PaymentFrequency: "annually",
+		Smoker:           "NO",
+		OccupationClass:  "",
+		HealthRisk:       "",
+	}
+	validated, err := ValidateProductQuoteRequest(req)
+	if err != nil {
+		t.Fatalf("ValidateProductQuoteRequest() error = %v", err)
+	}
+	if validated.Gender != constants.GenderFemale {
+		t.Fatalf("Gender = %q, want %q", validated.Gender, constants.GenderFemale)
+	}
+	if validated.PaymentFrequency != constants.PaymentFrequencyAnnual {
+		t.Fatalf("PaymentFrequency = %q, want %q", validated.PaymentFrequency, constants.PaymentFrequencyAnnual)
+	}
+	if validated.Smoker != constants.SmokerNo {
+		t.Fatalf("Smoker = %q, want %q", validated.Smoker, constants.SmokerNo)
+	}
+	if validated.OccupationClass != constants.OccupationStandard {
+		t.Fatalf("OccupationClass = %q, want %q", validated.OccupationClass, constants.OccupationStandard)
+	}
+	if validated.HealthRisk != constants.HealthRiskLow {
+		t.Fatalf("HealthRisk = %q, want %q", validated.HealthRisk, constants.HealthRiskLow)
+	}
+}
+
 func TestValidateApplicationRequest(t *testing.T) {
 	request := dtos.CreateApplicationRequest{
 		FullName:            " Bayu Anugerah ",

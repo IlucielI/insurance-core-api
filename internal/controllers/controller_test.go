@@ -109,7 +109,9 @@ func TestProductRoutes(t *testing.T) {
 
 	response = performRequest(t, app, http.MethodPost, "/api/v1/products/secure-life-plus/quotes", productQuoteBody())
 	assertStatus(t, response, http.StatusOK)
-	assertBodyContains(t, readBody(t, response), "estimated_premium")
+	body := readBody(t, response)
+	assertBodyContains(t, body, "estimated_premium")
+	assertBodyContains(t, body, "\"product_slug\":\"secure-life-plus\"")
 }
 
 func TestProductRoutesHandleErrors(t *testing.T) {

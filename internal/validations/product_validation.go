@@ -68,11 +68,23 @@ func ValidateProductSlug(slug string) (string, error) {
 }
 
 func ValidateProductQuoteRequest(request dtos.ProductQuoteRequest) (dtos.ProductQuoteRequest, error) {
-	request.Gender = strings.TrimSpace(request.Gender)
-	request.PaymentFrequency = strings.TrimSpace(request.PaymentFrequency)
-	request.Smoker = strings.TrimSpace(request.Smoker)
-	request.OccupationClass = strings.TrimSpace(request.OccupationClass)
-	request.HealthRisk = strings.TrimSpace(request.HealthRisk)
+	request.Gender = strings.ToLower(strings.TrimSpace(request.Gender))
+	request.PaymentFrequency = strings.ToLower(strings.TrimSpace(request.PaymentFrequency))
+	request.Smoker = strings.ToLower(strings.TrimSpace(request.Smoker))
+	request.OccupationClass = strings.ToLower(strings.TrimSpace(request.OccupationClass))
+	request.HealthRisk = strings.ToLower(strings.TrimSpace(request.HealthRisk))
+
+	if request.PaymentFrequency == "annually" {
+		request.PaymentFrequency = constants.PaymentFrequencyAnnual
+	}
+
+	if request.OccupationClass == "" {
+		request.OccupationClass = constants.OccupationStandard
+	}
+
+	if request.HealthRisk == "" {
+		request.HealthRisk = constants.HealthRiskLow
+	}
 
 	if validation.Validate(request.Age, validation.Min(constants.MinQuoteAge), validation.Max(constants.MaxQuoteAge)) != nil {
 		return dtos.ProductQuoteRequest{}, errors.New(constants.ErrQuoteAgeInvalid)
