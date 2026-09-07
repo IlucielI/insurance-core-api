@@ -249,7 +249,10 @@ func (w *AdminNotificationWorker) handleApplicationSubmitted(ctx context.Context
 		Link:     "/queue",
 	}
 
-	resp, err := w.notificationService.Create(ctx, req)
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := w.notificationService.Create(reqCtx, req)
 	if err != nil {
 		return fmt.Errorf("create in-app notification: %w", err)
 	}
@@ -278,7 +281,10 @@ func (w *AdminNotificationWorker) handleApplicationApproved(ctx context.Context,
 		Link:     "/queue",
 	}
 
-	resp, err := w.notificationService.Create(ctx, req)
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := w.notificationService.Create(reqCtx, req)
 	if err != nil {
 		return fmt.Errorf("create in-app notification: %w", err)
 	}
@@ -307,7 +313,10 @@ func (w *AdminNotificationWorker) handleApplicationRejected(ctx context.Context,
 		Link:     "/queue",
 	}
 
-	resp, err := w.notificationService.Create(ctx, req)
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := w.notificationService.Create(reqCtx, req)
 	if err != nil {
 		return fmt.Errorf("create in-app notification: %w", err)
 	}
@@ -336,7 +345,10 @@ func (w *AdminNotificationWorker) handleApplicationRFIRequested(ctx context.Cont
 		Link:     "/queue",
 	}
 
-	resp, err := w.notificationService.Create(ctx, req)
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := w.notificationService.Create(reqCtx, req)
 	if err != nil {
 		return fmt.Errorf("create in-app notification: %w", err)
 	}

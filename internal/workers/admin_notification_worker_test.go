@@ -103,7 +103,7 @@ func TestAdminNotificationWorkerEventHandlers(t *testing.T) {
 		sub := newFakeSubscriber()
 		notifSvc := new(mockNotificationService)
 
-		notifSvc.On("Create", ctx, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
+		notifSvc.On("Create", mock.Anything, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
 			return req.Type == "APPLICATION_SUBMITTED" &&
 				req.Category == "underwriting" &&
 				req.Severity == "INFO" &&
@@ -134,7 +134,7 @@ func TestAdminNotificationWorkerEventHandlers(t *testing.T) {
 		sub := newFakeSubscriber()
 		notifSvc := new(mockNotificationService)
 
-		notifSvc.On("Create", ctx, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
+		notifSvc.On("Create", mock.Anything, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
 			return req.Type == "APPLICATION_APPROVED" &&
 				req.Category == "underwriting" &&
 				req.Severity == "SUCCESS" &&
@@ -165,7 +165,7 @@ func TestAdminNotificationWorkerEventHandlers(t *testing.T) {
 		sub := newFakeSubscriber()
 		notifSvc := new(mockNotificationService)
 
-		notifSvc.On("Create", ctx, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
+		notifSvc.On("Create", mock.Anything, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
 			return req.Type == "APPLICATION_REJECTED" &&
 				req.Category == "underwriting" &&
 				req.Severity == "WARNING" &&
@@ -195,7 +195,7 @@ func TestAdminNotificationWorkerEventHandlers(t *testing.T) {
 		sub := newFakeSubscriber()
 		notifSvc := new(mockNotificationService)
 
-		notifSvc.On("Create", ctx, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
+		notifSvc.On("Create", mock.Anything, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
 			return req.Type == "APPLICATION_RFI" &&
 				req.Category == "underwriting" &&
 				req.Severity == "INFO" &&
