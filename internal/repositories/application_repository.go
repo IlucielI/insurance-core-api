@@ -97,3 +97,13 @@ func (repository *PostgresApplicationRepository) UpdateStatus(ctx context.Contex
 	}
 	return nil
 }
+
+func (repository *PostgresApplicationRepository) FindPendingSLABreach(ctx context.Context, olderThan time.Time) ([]models.Application, error) {
+	var applications []models.Application
+	err := repository.db.WithContext(ctx).
+		Where("status IN ? AND created_at <= ?", []string{string(models.ApplicationStatusSubmitted), string(models.ApplicationStatusUnderReview)}, olderThan).
+		Order("created_at ASC").
+		Limit(50).
+		Find(&applications).Error
+	return applications, err
+}
