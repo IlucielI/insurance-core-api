@@ -545,7 +545,7 @@ func TestAssistantChatWithTools_SubmitApplication_Success(t *testing.T) {
 									"product_slug": "secure-life-plus",
 									"full_name": "John Doe",
 									"email": "john.doe@example.com",
-									"phone": "08123456789",
+									"phone": "0812-3456-7890",
 									"age": 30,
 									"gender": "male",
 									"sum_assured": 500000000,
@@ -584,6 +584,9 @@ func TestAssistantChatWithTools_SubmitApplication_Success(t *testing.T) {
 	}
 	if appService.capturedInput.Email != "john.doe@example.com" {
 		t.Fatalf("expected Email john.doe@example.com, got: %s", appService.capturedInput.Email)
+	}
+	if appService.capturedInput.Phone != "081234567890" {
+		t.Fatalf("expected sanitized Phone 081234567890, got: %s", appService.capturedInput.Phone)
 	}
 }
 
