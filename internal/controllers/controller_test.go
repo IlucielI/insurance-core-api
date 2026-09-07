@@ -39,6 +39,24 @@ func (repository *controllerProductRepository) FindBySlug(ctx context.Context, s
 	return repository.product, nil
 }
 
+type controllerPricingRuleRepository struct {
+	rules []models.ProductPricingRule
+	err   error
+}
+
+func (r *controllerPricingRuleRepository) FindByProductID(ctx context.Context, productID string) ([]models.ProductPricingRule, error) {
+	return r.rules, r.err
+}
+
+func (r *controllerPricingRuleRepository) FindByProductSlug(ctx context.Context, slug string) ([]models.ProductPricingRule, error) {
+	return r.rules, r.err
+}
+
+func (r *controllerPricingRuleRepository) Create(ctx context.Context, rule *models.ProductPricingRule) error {
+	r.rules = append(r.rules, *rule)
+	return r.err
+}
+
 type controllerApplicationRepository struct {
 	application models.Application
 	err         error
@@ -114,6 +132,19 @@ func TestProductRoutes(t *testing.T) {
 	body := readBody(t, response)
 	assertBodyContains(t, body, "estimated_premium")
 	assertBodyContains(t, body, "\"product_slug\":\"secure-life-plus\"")
+
+	// Test GET /api/v1/products/:slug/pricing-rules
+	mockPricingRepo := &controllerPricingRuleRepository{
+		rules: []models.ProductPricingRule{
+			{ID: "rule-1", ProductID: product.ID, RuleCode: "base_rate", RuleName: "Base Rate", RuleType: "base_rate"},
+		},
+	}
+	appWithPricing := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{products: []models.Product{product}, product: product}, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil, mockPricingRepo)
+	response = performRequest(t, appWithPricing, http.MethodGet, "/api/v1/products/secure-life-plus/pricing-rules", nil)
+	assertStatus(t, response, http.StatusOK)
+	pricingBody := readBody(t, response)
+	assertBodyContains(t, pricingBody, "rule-1")
+	assertBodyContains(t, pricingBody, "base_rate")
 }
 
 func TestProductRoutesHandleErrors(t *testing.T) {

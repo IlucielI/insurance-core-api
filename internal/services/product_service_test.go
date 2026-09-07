@@ -226,3 +226,146 @@ func withQuoteInput(update func(*dtos.CreateProductQuoteInput)) dtos.CreateProdu
 	update(&input)
 	return input
 }
+
+type fakePricingRuleRepository struct {
+	rules []models.ProductPricingRule
+	err   error
+}
+
+func (r *fakePricingRuleRepository) FindByProductID(ctx context.Context, productID string) ([]models.ProductPricingRule, error) {
+	return r.rules, r.err
+}
+
+func (r *fakePricingRuleRepository) FindByProductSlug(ctx context.Context, slug string) ([]models.ProductPricingRule, error) {
+	return r.rules, r.err
+}
+
+func (r *fakePricingRuleRepository) Create(ctx context.Context, rule *models.ProductPricingRule) error {
+	r.rules = append(r.rules, *rule)
+	return r.err
+}
+
+func TestProductServiceGetPricingRules(t *testing.T) {
+	rules := []models.ProductPricingRule{
+		{ID: "rule-1", ProductID: "prod-1", RuleCode: "base_rate", RuleType: "base_rate"},
+	}
+	repo := &fakePricingRuleRepository{rules: rules}
+	prodRepo := &fakeProductRepository{product: productFixture()}
+	service := NewProductService(prodRepo, repo)
+
+	got, err := service.GetPricingRules(context.Background(), "secure-life-plus")
+	if err != nil {
+		t.Fatalf("GetPricingRules() error = %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "rule-1" {
+		t.Fatalf("GetPricingRules() = %+v, want 1 rule", got)
+	}
+
+	// Nil pricing rule repository returns nil, nil
+	serviceWithoutRules := NewProductService(prodRepo)
+	gotNil, err := serviceWithoutRules.GetPricingRules(context.Background(), "secure-life-plus")
+	if err != nil || gotNil != nil {
+		t.Fatalf("GetPricingRules() with nil repo error = %v, got = %v", err, gotNil)
+	}
+}
+
+func TestProductServiceCreateProductQuoteDynamicRules(t *testing.T) {
+	rules := []models.ProductPricingRule{
+		{
+			ID:        "rule-base",
+			ProductID: "product-1",
+			RuleCode:  "base_rate",
+			RuleName:  "Base Rate",
+			RuleType:  "base_rate",
+			Factors:   map[string]any{"rate": 0.0035},
+			IsActive:  true,
+		},
+		{
+			ID:        "rule-age",
+			ProductID: "product-1",
+			RuleCode:  "age_bracket",
+			RuleName:  "Age Bracket",
+			RuleType:  "bracket",
+			Factors: map[string]any{
+				"brackets": []any{
+					map[string]any{"min_age": 18, "max_age": 40, "factor": 1.0},
+					map[string]any{"min_age": 41, "max_age": 60, "factor": 1.5},
+				},
+			},
+			IsActive: true,
+		},
+		{
+			ID:        "rule-gender",
+			ProductID: "product-1",
+			RuleCode:  "gender",
+			RuleName:  "Gender Factor",
+			RuleType:  "multiplier_map",
+			Factors:   map[string]any{"male": 1.05, "female": 1.0},
+			IsActive:  true,
+		},
+		{
+			ID:        "rule-smoker",
+			ProductID: "product-1",
+			RuleCode:  "smoker",
+			RuleName:  "Smoker Factor",
+			RuleType:  "multiplier_map",
+			Factors:   map[string]any{"yes": 1.35, "no": 1.0},
+			IsActive:  true,
+		},
+		{
+			ID:        "rule-extreme-sports",
+			ProductID: "product-1",
+			RuleCode:  "extreme_sports",
+			RuleName:  "Extreme Sports Loading",
+			RuleType:  "multiplier_map",
+			Factors:   map[string]any{"yes": 1.25, "no": 1.0},
+			IsActive:  true,
+		},
+		{
+			ID:        "rule-freq",
+			ProductID: "product-1",
+			RuleCode:  "frequency_loading",
+			RuleName:  "Frequency Loading",
+			RuleType:  "frequency_loading",
+			Factors:   map[string]any{"annual": 1.0, "monthly": 1.10},
+			IsActive:  true,
+		},
+	}
+
+	prodRepo := &fakeProductRepository{product: productFixture()}
+	ruleRepo := &fakePricingRuleRepository{rules: rules}
+	service := NewProductService(prodRepo, ruleRepo)
+
+	// Quote with dynamic answers
+	input := dtos.CreateProductQuoteInput{
+		Age:              35,
+		Gender:           "male",
+		SumAssured:       100_000_000,
+		PaymentTerm:      10, // min is 10, term factor = 1.0
+		PaymentFrequency: "monthly",
+		Answers: []dtos.QuoteAnswerInput{
+			{RuleCode: "smoker", Value: "yes"},
+			{RuleCode: "extreme_sports", Value: "yes"},
+		},
+	}
+
+	quote, err := service.CreateProductQuote(context.Background(), "secure-life-plus", input)
+	if err != nil {
+		t.Fatalf("CreateProductQuote() dynamic rules error = %v", err)
+	}
+
+	// Base rate = 0.0035, age = 1.0, term = 1.0
+	// gender = 1.05, smoker = 1.35, extreme_sports = 1.25
+	// dynamicMultiplier = 1.05 * 1.35 * 1.25 = 1.771875
+	// annual = 100_000_000 * 0.0035 * 1.0 * 1.0 * 1.771875 = 620,156.25
+	// monthly = 620,156.25 / 12 * 1.10 = 56,847.65625 -> ceil to thousand = 57,000
+	if quote.EstimatedPremium <= 0 {
+		t.Fatalf("EstimatedPremium = %d, want > 0", quote.EstimatedPremium)
+	}
+	if len(quote.Breakdown.Factors) != 3 {
+		t.Fatalf("len(Breakdown.Factors) = %d, want 3 (gender, smoker, extreme_sports)", len(quote.Breakdown.Factors))
+	}
+	if quote.Breakdown.SmokerFactor != 1.35 {
+		t.Fatalf("SmokerFactor = %f, want 1.35", quote.Breakdown.SmokerFactor)
+	}
+}

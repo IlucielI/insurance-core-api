@@ -66,16 +66,8 @@ func (controller *ProductController) CreateQuote(ctx *fiber.Ctx) error {
 		})
 	}
 
-	quote, err := controller.productService.CreateProductQuote(ctx.Context(), slug, dtos.CreateProductQuoteInput{
-		Age:              request.Age,
-		Gender:           request.Gender,
-		SumAssured:       request.SumAssured,
-		PaymentTerm:      request.PaymentTerm,
-		PaymentFrequency: request.PaymentFrequency,
-		Smoker:           request.Smoker,
-		OccupationClass:  request.OccupationClass,
-		HealthRisk:       request.HealthRisk,
-	})
+	quoteInput := dtos.ProductQuoteRequestToInput(request)
+	quote, err := controller.productService.CreateProductQuote(ctx.Context(), slug, quoteInput)
 	if err != nil {
 		if errors.Is(err, repositories.ErrProductNotFound) {
 			return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -122,5 +114,25 @@ func (controller *ProductController) Detail(ctx *fiber.Ctx) error {
 
 	return ctx.JSON(fiber.Map{
 		"data": product,
+	})
+}
+
+func (controller *ProductController) GetPricingRules(ctx *fiber.Ctx) error {
+	slug, err := validations.ValidateProductSlug(ctx.Params("slug"))
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	rules, err := controller.productService.GetPricingRules(ctx.Context(), slug)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to retrieve product pricing rules",
+		})
+	}
+
+	return ctx.JSON(fiber.Map{
+		"data": rules,
 	})
 }

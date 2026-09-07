@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
+	llmadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
 	natsadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/nats"
 	redisadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/redis"
 	s3adapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/s3"
-	llmadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
 	smtpadapter "github.com/bayuanugerah/insurance-core-api/internal/adapter/smtp"
 	"github.com/bayuanugerah/insurance-core-api/internal/config"
 	"github.com/bayuanugerah/insurance-core-api/internal/ports"
@@ -48,7 +48,7 @@ func main() {
 			Password: cfg.RedisPassword,
 			DB:       cfg.RedisDB,
 			// cfg.RedisTimeout is configured in seconds (integer)
-			Timeout:  time.Duration(cfg.RedisTimeout) * time.Second,
+			Timeout: time.Duration(cfg.RedisTimeout) * time.Second,
 		})
 		if err != nil {
 			log.Printf("redis disabled: %v", err)
@@ -71,6 +71,7 @@ func main() {
 	applicationRepository := repositories.NewPostgresApplicationRepository(postgres.DB())
 	reviewCheckRepository := repositories.NewPostgresApplicationReviewCheckRepository(postgres.DB())
 	questionnaireRepository := repositories.NewPostgresQuestionnaireRepository(postgres.DB(), redisClient)
+	pricingRuleRepository := repositories.NewPostgresPricingRuleRepository(postgres.DB(), redisClient)
 	knowledgeRepository := repositories.NewPostgresKnowledgeRepository(postgres.DB())
 
 	var assistantLLM services.AssistantLLM
@@ -88,7 +89,7 @@ func main() {
 		}
 	}
 
-	productService := services.NewProductService(productRepository)
+	productService := services.NewProductService(productRepository, pricingRuleRepository)
 	assistantService := services.NewAssistantService(knowledgeRepository, assistantLLM, productService)
 	if assistantLLM != nil {
 		seedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -136,7 +137,7 @@ func main() {
 		}
 	}
 
-	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository)
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
