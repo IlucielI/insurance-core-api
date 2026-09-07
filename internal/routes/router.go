@@ -32,6 +32,9 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	var knowledgeRepository repositories.KnowledgeRepository
 	var knowledgeMetricsRepository repositories.KnowledgeMetricsRepository
 	var knowledgeRAGService services.KnowledgeRAGService
+	var auditLogRepository repositories.AuditLogRepository
+	var auditLogService services.AuditLogService
+	var systemHealthService services.SystemHealthService
 
 	for _, repo := range optionalRepositories {
 		switch r := repo.(type) {
@@ -53,6 +56,12 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 			knowledgeMetricsRepository = r
 		case services.KnowledgeRAGService:
 			knowledgeRAGService = r
+		case repositories.AuditLogRepository:
+			auditLogRepository = r
+		case services.AuditLogService:
+			auditLogService = r
+		case services.SystemHealthService:
+			systemHealthService = r
 		}
 	}
 
@@ -66,6 +75,10 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 
 	if knowledgeRAGService == nil && knowledgeDocRepository != nil && knowledgeRepository != nil && knowledgeMetricsRepository != nil {
 		knowledgeRAGService = services.NewKnowledgeRAGService(knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, nil)
+	}
+
+	if auditLogService == nil && auditLogRepository != nil {
+		auditLogService = services.NewAuditLogService(auditLogRepository)
 	}
 
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
@@ -136,6 +149,20 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 		api.Post("/knowledge/documents/:id/reindex", knowledgeRAGController.Reindex)
 		api.Get("/admin/knowledge/metrics", knowledgeRAGController.GetMetrics)
 		api.Post("/knowledge/simulate-chat", knowledgeRAGController.SimulateChat)
+	}
+
+	if systemHealthService != nil {
+		adminHealthController := controllers.NewAdminHealthController(systemHealthService)
+		api.Get("/admin/health/overview", adminHealthController.GetOverview)
+		api.Post("/admin/health/ping", adminHealthController.PingServices)
+		api.Post("/admin/health/routes/ping", adminHealthController.PingRoutes)
+	}
+
+	if auditLogService != nil {
+		auditLogController := controllers.NewAuditLogController(auditLogService)
+		api.Get("/admin/audit-logs", auditLogController.List)
+		api.Get("/admin/audit-logs/:id", auditLogController.GetByID)
+		api.Post("/admin/audit-logs", auditLogController.Create)
 	}
 
 	return app

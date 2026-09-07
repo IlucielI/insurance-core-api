@@ -148,3 +148,76 @@ func TestAdminMetricsRouteExists(t *testing.T) {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
 	}
 }
+
+type routeAuditLogRepository struct{}
+
+func (r routeAuditLogRepository) Create(_ context.Context, _ *models.AuditLog) error {
+	return nil
+}
+
+func (r routeAuditLogRepository) FindAll(_ context.Context, _ dtos.AuditLogQuery) ([]models.AuditLog, int64, error) {
+	return []models.AuditLog{}, 0, nil
+}
+
+func (r routeAuditLogRepository) FindByID(_ context.Context, _ string) (*models.AuditLog, error) {
+	return nil, nil
+}
+
+func (r routeAuditLogRepository) Count(_ context.Context) (int64, error) {
+	return 0, nil
+}
+
+type routeSystemHealthService struct{}
+
+func (r routeSystemHealthService) GetOverview(_ context.Context) (*dtos.SystemHealthOverviewResponse, error) {
+	return &dtos.SystemHealthOverviewResponse{}, nil
+}
+
+func (r routeSystemHealthService) PingServices(_ context.Context, _ string) ([]dtos.ServiceHealthItem, error) {
+	return []dtos.ServiceHealthItem{}, nil
+}
+
+func (r routeSystemHealthService) PingRoutes(_ context.Context) ([]dtos.RouteLatencyProbeItem, error) {
+	return []dtos.RouteLatencyProbeItem{}, nil
+}
+
+func TestAdminHealthAndAuditRoutesExist(t *testing.T) {
+	app := NewRouter(
+		config.Config{AppName: "test"},
+		routeProductRepository{},
+		routeApplicationRepository{},
+		routeReviewCheckRepository{},
+		nil, nil, nil, nil,
+		routeAuditLogRepository{},
+		routeSystemHealthService{},
+	)
+
+	t.Run("health overview route", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "/api/v1/admin/health/overview", nil)
+		if err != nil {
+			t.Fatalf("NewRequest() error = %v", err)
+		}
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test() error = %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+	})
+
+	t.Run("audit logs route", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "/api/v1/admin/audit-logs", nil)
+		if err != nil {
+			t.Fatalf("NewRequest() error = %v", err)
+		}
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test() error = %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+	})
+}
+
