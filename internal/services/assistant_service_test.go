@@ -497,3 +497,214 @@ func TestAssistantChat_SanitizesLeadingOrphanToolMessages(t *testing.T) {
 func embeddingFixture() []float32 {
 	return make([]float32, constants.AssistantEmbeddingDimension)
 }
+
+type fakeApplicationService struct {
+	createdApp    models.Application
+	capturedSlug  string
+	capturedInput dtos.CreateApplicationRequest
+	err           error
+}
+
+func (f *fakeApplicationService) Create(ctx context.Context, slug string, input dtos.CreateApplicationRequest) (models.Application, error) {
+	if f.err != nil {
+		return models.Application{}, f.err
+	}
+	f.capturedSlug = slug
+	f.capturedInput = input
+	return f.createdApp, nil
+}
+
+func TestAssistantChatWithTools_SubmitApplication_Success(t *testing.T) {
+	repo := &knowledgeFake{}
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+	appService := &fakeApplicationService{
+		createdApp: models.Application{
+			ID:        "app-xyz-123",
+			ProductID: "prod-1",
+			FullName:  "John Doe",
+			Premium:   500000,
+			Status:    models.ApplicationStatusSubmitted,
+		},
+	}
+
+	callCount := 0
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			callCount++
+			if callCount == 1 {
+				return llm.ChatCompletionOutput{
+					ToolCalls: []llm.ToolCall{
+						{
+							ID:   "call_submit_1",
+							Type: "function",
+							Function: llm.ToolCallFunction{
+								Name: "submit_application",
+								Arguments: `{
+									"product_slug": "secure-life-plus",
+									"full_name": "John Doe",
+									"email": "john.doe@example.com",
+									"phone": "08123456789",
+									"age": 30,
+									"gender": "male",
+									"sum_assured": 500000000,
+									"payment_term": 10,
+									"payment_frequency": "monthly"
+								}`,
+							},
+						},
+					},
+				}, nil
+			}
+			return llm.ChatCompletionOutput{
+				Content: "Pengajuan Anda telah berhasil diserahkan dengan Nomor Pengajuan app-xyz-123.",
+			}, nil
+		},
+	}
+
+	service := NewAssistantService(repo, model, productService).WithApplicationService(appService)
+
+	resp, err := service.Chat(context.Background(), "Saya konfirmasi setuju mendaftar asuransi.")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(resp.Answer, "app-xyz-123") {
+		t.Fatalf("expected answer to contain app-xyz-123, got: %s", resp.Answer)
+	}
+	if len(resp.ToolsUsed) != 1 || resp.ToolsUsed[0] != "submit_application" {
+		t.Fatalf("expected tools_used to be [submit_application], got: %v", resp.ToolsUsed)
+	}
+	if appService.capturedSlug != "secure-life-plus" {
+		t.Fatalf("expected slug secure-life-plus, got: %s", appService.capturedSlug)
+	}
+	if appService.capturedInput.FullName != "John Doe" {
+		t.Fatalf("expected FullName John Doe, got: %s", appService.capturedInput.FullName)
+	}
+	if appService.capturedInput.Email != "john.doe@example.com" {
+		t.Fatalf("expected Email john.doe@example.com, got: %s", appService.capturedInput.Email)
+	}
+}
+
+func TestAssistantChatWithTools_SubmitApplication_ValidationError(t *testing.T) {
+	repo := &knowledgeFake{}
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+	appService := &fakeApplicationService{}
+
+	callCount := 0
+	var receivedToolResult string
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			callCount++
+			if callCount == 1 {
+				return llm.ChatCompletionOutput{
+					ToolCalls: []llm.ToolCall{
+						{
+							ID:   "call_submit_invalid",
+							Type: "function",
+							Function: llm.ToolCallFunction{
+								Name: "submit_application",
+								Arguments: `{
+									"product_slug": "secure-life-plus",
+									"full_name": "John Doe",
+									"email": "invalid-email-address",
+									"phone": "08123456789",
+									"age": 30,
+									"gender": "male",
+									"sum_assured": 500000000,
+									"payment_term": 10
+								}`,
+							},
+						},
+					},
+				}, nil
+			}
+			for _, m := range in.Messages {
+				if m.Role == "tool" {
+					receivedToolResult = m.Content
+				}
+			}
+			return llm.ChatCompletionOutput{
+				Content: "Format email Anda tidak valid, mohon berikan email yang benar.",
+			}, nil
+		},
+	}
+
+	service := NewAssistantService(repo, model, productService).WithApplicationService(appService)
+
+	resp, err := service.Chat(context.Background(), "Tolong daftarkan saya.")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(receivedToolResult, constants.ErrApplicationEmailInvalid) {
+		t.Fatalf("expected tool result to report email invalid, got: %s", receivedToolResult)
+	}
+	if !strings.Contains(resp.Answer, "email") {
+		t.Fatalf("expected assistant response to mention email, got: %s", resp.Answer)
+	}
+}
+
+func TestAssistantChatWithTools_SubmitApplication_ServiceUnavailable(t *testing.T) {
+	repo := &knowledgeFake{}
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+
+	callCount := 0
+	var receivedToolResult string
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			callCount++
+			if callCount == 1 {
+				return llm.ChatCompletionOutput{
+					ToolCalls: []llm.ToolCall{
+						{
+							ID:   "call_submit_unavailable",
+							Type: "function",
+							Function: llm.ToolCallFunction{
+								Name: "submit_application",
+								Arguments: `{
+									"product_slug": "secure-life-plus",
+									"full_name": "John Doe",
+									"email": "john.doe@example.com",
+									"phone": "08123456789",
+									"age": 30,
+									"gender": "male",
+									"sum_assured": 500000000,
+									"payment_term": 10
+								}`,
+							},
+						},
+					},
+				}, nil
+			}
+			for _, m := range in.Messages {
+				if m.Role == "tool" {
+					receivedToolResult = m.Content
+				}
+			}
+			return llm.ChatCompletionOutput{
+				Content: "Layanan pendaftaran sedang tidak tersedia saat ini.",
+			}, nil
+		},
+	}
+
+	// Service without application service wired
+	service := NewAssistantService(repo, model, productService)
+
+	resp, err := service.Chat(context.Background(), "Daftar sekarang.")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(receivedToolResult, "application service is unavailable") {
+		t.Fatalf("expected tool result to report service unavailable, got: %s", receivedToolResult)
+	}
+	if !strings.Contains(resp.Answer, "tidak tersedia") {
+		t.Fatalf("expected assistant response to indicate unavailable, got: %s", resp.Answer)
+	}
+}
