@@ -56,7 +56,10 @@ func TestAdminMetricsController_GetMetrics(t *testing.T) {
 			t.Fatalf("status = %d, want 200", resp.StatusCode)
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("failed to read response body: %v", err)
+		}
 		var jsonRes struct {
 			Data dtos.AdminMetricsResponse `json:"data"`
 		}
