@@ -75,6 +75,7 @@ func main() {
 	questionnaireRepository := repositories.NewPostgresQuestionnaireRepository(postgres.DB(), redisClient)
 	pricingRuleRepository := repositories.NewPostgresPricingRuleRepository(postgres.DB(), redisClient)
 	knowledgeRepository := repositories.NewPostgresKnowledgeRepository(postgres.DB())
+	knowledgeDocRepository := repositories.NewPostgresKnowledgeDocumentRepository(postgres.DB())
 	assistantConversationRepository := repositories.NewPostgresAssistantConversationRepository(postgres.DB(), redisClient)
 	metricsRepository := repositories.NewPostgresMetricsRepository(postgres.DB())
 
@@ -155,7 +156,7 @@ func main() {
 		}
 	}
 
-	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository)
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository, knowledgeDocRepository)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
