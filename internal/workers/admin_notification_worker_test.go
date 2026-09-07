@@ -216,32 +216,82 @@ func TestAdminNotificationWorkerEventHandlers(t *testing.T) {
 
 func TestAdminNotificationWorkerSLA(t *testing.T) {
 	ctx := context.Background()
-	sub := newFakeSubscriber()
-	notifSvc := new(mockNotificationService)
 
-	slaSource := &fakeSLASource{
-		apps: []models.Application{
-			{
-				ID:        "APP-BREACH-1",
-				FullName:  "Dewi Sartika",
-				CreatedAt: time.Now().Add(-25 * time.Hour),
+	t.Run("creates SLA warning when not yet alerted", func(t *testing.T) {
+		sub := newFakeSubscriber()
+		notifSvc := new(mockNotificationService)
+
+		slaSource := &fakeSLASource{
+			apps: []models.Application{
+				{
+					ID:        "APP-BREACH-1",
+					FullName:  "Dewi Sartika",
+					CreatedAt: time.Now().Add(-25 * time.Hour),
+				},
 			},
-		},
-	}
+		}
 
-	notifSvc.On("Create", ctx, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
-		return req.Type == "SLA_WARNING" &&
-			req.Category == "underwriting" &&
-			req.Severity == "WARNING" &&
-			req.Title == "SLA Warning: Aplikasi #APP-BREACH-1"
-	})).Return(&dtos.NotificationResponse{ID: "notif-sla-1"}, nil)
+		unreadOnly := true
+		notifSvc.On("List", ctx, dtos.NotificationQuery{
+			UnreadOnly: &unreadOnly,
+			Limit:      100,
+		}).Return(&dtos.NotificationListResponse{
+			Data: []dtos.NotificationResponse{},
+		}, nil)
 
-	worker := NewAdminNotificationWorker(sub, notifSvc, slaSource)
-	worker.SetSLAThresholdHours(20)
+		notifSvc.On("Create", ctx, mock.MatchedBy(func(req dtos.CreateNotificationRequest) bool {
+			return req.Type == "SLA_WARNING" &&
+				req.Category == "underwriting" &&
+				req.Severity == "WARNING" &&
+				req.Title == "SLA Warning: Aplikasi #APP-BREACH-1"
+		})).Return(&dtos.NotificationResponse{ID: "notif-sla-1"}, nil)
 
-	count, err := worker.CheckSLANow(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, 1, count)
+		worker := NewAdminNotificationWorker(sub, notifSvc, slaSource)
+		worker.SetSLAThresholdHours(20)
 
-	notifSvc.AssertExpectations(t)
+		count, err := worker.CheckSLANow(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		notifSvc.AssertExpectations(t)
+	})
+
+	t.Run("skips creating SLA warning if unread alert already exists", func(t *testing.T) {
+		sub := newFakeSubscriber()
+		notifSvc := new(mockNotificationService)
+
+		slaSource := &fakeSLASource{
+			apps: []models.Application{
+				{
+					ID:        "APP-BREACH-1",
+					FullName:  "Dewi Sartika",
+					CreatedAt: time.Now().Add(-25 * time.Hour),
+				},
+			},
+		}
+
+		unreadOnly := true
+		notifSvc.On("List", ctx, dtos.NotificationQuery{
+			UnreadOnly: &unreadOnly,
+			Limit:      100,
+		}).Return(&dtos.NotificationListResponse{
+			Data: []dtos.NotificationResponse{
+				{
+					ID:     "notif-sla-existing",
+					Title:  "SLA Warning: Aplikasi #APP-BREACH-1",
+					IsRead: false,
+				},
+			},
+		}, nil)
+
+		worker := NewAdminNotificationWorker(sub, notifSvc, slaSource)
+		worker.SetSLAThresholdHours(20)
+
+		count, err := worker.CheckSLANow(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+
+		notifSvc.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+		notifSvc.AssertExpectations(t)
+	})
 }

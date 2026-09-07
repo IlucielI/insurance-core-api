@@ -173,13 +173,36 @@ func (w *AdminNotificationWorker) CheckSLANow(ctx context.Context) (int, error) 
 		return 0, err
 	}
 
+	if len(pendingApps) == 0 {
+		return 0, nil
+	}
+
+	existingTitles := make(map[string]bool)
+	unreadOnly := true
+	existingList, listErr := w.notificationService.List(ctx, dtos.NotificationQuery{
+		UnreadOnly: &unreadOnly,
+		Limit:      100,
+	})
+	if listErr != nil {
+		log.Printf("[AdminNotificationWorker] warning: failed to fetch existing notifications for deduplication: %v", listErr)
+	} else if existingList != nil {
+		for _, notif := range existingList.Data {
+			existingTitles[notif.Title] = true
+		}
+	}
+
 	count := 0
 	for _, app := range pendingApps {
+		title := fmt.Sprintf("SLA Warning: Aplikasi #%s", app.ID)
+		if existingTitles[title] {
+			continue
+		}
+
 		req := dtos.CreateNotificationRequest{
 			Type:     "SLA_WARNING",
 			Category: "underwriting",
 			Severity: "WARNING",
-			Title:    fmt.Sprintf("SLA Warning: Aplikasi #%s", app.ID),
+			Title:    title,
 			Message:  fmt.Sprintf("Aplikasi nasabah %s telah berada dalam antrean underwriting selama lebih dari %d jam.", app.FullName, w.slaThresholdHours),
 			Link:     "/queue",
 		}
@@ -189,6 +212,7 @@ func (w *AdminNotificationWorker) CheckSLANow(ctx context.Context) (int, error) 
 			log.Printf("[AdminNotificationWorker] failed to generate SLA warning for app %s: %v", app.ID, createErr)
 		} else if resp != nil {
 			count++
+			existingTitles[title] = true
 		}
 	}
 
