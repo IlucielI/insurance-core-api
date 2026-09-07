@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
@@ -317,6 +318,124 @@ func TestAssistantChatWithTools_ToolErrorHandled(t *testing.T) {
 	}
 	if len(resp.ToolsUsed) != 1 || resp.ToolsUsed[0] != "calculate_quote" {
 		t.Fatalf("ToolsUsed = %+v", resp.ToolsUsed)
+	}
+}
+
+type fakeConversationRepository struct {
+	conversations map[string]models.AssistantConversation
+	messages      map[string][]models.AssistantMessage
+}
+
+func newFakeConversationRepository() *fakeConversationRepository {
+	return &fakeConversationRepository{
+		conversations: make(map[string]models.AssistantConversation),
+		messages:      make(map[string][]models.AssistantMessage),
+	}
+}
+
+func (f *fakeConversationRepository) GetOrCreateConversation(ctx context.Context, id string, title string) (models.AssistantConversation, error) {
+	if conv, ok := f.conversations[id]; ok {
+		return conv, nil
+	}
+	conv := models.AssistantConversation{ID: id, Title: title, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	f.conversations[id] = conv
+	return conv, nil
+}
+
+func (f *fakeConversationRepository) GetConversation(ctx context.Context, id string) (models.AssistantConversation, error) {
+	conv, ok := f.conversations[id]
+	if !ok {
+		return models.AssistantConversation{}, repositories.ErrConversationNotFound
+	}
+	conv.Messages = f.messages[id]
+	return conv, nil
+}
+
+func (f *fakeConversationRepository) ListMessages(ctx context.Context, conversationID string, limit int) ([]models.AssistantMessage, error) {
+	msgs := f.messages[conversationID]
+	if limit > 0 && len(msgs) > limit {
+		return msgs[len(msgs)-limit:], nil
+	}
+	return msgs, nil
+}
+
+func (f *fakeConversationRepository) SaveMessage(ctx context.Context, msg models.AssistantMessage) error {
+	return f.SaveMessages(ctx, []models.AssistantMessage{msg})
+}
+
+func (f *fakeConversationRepository) SaveMessages(ctx context.Context, msgs []models.AssistantMessage) error {
+	for _, msg := range msgs {
+		f.messages[msg.ConversationID] = append(f.messages[msg.ConversationID], msg)
+	}
+	return nil
+}
+
+func (f *fakeConversationRepository) DeleteConversation(ctx context.Context, id string) error {
+	delete(f.conversations, id)
+	delete(f.messages, id)
+	return nil
+}
+
+func TestAssistantChatWithConversationMultiTurn(t *testing.T) {
+	repo := &knowledgeFake{}
+	convRepo := newFakeConversationRepository()
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+
+	var lastMessagesReceived []llm.Message
+	model := &assistantLLMFake{
+		embedding: embeddingFixture(),
+		chatWithToolsFn: func(ctx context.Context, in llm.ChatCompletionInput) (llm.ChatCompletionOutput, error) {
+			lastMessagesReceived = in.Messages
+			return llm.ChatCompletionOutput{Content: "Saya siap membantu."}, nil
+		},
+	}
+
+	service := NewAssistantService(repo, model, productService, convRepo)
+
+	// Turn 1: Starts new conversation
+	resp1, err := service.Chat(context.Background(), "Halo, saya tertarik produk Secure Life Plus.")
+	if err != nil {
+		t.Fatalf("Turn 1 error: %v", err)
+	}
+	if resp1.ConversationID == "" {
+		t.Fatal("expected non-empty ConversationID")
+	}
+
+	// Turn 2: Uses conversation ID from Turn 1
+	_, err = service.ChatWithConversation(context.Background(), "Berapa preminya?", resp1.ConversationID, nil, "")
+	if err != nil {
+		t.Fatalf("Turn 2 error: %v", err)
+	}
+
+	// Check that Turn 2 messages sent to LLM contains history from Turn 1
+	var foundTurn1User bool
+	for _, m := range lastMessagesReceived {
+		if strings.Contains(m.Content, "Halo, saya tertarik produk Secure Life Plus.") {
+			foundTurn1User = true
+			break
+		}
+	}
+	if !foundTurn1User {
+		t.Fatalf("history from Turn 1 was not included in Turn 2 prompt: %+v", lastMessagesReceived)
+	}
+
+	// Test GetConversation
+	conv, err := service.GetConversation(context.Background(), resp1.ConversationID)
+	if err != nil {
+		t.Fatalf("GetConversation error: %v", err)
+	}
+	if len(conv.Messages) < 4 {
+		t.Fatalf("expected at least 4 messages in conversation, got %d", len(conv.Messages))
+	}
+
+	// Test DeleteConversation
+	if err := service.DeleteConversation(context.Background(), resp1.ConversationID); err != nil {
+		t.Fatalf("DeleteConversation error: %v", err)
+	}
+	_, err = service.GetConversation(context.Background(), resp1.ConversationID)
+	if !errors.Is(err, repositories.ErrConversationNotFound) {
+		t.Fatalf("expected ErrConversationNotFound, got %v", err)
 	}
 }
 

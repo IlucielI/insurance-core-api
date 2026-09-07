@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/llm"
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
@@ -17,9 +20,10 @@ import (
 )
 
 type AssistantService struct {
-	knowledgeRepository repositories.KnowledgeRepository
-	llm                 AssistantLLM
-	quotes              AssistantQuoteService
+	knowledgeRepository    repositories.KnowledgeRepository
+	llm                    AssistantLLM
+	quotes                 AssistantQuoteService
+	conversationRepository repositories.AssistantConversationRepository
 }
 
 type AssistantLLM interface {
@@ -37,15 +41,63 @@ type AssistantProductLister interface {
 }
 
 func (service *AssistantService) Chat(ctx context.Context, message string) (dtos.AssistantChatResponse, error) {
-	return service.chat(ctx, message, nil, "")
+	return service.chat(ctx, message, nil, "", "")
 }
 
 func (service *AssistantService) ChatWithQuote(ctx context.Context, message string, quote *dtos.ProductQuoteRequest, slug string) (dtos.AssistantChatResponse, error) {
-	return service.chat(ctx, message, quote, slug)
+	return service.chat(ctx, message, quote, slug, "")
 }
 
-func NewAssistantService(knowledgeRepository repositories.KnowledgeRepository, llmClient AssistantLLM, quoteService AssistantQuoteService) *AssistantService {
-	return &AssistantService{knowledgeRepository: knowledgeRepository, llm: llmClient, quotes: quoteService}
+func (service *AssistantService) ChatWithConversation(ctx context.Context, message string, conversationID string, quote *dtos.ProductQuoteRequest, slug string) (dtos.AssistantChatResponse, error) {
+	return service.chat(ctx, message, quote, slug, conversationID)
+}
+
+func NewAssistantService(knowledgeRepository repositories.KnowledgeRepository, llmClient AssistantLLM, quoteService AssistantQuoteService, conversationRepository ...repositories.AssistantConversationRepository) *AssistantService {
+	var convRepo repositories.AssistantConversationRepository
+	if len(conversationRepository) > 0 {
+		convRepo = conversationRepository[0]
+	}
+	return &AssistantService{
+		knowledgeRepository:    knowledgeRepository,
+		llm:                    llmClient,
+		quotes:                 quoteService,
+		conversationRepository: convRepo,
+	}
+}
+
+func (service *AssistantService) GetConversation(ctx context.Context, conversationID string) (dtos.AssistantConversationResponse, error) {
+	if service.conversationRepository == nil {
+		return dtos.AssistantConversationResponse{}, constants.ErrAssistantServiceUnavailableError
+	}
+	conv, err := service.conversationRepository.GetConversation(ctx, conversationID)
+	if err != nil {
+		return dtos.AssistantConversationResponse{}, err
+	}
+	msgResponses := make([]dtos.AssistantMessageResponse, 0, len(conv.Messages))
+	for _, m := range conv.Messages {
+		msgResponses = append(msgResponses, dtos.AssistantMessageResponse{
+			ID:         m.ID,
+			Role:       m.Role,
+			Content:    m.Content,
+			ToolCalls:  m.ToolCalls,
+			ToolCallID: m.ToolCallID,
+			CreatedAt:  m.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	return dtos.AssistantConversationResponse{
+		ID:        conv.ID,
+		Title:     conv.Title,
+		CreatedAt: conv.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: conv.UpdatedAt.Format(time.RFC3339),
+		Messages:  msgResponses,
+	}, nil
+}
+
+func (service *AssistantService) DeleteConversation(ctx context.Context, conversationID string) error {
+	if service.conversationRepository == nil {
+		return constants.ErrAssistantServiceUnavailableError
+	}
+	return service.conversationRepository.DeleteConversation(ctx, conversationID)
 }
 
 func (service *AssistantService) SeedDefaultKnowledge(ctx context.Context) error {
@@ -75,7 +127,7 @@ func (service *AssistantService) SeedDefaultKnowledge(ctx context.Context) error
 	return service.knowledgeRepository.ReplaceAll(ctx, chunks)
 }
 
-func (service *AssistantService) chat(ctx context.Context, message string, quoteRequest *dtos.ProductQuoteRequest, slug string) (dtos.AssistantChatResponse, error) {
+func (service *AssistantService) chat(ctx context.Context, message string, quoteRequest *dtos.ProductQuoteRequest, slug string, conversationID string) (dtos.AssistantChatResponse, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
 		return dtos.AssistantChatResponse{}, constants.ErrAssistantMessageRequiredError
@@ -85,6 +137,27 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 	}
 	if service.knowledgeRepository == nil || service.llm == nil {
 		return dtos.AssistantChatResponse{}, constants.ErrAssistantServiceUnavailableError
+	}
+
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" {
+		conversationID = generateID()
+	}
+
+	var historyMessages []llm.Message
+	if service.conversationRepository != nil {
+		_, _ = service.conversationRepository.GetOrCreateConversation(ctx, conversationID, "Insurance Consultation")
+		history, err := service.conversationRepository.ListMessages(ctx, conversationID, 10)
+		if err == nil {
+			for _, h := range history {
+				historyMessages = append(historyMessages, llm.Message{
+					Role:       h.Role,
+					Content:    h.Content,
+					ToolCalls:  h.ToolCalls,
+					ToolCallID: h.ToolCallID,
+				})
+			}
+		}
 	}
 
 	embedding, err := service.llm.CreateEmbedding(ctx, llm.EmbeddingInput{Text: message})
@@ -110,14 +183,27 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 	}
 
 	contextText := strings.TrimSpace(buildContext(matches) + "\n\n" + quoteContext)
-	messages := []llm.Message{
+	systemMsg := llm.Message{
+		Role:    "system",
+		Content: "You are an insurance assistant. Answer using only the provided context, conversation history, and tools. If the context is insufficient, say you do not know. If the user wants to calculate premium and provides the required details, call the calculate_quote tool. If required information is missing, ask the user to provide it. If the user asks about available products, call list_products.",
+	}
+	userMsg := llm.Message{
+		Role:    "user",
+		Content: strings.TrimSpace("Context:\n" + contextText + "\n\nQuestion: " + message),
+	}
+
+	messages := make([]llm.Message, 0, len(historyMessages)+2)
+	messages = append(messages, systemMsg)
+	messages = append(messages, historyMessages...)
+	messages = append(messages, userMsg)
+
+	newMessages := []models.AssistantMessage{
 		{
-			Role:    "system",
-			Content: "You are an insurance assistant. Answer using only the provided context and tools. If the context is insufficient, say you do not know. If the user wants to calculate premium and provides the required details, call the calculate_quote tool. If required information is missing, ask the user to provide it. If the user asks about available products, call list_products.",
-		},
-		{
-			Role:    "user",
-			Content: strings.TrimSpace("Context:\n" + contextText + "\n\nQuestion: " + message),
+			ID:             generateID(),
+			ConversationID: conversationID,
+			Role:           "user",
+			Content:        message,
+			CreatedAt:      time.Now(),
 		},
 	}
 
@@ -145,6 +231,15 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 			ToolCalls: output.ToolCalls,
 		})
 
+		newMessages = append(newMessages, models.AssistantMessage{
+			ID:             generateID(),
+			ConversationID: conversationID,
+			Role:           "assistant",
+			Content:        output.Content,
+			ToolCalls:      output.ToolCalls,
+			CreatedAt:      time.Now(),
+		})
+
 		for _, toolCall := range output.ToolCalls {
 			toolsUsed = append(toolsUsed, toolCall.Function.Name)
 			toolResult := service.executeTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
@@ -152,6 +247,14 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 				Role:       "tool",
 				Content:    toolResult,
 				ToolCallID: toolCall.ID,
+			})
+			newMessages = append(newMessages, models.AssistantMessage{
+				ID:             generateID(),
+				ConversationID: conversationID,
+				Role:           "tool",
+				Content:        toolResult,
+				ToolCallID:     toolCall.ID,
+				CreatedAt:      time.Now(),
 			})
 		}
 	}
@@ -165,6 +268,20 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 		}
 	}
 
+	if answer != "" {
+		newMessages = append(newMessages, models.AssistantMessage{
+			ID:             generateID(),
+			ConversationID: conversationID,
+			Role:           "assistant",
+			Content:        answer,
+			CreatedAt:      time.Now(),
+		})
+	}
+
+	if service.conversationRepository != nil && len(newMessages) > 0 {
+		_ = service.conversationRepository.SaveMessages(ctx, newMessages)
+	}
+
 	sources := make([]dtos.AssistantSource, 0, len(matches))
 	for _, match := range matches {
 		sources = append(sources, dtos.AssistantSource{
@@ -175,7 +292,18 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 		})
 	}
 
-	return dtos.AssistantChatResponse{Answer: answer, Sources: sources, ToolsUsed: toolsUsed}, nil
+	return dtos.AssistantChatResponse{
+		ConversationID: conversationID,
+		Answer:         answer,
+		Sources:        sources,
+		ToolsUsed:      toolsUsed,
+	}, nil
+}
+
+func generateID() string {
+	value := make([]byte, 16)
+	_, _ = rand.Read(value)
+	return hex.EncodeToString(value)
 }
 
 func (service *AssistantService) executeTool(ctx context.Context, name string, rawArgs string) string {
