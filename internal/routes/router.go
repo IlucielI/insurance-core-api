@@ -42,6 +42,9 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	questionnaireController := controllers.NewQuestionnaireController(questionnaireService)
 	applicationService := services.NewApplicationService(productRepository, applicationRepository, reviewCheckRepository, productService, mailer, messageBus, questionnaireRepository)
 	applicationController := controllers.NewApplicationController(applicationService)
+	if assistantService != nil && applicationService != nil {
+		assistantService.WithApplicationService(applicationService)
+	}
 	assistantController := controllers.NewAssistantController(assistantService)
 	storageController := controllers.NewStorageController(storageService)
 

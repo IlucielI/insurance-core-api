@@ -25,6 +25,7 @@ type AssistantService struct {
 	llm                    AssistantLLM
 	quotes                 AssistantQuoteService
 	conversationRepository repositories.AssistantConversationRepository
+	applications           AssistantApplicationService
 }
 
 type AssistantLLM interface {
@@ -39,6 +40,15 @@ type AssistantQuoteService interface {
 
 type AssistantProductLister interface {
 	ListProducts(context.Context, dtos.ProductListQuery) ([]models.Product, error)
+}
+
+type AssistantApplicationService interface {
+	Create(ctx context.Context, slug string, input dtos.CreateApplicationRequest) (models.Application, error)
+}
+
+func (service *AssistantService) WithApplicationService(applications AssistantApplicationService) *AssistantService {
+	service.applications = applications
+	return service
 }
 
 func (service *AssistantService) Chat(ctx context.Context, message string) (dtos.AssistantChatResponse, error) {
@@ -196,7 +206,7 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 	contextText := strings.TrimSpace(buildContext(matches) + "\n\n" + quoteContext)
 	systemMsg := llm.Message{
 		Role:    "system",
-		Content: "You are an insurance assistant. Answer using only the provided context, conversation history, and tools. If the context is insufficient, say you do not know. If the user wants to calculate premium and provides the required details, call the calculate_quote tool. If required information is missing, ask the user to provide it. If the user asks about available products, call list_products.",
+		Content: "You are an insurance assistant. Answer using only the provided context, conversation history, and tools. If the context is insufficient, say you do not know. If the user asks about available products, call list_products. If the user wants to calculate premium and provides the required details, call the calculate_quote tool; if required information is missing, ask the user to provide it. If the user wants to apply, register, or purchase an insurance policy, collect their personal information (full name, email, phone number) and insurance parameters step-by-step. Before submitting, present a summary of the application details and explicitly ask the user for confirmation. Once the user confirms, call the submit_application tool.",
 	}
 	userMsg := llm.Message{
 		Role:    "user",
@@ -438,6 +448,95 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		}
 		return string(res)
 
+	case "submit_application":
+		if service.applications == nil {
+			return `{"error":"application service is unavailable"}`
+		}
+		var args struct {
+			ProductSlug      string `json:"product_slug"`
+			FullName         string `json:"full_name"`
+			Email            string `json:"email"`
+			Phone            string `json:"phone"`
+			Age              int    `json:"age"`
+			Gender           string `json:"gender"`
+			SumAssured       int64  `json:"sum_assured"`
+			PaymentTerm      int    `json:"payment_term"`
+			PaymentFrequency string `json:"payment_frequency"`
+			Smoker           string `json:"smoker"`
+			OccupationClass  string `json:"occupation_class"`
+			HealthRisk       string `json:"health_risk"`
+		}
+		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+			return fmt.Sprintf(`{"error":"invalid arguments: %s"}`, err.Error())
+		}
+		args.ProductSlug = strings.TrimSpace(args.ProductSlug)
+		if args.ProductSlug == "" {
+			return `{"error":"product_slug is required"}`
+		}
+
+		appReq := dtos.CreateApplicationRequest{
+			ProductSlug: args.ProductSlug,
+			FullName:    strings.TrimSpace(args.FullName),
+			Email:       strings.TrimSpace(args.Email),
+			Phone:       strings.TrimSpace(args.Phone),
+			ProductQuoteRequest: dtos.ProductQuoteRequest{
+				Age:              args.Age,
+				Gender:           strings.ToLower(strings.TrimSpace(args.Gender)),
+				SumAssured:       args.SumAssured,
+				PaymentTerm:      args.PaymentTerm,
+				PaymentFrequency: strings.ToLower(strings.TrimSpace(args.PaymentFrequency)),
+				Smoker:           strings.ToLower(strings.TrimSpace(args.Smoker)),
+				OccupationClass:  strings.ToLower(strings.TrimSpace(args.OccupationClass)),
+				HealthRisk:       strings.ToLower(strings.TrimSpace(args.HealthRisk)),
+			},
+		}
+		if appReq.PaymentFrequency == "" {
+			appReq.PaymentFrequency = constants.PaymentFrequencyMonthly
+		}
+		if appReq.Smoker == "" || appReq.Smoker == "non_smoker" || appReq.Smoker == "no" {
+			appReq.Smoker = constants.SmokerNo
+		} else if appReq.Smoker == "smoker" || appReq.Smoker == "yes" {
+			appReq.Smoker = constants.SmokerYes
+		}
+		if appReq.OccupationClass == "" || appReq.OccupationClass == "1" || appReq.OccupationClass == "standard" {
+			appReq.OccupationClass = constants.OccupationStandard
+		} else if appReq.OccupationClass == "low" {
+			appReq.OccupationClass = constants.OccupationLow
+		} else if appReq.OccupationClass == "high" {
+			appReq.OccupationClass = constants.OccupationHigh
+		}
+		if appReq.HealthRisk == "" || appReq.HealthRisk == "standard" || appReq.HealthRisk == "low" {
+			appReq.HealthRisk = constants.HealthRiskLow
+		} else if appReq.HealthRisk == "medium" {
+			appReq.HealthRisk = constants.HealthRiskMedium
+		} else if appReq.HealthRisk == "high" {
+			appReq.HealthRisk = constants.HealthRiskHigh
+		}
+
+		validatedReq, err := validations.ValidateApplicationRequest(appReq)
+		if err != nil {
+			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+		}
+
+		createdApp, err := service.applications.Create(ctx, args.ProductSlug, validatedReq)
+		if err != nil {
+			return fmt.Sprintf(`{"error":"%s"}`, err.Error())
+		}
+
+		result := map[string]any{
+			"status":         "submitted",
+			"application_id": createdApp.ID,
+			"product_id":     createdApp.ProductID,
+			"full_name":      createdApp.FullName,
+			"premium":        createdApp.Premium,
+			"message":        "Application submitted successfully and is pending review.",
+		}
+		res, err := json.Marshal(result)
+		if err != nil {
+			return fmt.Sprintf(`{"error":"failed to serialize application result: %s"}`, err.Error())
+		}
+		return string(res)
+
 	default:
 		return fmt.Sprintf(`{"error":"unknown tool %s"}`, name)
 	}
@@ -515,6 +614,70 @@ func assistantTools() []llm.Tool {
 							"description": "Search keyword for product name",
 						},
 					},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: llm.ToolFunction{
+				Name:        "submit_application",
+				Description: "Submits a formal insurance policy application. ONLY invoke this tool after the customer has provided all personal details (full_name, email, phone) and policy parameters (product_slug, age, gender, sum_assured, payment_term, payment_frequency), and has confirmed they want to submit the application.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"product_slug": map[string]any{
+							"type":        "string",
+							"description": "The product slug to apply for, e.g. 'secure-life-plus'",
+						},
+						"full_name": map[string]any{
+							"type":        "string",
+							"description": "Customer full legal name",
+						},
+						"email": map[string]any{
+							"type":        "string",
+							"description": "Customer email address",
+						},
+						"phone": map[string]any{
+							"type":        "string",
+							"description": "Customer phone number (e.g. '08123456789' or '+628123456789')",
+						},
+						"age": map[string]any{
+							"type":        "integer",
+							"description": "Age of the applicant in years (18-60)",
+						},
+						"gender": map[string]any{
+							"type":        "string",
+							"enum":        []string{"male", "female"},
+							"description": "Gender of the applicant ('male' or 'female')",
+						},
+						"sum_assured": map[string]any{
+							"type":        "integer",
+							"description": "Sum assured / coverage amount in IDR",
+						},
+						"payment_term": map[string]any{
+							"type":        "integer",
+							"description": "Payment term duration in years",
+						},
+						"payment_frequency": map[string]any{
+							"type":        "string",
+							"enum":        []string{"monthly", "annual", "quarterly", "semi_annual"},
+							"description": "Payment frequency (default is 'monthly')",
+						},
+						"smoker": map[string]any{
+							"type":        "string",
+							"enum":        []string{"smoker", "non_smoker", "yes", "no"},
+							"description": "Smoker status",
+						},
+						"occupation_class": map[string]any{
+							"type":        "string",
+							"description": "Occupation risk class ('low', 'standard', 'high')",
+						},
+						"health_risk": map[string]any{
+							"type":        "string",
+							"description": "Health risk classification ('low', 'medium', 'high')",
+						},
+					},
+					"required": []string{"product_slug", "full_name", "email", "phone", "age", "gender", "sum_assured", "payment_term"},
 				},
 			},
 		},
