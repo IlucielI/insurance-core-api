@@ -37,7 +37,7 @@ type AdminNotificationWorker struct {
 	slaThresholdHours   int
 	mu                  sync.Mutex
 	running             bool
-	stopChan            chan struct{}
+	slaTimer            *time.Timer
 }
 
 func NewAdminNotificationWorker(
@@ -106,11 +106,10 @@ func (w *AdminNotificationWorker) Start(ctx context.Context) error {
 		log.Printf("[AdminNotificationWorker] subscribed to topic '%s' (queueGroup: %s)", t.subject, w.queueGroup)
 	}
 
-	w.stopChan = make(chan struct{})
 	w.running = true
 
 	if w.slaSource != nil && w.tickerInterval > 0 {
-		go w.runSLALoop()
+		w.scheduleSLALoopLocked()
 	}
 
 	return nil
@@ -124,7 +123,10 @@ func (w *AdminNotificationWorker) Stop() {
 		return
 	}
 
-	close(w.stopChan)
+	if w.slaTimer != nil {
+		w.slaTimer.Stop()
+		w.slaTimer = nil
+	}
 	w.unsubscribeAllLocked()
 	w.running = false
 	log.Printf("[AdminNotificationWorker] stopped all subscriptions and SLA loop")
@@ -141,18 +143,18 @@ func (w *AdminNotificationWorker) unsubscribeAllLocked() {
 	w.subscriptions = nil
 }
 
-func (w *AdminNotificationWorker) runSLALoop() {
-	ticker := time.NewTicker(w.tickerInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-w.stopChan:
-			return
-		case <-ticker.C:
-			w.triggerSLACheck()
-		}
+func (w *AdminNotificationWorker) scheduleSLALoopLocked() {
+	if !w.running || w.tickerInterval <= 0 || w.slaSource == nil {
+		return
 	}
+
+	w.slaTimer = time.AfterFunc(w.tickerInterval, func() {
+		w.triggerSLACheck()
+
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		w.scheduleSLALoopLocked()
+	})
 }
 
 func (w *AdminNotificationWorker) triggerSLACheck() {
