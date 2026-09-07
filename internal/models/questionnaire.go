@@ -30,25 +30,27 @@ type QuestionOption struct {
 }
 
 type Question struct {
-	ID                  string           `gorm:"primaryKey;type:varchar(64)" json:"id"`
-	QuestionnaireID     string           `gorm:"type:varchar(64);not null;index" json:"questionnaire_id"`
-	StepNumber          int              `gorm:"not null;index" json:"step_number"`
-	PillarType          string           `gorm:"type:varchar(32);not null;index" json:"pillar_type"`
-	Code                string           `gorm:"type:varchar(64);not null" json:"code"`
-	Label               string           `gorm:"type:text;not null" json:"label"`
-	HelpText            string           `gorm:"type:text" json:"help_text,omitempty"`
-	InputType           string           `gorm:"type:varchar(32);not null" json:"input_type"`
-	Placeholder         string           `gorm:"type:varchar(120)" json:"placeholder,omitempty"`
-	OrderIndex          int              `gorm:"not null;default:0" json:"order_index"`
-	ValidationRules     map[string]any   `gorm:"type:jsonb;serializer:json" json:"validation_rules"`
-	Options             []QuestionOption `gorm:"type:jsonb;serializer:json" json:"options"`
-	ParentQuestionID    *string          `gorm:"type:varchar(64);index" json:"parent_question_id,omitempty"`
-	ShowIfParentValue   any              `gorm:"type:jsonb;serializer:json" json:"show_if_parent_value,omitempty"`
-	AffectsPricingField string           `gorm:"type:varchar(64)" json:"affects_pricing_field,omitempty"`
-	UnderwritingRules   map[string]any   `gorm:"type:jsonb;serializer:json" json:"underwriting_rules"`
-	IsActive            bool             `gorm:"not null;default:true" json:"is_active"`
-	CreatedAt           time.Time        `json:"created_at"`
-	UpdatedAt           time.Time        `json:"updated_at"`
+	ID                  string              `gorm:"primaryKey;type:varchar(64)" json:"id"`
+	QuestionnaireID     string              `gorm:"type:varchar(64);not null;index" json:"questionnaire_id"`
+	StepNumber          int                 `gorm:"not null;index" json:"step_number"`
+	PillarType          string              `gorm:"type:varchar(32);not null;index" json:"pillar_type"`
+	Code                string              `gorm:"type:varchar(64);not null" json:"code"`
+	Label               string              `gorm:"type:text;not null" json:"label"`
+	HelpText            string              `gorm:"type:text" json:"help_text,omitempty"`
+	InputType           string              `gorm:"type:varchar(32);not null" json:"input_type"`
+	Placeholder         string              `gorm:"type:varchar(120)" json:"placeholder,omitempty"`
+	OrderIndex          int                 `gorm:"not null;default:0" json:"order_index"`
+	ValidationRules     map[string]any      `gorm:"type:jsonb;serializer:json" json:"validation_rules"`
+	Options             []QuestionOption    `gorm:"type:jsonb;serializer:json" json:"options"`
+	ParentQuestionID    *string             `gorm:"type:varchar(64);index" json:"parent_question_id,omitempty"`
+	ShowIfParentValue   any                 `gorm:"type:jsonb;serializer:json" json:"show_if_parent_value,omitempty"`
+	PricingRuleID       *string             `gorm:"type:varchar(64);index" json:"pricing_rule_id,omitempty"`
+	PricingRule         *ProductPricingRule `gorm:"foreignKey:PricingRuleID" json:"pricing_rule,omitempty"`
+	AffectsPricingField string              `gorm:"type:varchar(64)" json:"affects_pricing_field,omitempty"`
+	UnderwritingRules   map[string]any      `gorm:"type:jsonb;serializer:json" json:"underwriting_rules"`
+	IsActive            bool                `gorm:"not null;default:true" json:"is_active"`
+	CreatedAt           time.Time           `json:"created_at"`
+	UpdatedAt           time.Time           `json:"updated_at"`
 }
 
 func (Question) TableName() string {

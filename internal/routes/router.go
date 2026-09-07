@@ -14,7 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, storageService *services.StorageService, mailer ports.Mailer, messageBus ports.MessageBus, questionnaireRepositories ...repositories.QuestionnaireRepository) *fiber.App {
+func NewRouter(cfg config.Config, productRepository repositories.ProductRepository, applicationRepository repositories.ApplicationRepository, reviewCheckRepository repositories.ApplicationReviewCheckRepository, assistantService *services.AssistantService, storageService *services.StorageService, mailer ports.Mailer, messageBus ports.MessageBus, optionalRepositories ...any) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
 	})
@@ -24,12 +24,19 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	app.Use(cors.New())
 
 	var questionnaireRepository repositories.QuestionnaireRepository
-	if len(questionnaireRepositories) > 0 {
-		questionnaireRepository = questionnaireRepositories[0]
+	var pricingRuleRepository repositories.PricingRuleRepository
+
+	for _, repo := range optionalRepositories {
+		switch r := repo.(type) {
+		case repositories.QuestionnaireRepository:
+			questionnaireRepository = r
+		case repositories.PricingRuleRepository:
+			pricingRuleRepository = r
+		}
 	}
 
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
-	productService := services.NewProductService(productRepository)
+	productService := services.NewProductService(productRepository, pricingRuleRepository)
 	productController := controllers.NewProductController(productService)
 	questionnaireService := services.NewQuestionnaireService(questionnaireRepository, productRepository)
 	questionnaireController := controllers.NewQuestionnaireController(questionnaireService)
@@ -43,6 +50,7 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api := app.Group("/api/v1")
 	api.Get("/products", productController.List)
 	api.Get("/products/:slug", productController.Detail)
+	api.Get("/products/:slug/pricing-rules", productController.GetPricingRules)
 	api.Post("/products/:slug/quotes", productController.CreateQuote)
 	api.Get("/products/:slug/questionnaire", questionnaireController.GetByProduct)
 	api.Get("/questionnaires", questionnaireController.GetDefault)

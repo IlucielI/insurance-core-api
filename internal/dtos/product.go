@@ -7,15 +7,22 @@ type ProductListQuery struct {
 	Search     string
 }
 
+type QuoteAnswerInput struct {
+	RuleCode string `json:"rule_code,omitempty"`
+	RuleID   string `json:"rule_id,omitempty"`
+	Value    string `json:"value"`
+}
+
 type ProductQuoteRequest struct {
-	Age              int    `json:"age"`
-	Gender           string `json:"gender"`
-	SumAssured       int64  `json:"sum_assured"`
-	PaymentTerm      int    `json:"payment_term"`
-	PaymentFrequency string `json:"payment_frequency"`
-	Smoker           string `json:"smoker"`
-	OccupationClass  string `json:"occupation_class"`
-	HealthRisk       string `json:"health_risk"`
+	Age              int                `json:"age"`
+	Gender           string             `json:"gender"`
+	SumAssured       int64              `json:"sum_assured"`
+	PaymentTerm      int                `json:"payment_term"`
+	PaymentFrequency string             `json:"payment_frequency"`
+	Answers          []QuoteAnswerInput `json:"answers,omitempty"`
+	Smoker           string             `json:"smoker,omitempty"`
+	OccupationClass  string             `json:"occupation_class,omitempty"`
+	HealthRisk       string             `json:"health_risk,omitempty"`
 }
 
 type CreateProductQuoteInput struct {
@@ -24,6 +31,7 @@ type CreateProductQuoteInput struct {
 	SumAssured       int64
 	PaymentTerm      int
 	PaymentFrequency string
+	Answers          []QuoteAnswerInput
 	Smoker           string
 	OccupationClass  string
 	HealthRisk       string
@@ -45,13 +53,20 @@ type ProductQuote struct {
 	Notes                  []string              `json:"notes"`
 }
 
+type ProductQuoteFactorItem struct {
+	RuleCode string  `json:"rule_code"`
+	RuleName string  `json:"rule_name"`
+	Factor   float64 `json:"factor"`
+}
+
 type ProductQuoteBreakdown struct {
-	BaseRate         float64 `json:"base_rate"`
-	AgeFactor        float64 `json:"age_factor"`
-	GenderFactor     float64 `json:"gender_factor"`
-	SmokerFactor     float64 `json:"smoker_factor"`
-	OccupationFactor float64 `json:"occupation_factor"`
-	HealthFactor     float64 `json:"health_factor"`
-	TermFactor       float64 `json:"term_factor"`
-	FrequencyLoading float64 `json:"frequency_loading"`
+	BaseRate         float64                  `json:"base_rate"`
+	AgeFactor        float64                  `json:"age_factor"`
+	GenderFactor     float64                  `json:"gender_factor"`
+	SmokerFactor     float64                  `json:"smoker_factor"`
+	OccupationFactor float64                  `json:"occupation_factor"`
+	HealthFactor     float64                  `json:"health_factor"`
+	TermFactor       float64                  `json:"term_factor"`
+	FrequencyLoading float64                  `json:"frequency_loading"`
+	Factors          []ProductQuoteFactorItem `json:"factors,omitempty"`
 }
