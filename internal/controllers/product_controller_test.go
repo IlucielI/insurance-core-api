@@ -136,7 +136,7 @@ func TestProductManagement_UpdateProduct(t *testing.T) {
 	}
 }
 
-func TestProductManagement_UpdateStatusAndToggle(t *testing.T) {
+func TestProductManagement_UpdateStatus(t *testing.T) {
 	prodRepo := &controllerProductRepository{
 		product: models.Product{
 			ID:     "prod-status-1",
@@ -146,7 +146,6 @@ func TestProductManagement_UpdateStatusAndToggle(t *testing.T) {
 	}
 	app := routes.NewRouter(config.Config{AppName: "test"}, prodRepo, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil)
 
-	// 1. Dispatch status update to active via HTTP PATCH
 	statusReq := dtos.UpdateProductStatusRequest{Status: "active"}
 	payload, err := json.Marshal(statusReq)
 	if err != nil {
@@ -161,8 +160,18 @@ func TestProductManagement_UpdateStatusAndToggle(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("resp.StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
+}
 
-	// 2. Dispatch status toggle via HTTP POST
+func TestProductManagement_ToggleStatus(t *testing.T) {
+	prodRepo := &controllerProductRepository{
+		product: models.Product{
+			ID:     "prod-status-1",
+			Slug:   "prod-status-1",
+			Status: models.ProductStatusDraft,
+		},
+	}
+	app := routes.NewRouter(config.Config{AppName: "test"}, prodRepo, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil)
+
 	toggleReq := httptest.NewRequest(http.MethodPost, "/api/v1/products/prod-status-1/toggle-status", nil)
 	toggleResp, err := app.Test(toggleReq)
 	if err != nil {
