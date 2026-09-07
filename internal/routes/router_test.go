@@ -98,3 +98,24 @@ func TestAssistantStreamRouteExists(t *testing.T) {
 		t.Fatalf("status = %d, want 503", response.StatusCode)
 	}
 }
+
+type routeMetricsRepository struct{}
+
+func (r routeMetricsRepository) GetAdminMetrics(ctx context.Context) (models.AdminMetrics, error) {
+	return models.AdminMetrics{}, nil
+}
+
+func TestAdminMetricsRouteExists(t *testing.T) {
+	app := NewRouter(config.Config{AppName: "test"}, routeProductRepository{}, routeApplicationRepository{}, routeReviewCheckRepository{}, nil, nil, nil, nil, routeMetricsRepository{})
+	request, err := http.NewRequest(http.MethodGet, "/api/v1/admin/metrics", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+}

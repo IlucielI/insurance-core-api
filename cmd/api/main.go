@@ -74,6 +74,7 @@ func main() {
 	pricingRuleRepository := repositories.NewPostgresPricingRuleRepository(postgres.DB(), redisClient)
 	knowledgeRepository := repositories.NewPostgresKnowledgeRepository(postgres.DB())
 	assistantConversationRepository := repositories.NewPostgresAssistantConversationRepository(postgres.DB(), redisClient)
+	metricsRepository := repositories.NewPostgresMetricsRepository(postgres.DB())
 
 	var assistantLLM services.AssistantLLM
 	if cfg.LLMBaseURL != "" && cfg.LLMCompletionModel != "" && cfg.LLMEmbeddingModel != "" {
@@ -138,7 +139,7 @@ func main() {
 		}
 	}
 
-	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository)
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
