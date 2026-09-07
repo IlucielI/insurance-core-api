@@ -130,3 +130,50 @@ func TestFormatIDR(t *testing.T) {
 		}
 	}
 }
+
+func TestRendererSecurityXSSPrevention(t *testing.T) {
+	renderer, err := NewRenderer()
+	if err != nil {
+		t.Fatalf("NewRenderer() error = %v", err)
+	}
+
+	t.Run("EscapesMaliciousHTMLInFullName", func(t *testing.T) {
+		maliciousName := "<img src=x onerror=alert(1)>"
+		_, html, err := renderer.RenderApplicationApproved(ApplicationApprovedData{
+			FullName: maliciousName,
+			ApplicationID: "APP-123",
+			PolicyNumber: "POL-123",
+		})
+		if err != nil {
+			t.Fatalf("RenderApplicationApproved() error = %v", err)
+		}
+		if strings.Contains(html, "<img src=x onerror=alert(1)>") {
+			t.Errorf("raw malicious script found in rendered HTML")
+		}
+		if !strings.Contains(html, "&lt;img src=x onerror=alert(1)&gt;") {
+			t.Errorf("expected HTML-escaped output for FullName")
+		}
+	})
+
+	t.Run("SanitizesMaliciousURLSchemes", func(t *testing.T) {
+		maliciousURL := "javascript:alert(1)"
+		_, html, err := renderer.RenderApplicationRFI(ApplicationRFIData{
+			FullName: "Budi",
+			ApplicationID: "APP-123",
+			UploadPortalURL: maliciousURL,
+			Notes: "<script>alert('xss')</script>",
+		})
+		if err != nil {
+			t.Fatalf("RenderApplicationRFI() error = %v", err)
+		}
+		if strings.Contains(html, "javascript:alert(1)") {
+			t.Errorf("javascript: scheme was not sanitized in rendered HTML")
+		}
+		if strings.Contains(html, "<script>alert('xss')</script>") {
+			t.Errorf("raw script tag found in Notes field")
+		}
+		if !strings.Contains(html, "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;") && !strings.Contains(html, "&lt;script&gt;alert('xss')&lt;/script&gt;") {
+			t.Errorf("expected HTML-escaped output for Notes")
+		}
+	})
+}

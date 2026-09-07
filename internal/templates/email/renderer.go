@@ -146,7 +146,7 @@ func sanitizeApplicationSubmittedData(data ApplicationSubmittedData) Application
 	data.SumAssuredFormatted = sanitizeEmailText(data.SumAssuredFormatted)
 	data.PremiumFormatted = sanitizeEmailText(data.PremiumFormatted)
 	data.PaymentFrequency = sanitizeEmailText(data.PaymentFrequency)
-	data.PortalURL = sanitizeEmailText(data.PortalURL)
+	data.PortalURL = sanitizeEmailURL(data.PortalURL)
 	return data
 }
 
@@ -158,8 +158,8 @@ func sanitizeApplicationApprovedData(data ApplicationApprovedData) ApplicationAp
 	data.SumAssuredFormatted = sanitizeEmailText(data.SumAssuredFormatted)
 	data.ProtectionPeriod = sanitizeEmailText(data.ProtectionPeriod)
 	data.PremiumFormatted = sanitizeEmailText(data.PremiumFormatted)
-	data.PolicyDownloadURL = sanitizeEmailText(data.PolicyDownloadURL)
-	data.PortalURL = sanitizeEmailText(data.PortalURL)
+	data.PolicyDownloadURL = sanitizeEmailURL(data.PolicyDownloadURL)
+	data.PortalURL = sanitizeEmailURL(data.PortalURL)
 	return data
 }
 
@@ -172,7 +172,7 @@ func sanitizeApplicationRejectedData(data ApplicationRejectedData) ApplicationRe
 	data.LeadUnderwriterName = sanitizeEmailText(data.LeadUnderwriterName)
 	data.LeadUnderwriterNIP = sanitizeEmailText(data.LeadUnderwriterNIP)
 	data.RefundAmountFormatted = sanitizeEmailText(data.RefundAmountFormatted)
-	data.ConsultationURL = sanitizeEmailText(data.ConsultationURL)
+	data.ConsultationURL = sanitizeEmailURL(data.ConsultationURL)
 	return data
 }
 
@@ -185,8 +185,17 @@ func sanitizeApplicationRFIData(data ApplicationRFIData) ApplicationRFIData {
 		data.RequiredDocs[i] = sanitizeEmailText(doc)
 	}
 	data.SLADeadline = sanitizeEmailText(data.SLADeadline)
-	data.UploadPortalURL = sanitizeEmailText(data.UploadPortalURL)
+	data.UploadPortalURL = sanitizeEmailURL(data.UploadPortalURL)
 	return data
+}
+
+func sanitizeEmailURL(value string) string {
+	value = sanitizeEmailText(value)
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "javascript:") || strings.HasPrefix(lower, "data:") || strings.HasPrefix(lower, "vbscript:") {
+		return "#"
+	}
+	return value
 }
 
 func sanitizeEmailText(value string) string {
