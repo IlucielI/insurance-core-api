@@ -59,7 +59,9 @@ func NewClient(config Config) (*Client, error) {
 		client:           client,
 		presignExpiry:    normalizeExpiry(config.PresignExpiry),
 		presignGetObject: client.PresignedGetObject,
-		presignPutObject: client.PresignedPutObject,
+		presignPutObject: func(ctx context.Context, bucketName, objectName string, expiry time.Duration, _ url.Values) (*url.URL, error) {
+			return client.PresignedPutObject(ctx, bucketName, objectName, expiry)
+		},
 	}, nil
 }
 
