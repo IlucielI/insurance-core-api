@@ -50,3 +50,12 @@ func TestCloseGormDB(t *testing.T) {
 
 	closeGormDB(gormDB)
 }
+
+func TestPostgresConfigDefaults(t *testing.T) {
+	cfg := PostgresConfig{
+		DatabaseURL: "postgres://user:pass@localhost:5432/testdb",
+	}
+	if cfg.MaxOpenConns != 0 || cfg.MaxIdleConns != 0 {
+		t.Fatal("expected zero initial values before NewPostgres normalization")
+	}
+}

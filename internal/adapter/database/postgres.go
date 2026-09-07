@@ -10,7 +10,11 @@ import (
 )
 
 type PostgresConfig struct {
-	DatabaseURL string
+	DatabaseURL     string
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 type Postgres struct {
@@ -34,10 +38,27 @@ func NewPostgres(config PostgresConfig) (*Postgres, error) {
 		return nil, err
 	}
 
-	sqlDB.SetMaxOpenConns(10)
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetConnMaxLifetime(30 * time.Minute)
-	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
+	maxOpen := config.MaxOpenConns
+	if maxOpen <= 0 {
+		maxOpen = 10
+	}
+	maxIdle := config.MaxIdleConns
+	if maxIdle <= 0 {
+		maxIdle = 5
+	}
+	maxLifetime := config.ConnMaxLifetime
+	if maxLifetime <= 0 {
+		maxLifetime = 30 * time.Minute
+	}
+	maxIdleTime := config.ConnMaxIdleTime
+	if maxIdleTime <= 0 {
+		maxIdleTime = 10 * time.Minute
+	}
+
+	sqlDB.SetMaxOpenConns(maxOpen)
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetConnMaxLifetime(maxLifetime)
+	sqlDB.SetConnMaxIdleTime(maxIdleTime)
 
 	if err := sqlDB.Ping(); err != nil {
 		closeGormDB(db)

@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
@@ -174,9 +177,20 @@ func main() {
 
 	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository, knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, knowledgeRAGService, auditLogRepository, auditLogService, systemHealthService, notificationRepository, notificationService)
 
+	shutdownChan := make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		sig := <-shutdownChan
+		log.Printf("received signal %v, gracefully shutting down %s...", sig, cfg.AppName)
+		if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+			log.Printf("error during server shutdown: %v", err)
+		}
+	}()
+
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
-		log.Fatal(err)
+		log.Printf("server listener stopped: %v", err)
 	}
 }
 
