@@ -113,7 +113,7 @@ func TestSystemHealthService(t *testing.T) {
 
 		routes, err := svc.PingRoutes(ctx)
 		require.NoError(t, err)
-		assert.Len(t, routes, 5)
+		assert.Len(t, routes, 6)
 		assert.Equal(t, "route_health", routes[0].ID)
 		assert.Equal(t, 200, routes[0].StatusCode)
 	})

@@ -128,9 +128,18 @@ const (
 	ErrAuditLogStatusInvalid     = "status must be one of: SUCCESS, WARNING, FAILED"
 	ErrAuditLogTargetRequired    = "target_resource is required"
 	ErrAuditLogQueryLimitInvalid = "limit must be between 1 and 100"
+
+	ErrNotificationNotFound        = "notification not found"
+	ErrNotificationTitleRequired   = "title is required"
+	ErrNotificationTypeRequired    = "type is required"
+	ErrNotificationCategoryInvalid = "category must be one of: underwriting, system, knowledge, policy"
+	ErrNotificationSeverityInvalid = "severity must be one of: INFO, WARNING, CRITICAL, SUCCESS"
+	ErrNotificationMessageRequired = "message is required"
+	ErrNotificationLimitInvalid    = "limit must be between 1 and 100"
 )
 
 var (
-	ErrAuditLogNotFoundError = errors.New(ErrAuditLogNotFound)
+	ErrAuditLogNotFoundError     = errors.New(ErrAuditLogNotFound)
+	ErrNotificationNotFoundError = errors.New(ErrNotificationNotFound)
 )
 
