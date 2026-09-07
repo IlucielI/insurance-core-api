@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/adapter/database"
@@ -27,7 +30,11 @@ func main() {
 	}
 
 	postgres, err := database.NewPostgres(database.PostgresConfig{
-		DatabaseURL: cfg.DatabaseURL,
+		DatabaseURL:     cfg.DatabaseURL,
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: time.Duration(cfg.DBConnMaxLifetimeMin) * time.Minute,
+		ConnMaxIdleTime: time.Duration(cfg.DBConnMaxIdleTimeMin) * time.Minute,
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -174,9 +181,25 @@ func main() {
 
 	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository, knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, knowledgeRAGService, auditLogRepository, auditLogService, systemHealthService, notificationRepository, notificationService)
 
-	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
-	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
-		log.Fatal(err)
+	shutdownChan := make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
+
+	serverErrChan := make(chan error, 1)
+	go func() {
+		log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
+		if err := app.Listen(":" + cfg.HTTPPort); err != nil {
+			serverErrChan <- err
+		}
+	}()
+
+	select {
+	case sig := <-shutdownChan:
+		log.Printf("received signal %v, gracefully shutting down %s...", sig, cfg.AppName)
+		if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+			log.Printf("error during server shutdown: %v", err)
+		}
+	case err := <-serverErrChan:
+		log.Printf("server listener stopped: %v", err)
 	}
 }
 

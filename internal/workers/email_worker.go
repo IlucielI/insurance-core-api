@@ -162,7 +162,10 @@ func (w *EmailNotificationWorker) handleApplicationSubmitted(ctx context.Context
 		HTMLBody: htmlBody,
 	}
 
-	if err := w.mailer.Send(ctx, msg); err != nil {
+	sendCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	if err := w.mailer.Send(sendCtx, msg); err != nil {
 		return fmt.Errorf("send application submitted email: %w", err)
 	}
 
@@ -219,7 +222,10 @@ func (w *EmailNotificationWorker) handleApplicationApproved(ctx context.Context,
 		HTMLBody: htmlBody,
 	}
 
-	if err := w.mailer.Send(ctx, msg); err != nil {
+	sendCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	if err := w.mailer.Send(sendCtx, msg); err != nil {
 		return fmt.Errorf("send application approved email: %w", err)
 	}
 
@@ -279,7 +285,10 @@ func (w *EmailNotificationWorker) handleApplicationRejected(ctx context.Context,
 		HTMLBody: htmlBody,
 	}
 
-	if err := w.mailer.Send(ctx, msg); err != nil {
+	sendCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	if err := w.mailer.Send(sendCtx, msg); err != nil {
 		return fmt.Errorf("send application rejected email: %w", err)
 	}
 
@@ -339,7 +348,10 @@ func (w *EmailNotificationWorker) handleApplicationRFIRequested(ctx context.Cont
 		HTMLBody: htmlBody,
 	}
 
-	if err := w.mailer.Send(ctx, msg); err != nil {
+	sendCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	if err := w.mailer.Send(sendCtx, msg); err != nil {
 		return fmt.Errorf("send application RFI email: %w", err)
 	}
 

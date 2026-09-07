@@ -36,6 +36,10 @@ func TestLoad(t *testing.T) {
 	t.Setenv("REDIS_DB", "2")
 	t.Setenv("REDIS_TIMEOUT", "6")
 	t.Setenv("CUSTOMER_APP_BASE_URL", "http://localhost:3000")
+	t.Setenv("DB_MAX_OPEN_CONNS", "25")
+	t.Setenv("DB_MAX_IDLE_CONNS", "15")
+	t.Setenv("DB_CONN_MAX_LIFETIME_MINUTES", "45")
+	t.Setenv("DB_CONN_MAX_IDLE_TIME_MINUTES", "15")
 
 	cfg, err := Load()
 	if err != nil {
@@ -58,6 +62,9 @@ func TestLoad(t *testing.T) {
 	}
 	if cfg.S3UploadUrlLifetime != 20 || cfg.S3DownloadUrlLifetime != 1445 || cfg.S3OverrideBaseURL != "https://cdn.example.com/files" {
 		t.Fatalf("Load() S3 lifetime config = %+v, want env values", cfg)
+	}
+	if cfg.DBMaxOpenConns != 25 || cfg.DBMaxIdleConns != 15 || cfg.DBConnMaxLifetimeMin != 45 || cfg.DBConnMaxIdleTimeMin != 15 {
+		t.Fatalf("Load() DB pool config = %+v, want env values", cfg)
 	}
 	if cfg.RedisHost != "redis.example.com" || cfg.RedisPort != 6380 || cfg.RedisPassword != "redis-secret" || cfg.RedisDB != 2 || cfg.RedisTimeout != 6 {
 		t.Fatalf("Load() Redis config = %+v, want env values", cfg)
@@ -128,5 +135,8 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.CustomerAppBaseURL != "http://localhost:3000" {
 		t.Fatalf("Load() CustomerAppBaseURL default = %q, want http://localhost:3000", cfg.CustomerAppBaseURL)
+	}
+	if cfg.DBMaxOpenConns != 10 || cfg.DBMaxIdleConns != 5 || cfg.DBConnMaxLifetimeMin != 30 || cfg.DBConnMaxIdleTimeMin != 10 {
+		t.Fatalf("Load() DB pool defaults = %+v, want defaults", cfg)
 	}
 }
