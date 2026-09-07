@@ -8,11 +8,17 @@ const (
 	ErrAssistantMessageTooLong     = "message is too long"
 	ErrAssistantServiceUnavailable = "assistant service is unavailable"
 	ErrAssistantChatFailed         = "failed to answer assistant request"
+	ErrConversationIDRequired       = "conversation id is required"
+	ErrConversationNotFound         = "conversation not found"
+	ErrConversationGetFailed        = "failed to get conversation"
+	ErrConversationDeleteFailed     = "failed to delete conversation"
 )
 
 var ErrAssistantMessageRequiredError = errors.New(ErrAssistantMessageRequired)
 var ErrAssistantMessageTooLongError = errors.New(ErrAssistantMessageTooLong)
 var ErrAssistantServiceUnavailableError = errors.New(ErrAssistantServiceUnavailable)
+var ErrConversationNotFoundError = errors.New(ErrConversationNotFound)
+var ErrConversationIDRequiredError = errors.New(ErrConversationIDRequired)
 
 const (
 	AssistantSourceTypeProduct         = "product"

@@ -15,6 +15,12 @@ type AssistantChatService interface {
 	ChatWithQuote(ctx context.Context, message string, quote *dtos.ProductQuoteRequest, slug string) (dtos.AssistantChatResponse, error)
 }
 
+type AssistantConversationManager interface {
+	ChatWithConversation(ctx context.Context, message string, conversationID string, quote *dtos.ProductQuoteRequest, slug string) (dtos.AssistantChatResponse, error)
+	GetConversation(ctx context.Context, conversationID string) (dtos.AssistantConversationResponse, error)
+	DeleteConversation(ctx context.Context, conversationID string) error
+}
+
 type AssistantController struct {
 	service AssistantChatService
 }
@@ -52,7 +58,14 @@ func (controller *AssistantController) Chat(ctx *fiber.Ctx) error {
 		request.Quote = &quote
 	}
 
-	response, err := controller.service.ChatWithQuote(ctx.Context(), request.Message, request.Quote, request.ProductSlug)
+	var response dtos.AssistantChatResponse
+	var err error
+	if mgr, ok := controller.service.(AssistantConversationManager); ok {
+		response, err = mgr.ChatWithConversation(ctx.Context(), request.Message, request.ConversationID, request.Quote, request.ProductSlug)
+	} else {
+		response, err = controller.service.ChatWithQuote(ctx.Context(), request.Message, request.Quote, request.ProductSlug)
+	}
+
 	if err != nil {
 		if errors.Is(err, constants.ErrAssistantMessageRequiredError) {
 			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": constants.ErrAssistantMessageRequired})
@@ -70,6 +83,53 @@ func (controller *AssistantController) Chat(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.JSON(response)
+}
+
+func (controller *AssistantController) GetConversation(ctx *fiber.Ctx) error {
+	if controller.service == nil {
+		return ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": constants.ErrAssistantServiceUnavailable})
+	}
+	id := strings.TrimSpace(ctx.Params("id"))
+	if id == "" {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": constants.ErrConversationIDRequired})
+	}
+	mgr, ok := controller.service.(AssistantConversationManager)
+	if !ok || mgr == nil {
+		return ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": constants.ErrAssistantServiceUnavailable})
+	}
+	conv, err := mgr.GetConversation(ctx.Context(), id)
+	if err != nil {
+		if errors.Is(err, constants.ErrConversationNotFoundError) {
+			return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": constants.ErrConversationNotFound})
+		}
+		if errors.Is(err, constants.ErrAssistantServiceUnavailableError) {
+			return ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": constants.ErrAssistantServiceUnavailable})
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": constants.ErrConversationGetFailed})
+	}
+	return ctx.JSON(fiber.Map{"data": conv})
+}
+
+func (controller *AssistantController) DeleteConversation(ctx *fiber.Ctx) error {
+	if controller.service == nil {
+		return ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": constants.ErrAssistantServiceUnavailable})
+	}
+	id := strings.TrimSpace(ctx.Params("id"))
+	if id == "" {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": constants.ErrConversationIDRequired})
+	}
+	mgr, ok := controller.service.(AssistantConversationManager)
+	if !ok || mgr == nil {
+		return ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": constants.ErrAssistantServiceUnavailable})
+	}
+	err := mgr.DeleteConversation(ctx.Context(), id)
+	if err != nil {
+		if errors.Is(err, constants.ErrAssistantServiceUnavailableError) {
+			return ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": constants.ErrAssistantServiceUnavailable})
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": constants.ErrConversationDeleteFailed})
+	}
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func firstNonEmpty(values ...string) string {

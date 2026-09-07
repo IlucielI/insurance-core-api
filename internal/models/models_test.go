@@ -26,6 +26,18 @@ func TestKnowledgeChunkTableName(t *testing.T) {
 	}
 }
 
+func TestAssistantConversationTableNames(t *testing.T) {
+	conv := AssistantConversation{}
+	if conv.TableName() != "assistant_conversations" {
+		t.Fatalf("AssistantConversation.TableName() = %q, want assistant_conversations", conv.TableName())
+	}
+
+	msg := AssistantMessage{}
+	if msg.TableName() != "assistant_messages" {
+		t.Fatalf("AssistantMessage.TableName() = %q, want assistant_messages", msg.TableName())
+	}
+}
+
 func TestPricingRulesSerialization(t *testing.T) {
 	rules := PricingRules{
 		BaseRate:           0.0035,

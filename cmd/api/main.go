@@ -73,6 +73,7 @@ func main() {
 	questionnaireRepository := repositories.NewPostgresQuestionnaireRepository(postgres.DB(), redisClient)
 	pricingRuleRepository := repositories.NewPostgresPricingRuleRepository(postgres.DB(), redisClient)
 	knowledgeRepository := repositories.NewPostgresKnowledgeRepository(postgres.DB())
+	assistantConversationRepository := repositories.NewPostgresAssistantConversationRepository(postgres.DB(), redisClient)
 
 	var assistantLLM services.AssistantLLM
 	if cfg.LLMBaseURL != "" && cfg.LLMCompletionModel != "" && cfg.LLMEmbeddingModel != "" {
@@ -90,7 +91,7 @@ func main() {
 	}
 
 	productService := services.NewProductService(productRepository, pricingRuleRepository)
-	assistantService := services.NewAssistantService(knowledgeRepository, assistantLLM, productService)
+	assistantService := services.NewAssistantService(knowledgeRepository, assistantLLM, productService, assistantConversationRepository)
 	if assistantLLM != nil {
 		seedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

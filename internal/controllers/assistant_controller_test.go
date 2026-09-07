@@ -49,6 +49,27 @@ func TestAssistantController(t *testing.T) {
 	}
 }
 
+type assistantManagerFake struct {
+	assistantServiceFake
+	convResponse dtos.AssistantConversationResponse
+	convErr      error
+	deleteErr    error
+}
+
+func (f assistantManagerFake) ChatWithConversation(ctx context.Context, message string, conversationID string, quote *dtos.ProductQuoteRequest, slug string) (dtos.AssistantChatResponse, error) {
+	resp, err := f.ChatWithQuote(ctx, message, quote, slug)
+	resp.ConversationID = conversationID
+	return resp, err
+}
+
+func (f assistantManagerFake) GetConversation(ctx context.Context, conversationID string) (dtos.AssistantConversationResponse, error) {
+	return f.convResponse, f.convErr
+}
+
+func (f assistantManagerFake) DeleteConversation(ctx context.Context, conversationID string) error {
+	return f.deleteErr
+}
+
 func TestAssistantControllerRejectsLongMessage(t *testing.T) {
 	app := fiber.New()
 	app.Post("/", NewAssistantController(assistantServiceFake{}).Chat)
@@ -57,5 +78,41 @@ func TestAssistantControllerRejectsLongMessage(t *testing.T) {
 	response, err := app.Test(request)
 	if err != nil || response.StatusCode != fiber.StatusBadRequest {
 		t.Fatalf("status=%d err=%v", response.StatusCode, err)
+	}
+}
+
+func TestAssistantController_Conversations(t *testing.T) {
+	// 1. GetConversation - ok
+	mgr := assistantManagerFake{
+		convResponse: dtos.AssistantConversationResponse{ID: "conv-1", Title: "Title"},
+	}
+	app := fiber.New()
+	controller := NewAssistantController(mgr)
+	app.Get("/assistant/conversations/:id", controller.GetConversation)
+	app.Delete("/assistant/conversations/:id", controller.DeleteConversation)
+
+	req := httptest.NewRequest("GET", "/assistant/conversations/conv-1", nil)
+	resp, err := app.Test(req)
+	if err != nil || resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("GetConversation status = %d, err = %v", resp.StatusCode, err)
+	}
+
+	// 2. DeleteConversation - ok
+	reqDel := httptest.NewRequest("DELETE", "/assistant/conversations/conv-1", nil)
+	respDel, err := app.Test(reqDel)
+	if err != nil || respDel.StatusCode != fiber.StatusNoContent {
+		t.Fatalf("DeleteConversation status = %d, err = %v", respDel.StatusCode, err)
+	}
+
+	// 3. Controller with nil service - 503
+	nilApp := fiber.New()
+	nilController := NewAssistantController(nil)
+	nilApp.Get("/assistant/conversations/:id", nilController.GetConversation)
+	nilApp.Delete("/assistant/conversations/:id", nilController.DeleteConversation)
+
+	req503 := httptest.NewRequest("GET", "/assistant/conversations/conv-1", nil)
+	resp503, err := nilApp.Test(req503)
+	if err != nil || resp503.StatusCode != fiber.StatusServiceUnavailable {
+		t.Fatalf("GetConversation(nil) status = %d, want 503", resp503.StatusCode)
 	}
 }

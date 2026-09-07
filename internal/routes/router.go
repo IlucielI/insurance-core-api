@@ -62,6 +62,8 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api.Get("/applications/:id/review-checks", applicationController.ListReviewChecks)
 	api.Patch("/applications/:id/review-checks/:check_type", applicationController.UpdateReviewCheck)
 	api.Post("/assistant/chat", assistantController.Chat)
+	api.Get("/assistant/conversations/:id", assistantController.GetConversation)
+	api.Delete("/assistant/conversations/:id", assistantController.DeleteConversation)
 	api.Get("/storage/presign", storageController.Presign)
 
 	return app
