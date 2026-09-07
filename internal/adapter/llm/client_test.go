@@ -336,7 +336,10 @@ func TestClient_StreamChatCompletion(t *testing.T) {
 			`data: [DONE]`,
 		}
 		for _, e := range events {
-			_, _ = fmt.Fprintf(w, "%s\n\n", e)
+			if _, err := fmt.Fprintf(w, "%s\n\n", e); err != nil {
+				t.Errorf("failed to write event: %v", err)
+				return
+			}
 		}
 	}))
 	defer server.Close()
