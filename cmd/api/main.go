@@ -54,11 +54,13 @@ func main() {
 			log.Printf("redis disabled: %v", err)
 		} else {
 			redisClient = client
-			defer func() {
-				if err := redisClient.Close(); err != nil {
-					log.Printf("failed to close redis connection: %v", err)
+			defer func(c *redisadapter.Client) {
+				if c != nil {
+					if err := c.Close(); err != nil {
+						log.Printf("failed to close redis connection: %v", err)
+					}
 				}
-			}()
+			}(client)
 		}
 	}
 
