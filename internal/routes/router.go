@@ -29,6 +29,9 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	var metricsService services.MetricsService
 	var knowledgeDocRepository repositories.KnowledgeDocumentRepository
 	var knowledgeDocService services.KnowledgeDocumentService
+	var knowledgeRepository repositories.KnowledgeRepository
+	var knowledgeMetricsRepository repositories.KnowledgeMetricsRepository
+	var knowledgeRAGService services.KnowledgeRAGService
 
 	for _, repo := range optionalRepositories {
 		switch r := repo.(type) {
@@ -44,6 +47,12 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 			knowledgeDocRepository = r
 		case services.KnowledgeDocumentService:
 			knowledgeDocService = r
+		case repositories.KnowledgeRepository:
+			knowledgeRepository = r
+		case repositories.KnowledgeMetricsRepository:
+			knowledgeMetricsRepository = r
+		case services.KnowledgeRAGService:
+			knowledgeRAGService = r
 		}
 	}
 
@@ -53,6 +62,10 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 
 	if knowledgeDocService == nil && knowledgeDocRepository != nil {
 		knowledgeDocService = services.NewKnowledgeDocumentService(knowledgeDocRepository)
+	}
+
+	if knowledgeRAGService == nil && knowledgeDocRepository != nil && knowledgeRepository != nil && knowledgeMetricsRepository != nil {
+		knowledgeRAGService = services.NewKnowledgeRAGService(knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, nil)
 	}
 
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
@@ -116,6 +129,13 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 		api.Get("/knowledge/documents/:id", knowledgeDocController.Get)
 		api.Put("/knowledge/documents/:id", knowledgeDocController.Update)
 		api.Delete("/knowledge/documents/:id", knowledgeDocController.Delete)
+	}
+
+	if knowledgeRAGService != nil {
+		knowledgeRAGController := controllers.NewKnowledgeRAGController(knowledgeRAGService)
+		api.Post("/knowledge/documents/:id/reindex", knowledgeRAGController.Reindex)
+		api.Get("/admin/knowledge/metrics", knowledgeRAGController.GetMetrics)
+		api.Post("/knowledge/simulate-chat", knowledgeRAGController.SimulateChat)
 	}
 
 	return app

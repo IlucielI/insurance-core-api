@@ -88,6 +88,19 @@ func (f *knowledgeFake) ReplaceAll(_ context.Context, c []models.KnowledgeChunk)
 	f.replaced = c
 	return f.replaceErr
 }
+func (f *knowledgeFake) ReplaceByDocumentID(_ context.Context, _ string, c []models.KnowledgeChunk) error {
+	f.replaced = c
+	return f.replaceErr
+}
+func (f *knowledgeFake) CountByDocumentID(context.Context, string) (int64, error) {
+	return f.count, f.countErr
+}
+func (f *knowledgeFake) FindChunksByDocumentID(context.Context, string) ([]models.KnowledgeChunk, error) {
+	return f.replaced, nil
+}
+func (f *knowledgeFake) SearchWithCategory(ctx context.Context, emb []float32, _ string, limit int) ([]repositories.KnowledgeChunkMatch, error) {
+	return f.Search(ctx, emb, limit)
+}
 
 func TestAssistantChatFiltersDistantSources(t *testing.T) {
 	repo := &knowledgeFake{matches: []repositories.KnowledgeChunkMatch{{KnowledgeChunk: models.KnowledgeChunk{Title: "relevant", Content: "answer", SourceType: "faq"}, Distance: .2}, {KnowledgeChunk: models.KnowledgeChunk{Title: "noise", Content: "noise"}, Distance: .9}}}

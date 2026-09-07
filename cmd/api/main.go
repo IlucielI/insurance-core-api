@@ -78,6 +78,7 @@ func main() {
 	knowledgeDocRepository := repositories.NewPostgresKnowledgeDocumentRepository(postgres.DB())
 	assistantConversationRepository := repositories.NewPostgresAssistantConversationRepository(postgres.DB(), redisClient)
 	metricsRepository := repositories.NewPostgresMetricsRepository(postgres.DB())
+	knowledgeMetricsRepository := repositories.NewPostgresKnowledgeMetricsRepository(postgres.DB())
 
 	var assistantLLM services.AssistantLLM
 	if cfg.LLMBaseURL != "" && cfg.LLMCompletionModel != "" && cfg.LLMEmbeddingModel != "" {
@@ -96,6 +97,7 @@ func main() {
 
 	productService := services.NewProductService(productRepository, pricingRuleRepository)
 	assistantService := services.NewAssistantService(knowledgeRepository, assistantLLM, productService, assistantConversationRepository)
+	knowledgeRAGService := services.NewKnowledgeRAGService(knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, assistantLLM)
 	if assistantLLM != nil {
 		seedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -145,7 +147,7 @@ func main() {
 	if natsClient != nil && mailer != nil {
 		renderer, err := emailtemplate.NewRenderer()
 		if err != nil {
-			log.Printf("email renderer init failed: %v", err)
+			log.Printf("failed to initialize email template renderer: %v", err)
 		} else {
 			emailWorker := workers.NewEmailNotificationWorker(natsClient, mailer, renderer, cfg.CustomerAppBaseURL)
 			if err := emailWorker.Start(context.Background()); err != nil {
@@ -156,7 +158,7 @@ func main() {
 		}
 	}
 
-	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository, knowledgeDocRepository)
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository, knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, knowledgeRAGService)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {
