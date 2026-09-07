@@ -35,6 +35,8 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	var auditLogRepository repositories.AuditLogRepository
 	var auditLogService services.AuditLogService
 	var systemHealthService services.SystemHealthService
+	var notificationRepository repositories.NotificationRepository
+	var notificationService services.NotificationService
 
 	for _, repo := range optionalRepositories {
 		switch r := repo.(type) {
@@ -62,6 +64,10 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 			auditLogService = r
 		case services.SystemHealthService:
 			systemHealthService = r
+		case repositories.NotificationRepository:
+			notificationRepository = r
+		case services.NotificationService:
+			notificationService = r
 		}
 	}
 
@@ -79,6 +85,10 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 
 	if auditLogService == nil && auditLogRepository != nil {
 		auditLogService = services.NewAuditLogService(auditLogRepository)
+	}
+
+	if notificationService == nil && notificationRepository != nil {
+		notificationService = services.NewNotificationService(notificationRepository)
 	}
 
 	healthController := controllers.NewHealthController(cfg.Version, cfg.GitHash, time.Now())
@@ -163,6 +173,15 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 		api.Get("/admin/audit-logs", auditLogController.List)
 		api.Get("/admin/audit-logs/:id", auditLogController.GetByID)
 		api.Post("/admin/audit-logs", auditLogController.Create)
+	}
+
+	if notificationService != nil {
+		notificationController := controllers.NewNotificationController(notificationService)
+		api.Get("/admin/notifications", notificationController.List)
+		api.Post("/admin/notifications", notificationController.Create)
+		api.Patch("/admin/notifications/:id/read", notificationController.MarkAsRead)
+		api.Post("/admin/notifications/mark-all-read", notificationController.MarkAllAsRead)
+		api.Get("/admin/notifications/unread-count", notificationController.GetUnreadCount)
 	}
 
 	return app

@@ -82,6 +82,8 @@ func main() {
 	auditLogRepository := repositories.NewPostgresAuditLogRepository(postgres.DB())
 	auditLogService := services.NewAuditLogService(auditLogRepository)
 	systemHealthService := services.NewSystemHealthService(postgres.DB(), redisClient, auditLogRepository, cfg.Version, cfg.GitHash, time.Now().UTC())
+	notificationRepository := repositories.NewPostgresNotificationRepository(postgres.DB())
+	notificationService := services.NewNotificationService(notificationRepository)
 
 	var assistantLLM services.AssistantLLM
 	if cfg.LLMBaseURL != "" && cfg.LLMCompletionModel != "" && cfg.LLMEmbeddingModel != "" {
@@ -161,7 +163,7 @@ func main() {
 		}
 	}
 
-	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository, knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, knowledgeRAGService, auditLogRepository, auditLogService, systemHealthService)
+	app := routes.NewRouter(cfg, productRepository, applicationRepository, reviewCheckRepository, assistantService, storageService, mailer, natsClient, questionnaireRepository, pricingRuleRepository, metricsRepository, knowledgeDocRepository, knowledgeRepository, knowledgeMetricsRepository, knowledgeRAGService, auditLogRepository, auditLogService, systemHealthService, notificationRepository, notificationService)
 
 	log.Printf("starting %s on port %s", cfg.AppName, cfg.HTTPPort)
 	if err := app.Listen(":" + cfg.HTTPPort); err != nil {

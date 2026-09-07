@@ -221,3 +221,82 @@ func TestAdminHealthAndAuditRoutesExist(t *testing.T) {
 	})
 }
 
+type routeNotificationRepository struct{}
+
+func (r routeNotificationRepository) Create(ctx context.Context, notification *models.Notification) error {
+	return nil
+}
+
+func (r routeNotificationRepository) FindAll(ctx context.Context, query dtos.NotificationQuery) ([]models.Notification, int64, int64, error) {
+	return []models.Notification{}, 0, 0, nil
+}
+
+func (r routeNotificationRepository) FindByID(ctx context.Context, id string) (*models.Notification, error) {
+	return &models.Notification{}, nil
+}
+
+func (r routeNotificationRepository) MarkAsRead(ctx context.Context, id string, readAt time.Time) (*models.Notification, error) {
+	return &models.Notification{}, nil
+}
+
+func (r routeNotificationRepository) MarkAllAsRead(ctx context.Context, readAt time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (r routeNotificationRepository) CountUnread(ctx context.Context) (int64, error) {
+	return 0, nil
+}
+
+func TestAdminNotificationRoutesExist(t *testing.T) {
+	app := NewRouter(
+		config.Config{AppName: "test"},
+		routeProductRepository{},
+		routeApplicationRepository{},
+		routeReviewCheckRepository{},
+		nil, nil, nil, nil,
+		routeNotificationRepository{},
+	)
+
+	t.Run("list notifications route", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "/api/v1/admin/notifications", nil)
+		if err != nil {
+			t.Fatalf("NewRequest() error = %v", err)
+		}
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test() error = %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+	})
+
+	t.Run("unread count route", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "/api/v1/admin/notifications/unread-count", nil)
+		if err != nil {
+			t.Fatalf("NewRequest() error = %v", err)
+		}
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test() error = %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+	})
+
+	t.Run("mark all read route", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodPost, "/api/v1/admin/notifications/mark-all-read", nil)
+		if err != nil {
+			t.Fatalf("NewRequest() error = %v", err)
+		}
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test() error = %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+	})
+}
+

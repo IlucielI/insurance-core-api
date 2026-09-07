@@ -227,6 +227,14 @@ func (s *DefaultSystemHealthService) PingRoutes(ctx context.Context) ([]dtos.Rou
 			StatusCode:  200,
 			Description: "Manual override review check 4-pilar oleh underwriter",
 		},
+		{
+			ID:          "route_notifications",
+			Method:      "GET",
+			Path:        "/api/v1/admin/notifications",
+			LatencyMs:   7.5,
+			StatusCode:  200,
+			Description: "Pusat notifikasi in-app dan peringatan SLA real-time",
+		},
 	}
 
 	return routes, nil
