@@ -1,0 +1,107 @@
+INSERT INTO audit_logs (id, timestamp, actor_name, actor_role, action, category, target_resource, ip_address, status, details, hash)
+VALUES
+(
+    'aud_2026_0906_001',
+    '2026-09-06 06:55:12+00',
+    'Budi Pratama',
+    'Senior Underwriter',
+    'APPROVE_APPLICATION',
+    'underwriting',
+    '#APP-2026-8819',
+    '192.168.10.45',
+    'SUCCESS',
+    '{"applicant": "Budi Santoso", "product": "Secure Life Plus", "sumAssured": 500000000, "policyNumber": "POL-2026-SLP-08819", "reason": "Seluruh 4 pilar verifikasi lengkap dan memenuhi kriteria automated underwriting."}'::jsonb,
+    'e4f210a89c0d38e11a8e77d47f83b1653a1b90c20a87b345c22f6a91349a8bb2'
+),
+(
+    'aud_2026_0906_002',
+    '2026-09-06 06:40:30+00',
+    'Dewi Sartika',
+    'Product Actuary',
+    'UPDATE_PRODUCT_PRICING',
+    'product',
+    'prod_secure_life_plus',
+    '192.168.10.12',
+    'SUCCESS',
+    '{"productName": "Secure Life Plus", "previousBaseRate": 0.0035, "newBaseRate": 0.0035, "updatedField": "maxSumAssured adjusted to Rp 1.000.000.000"}'::jsonb,
+    'c9b8a7d6e5f4123089abcdef0123456789abcdef0123456789abcdef01234567'
+),
+(
+    'aud_2026_0906_003',
+    '2026-09-06 06:32:15+00',
+    'Budi Pratama',
+    'Senior Underwriter',
+    'MANUAL_OVERRIDE_CHECK',
+    'underwriting',
+    '#APP-2026-8821',
+    '192.168.10.45',
+    'WARNING',
+    '{"pillar": "Medical History & Health Declaration", "previousStatus": "flagged", "newStatus": "verified", "justification": "Hasil MCU treadmill test membuktikan aritmia sinus jinak tanpa iskemia miokard."}'::jsonb,
+    '8f7e6d5c4b3a2109fedcba9876543210fedcba9876543210fedcba9876543210'
+),
+(
+    'aud_2026_0906_004',
+    '2026-09-06 06:15:00+00',
+    'Andi Wijaya',
+    'Junior Underwriter',
+    'REQUEST_FOR_INFORMATION',
+    'underwriting',
+    '#APP-2026-8820',
+    '192.168.10.68',
+    'SUCCESS',
+    '{"applicant": "Siti Rahmawati", "requestedDocuments": ["Surat rujukan dokter spesialis", "Kuitansi asli pembayaran rawat inap"], "dueDate": "2026-09-13T23:59:59Z"}'::jsonb,
+    'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90'
+),
+(
+    'aud_2026_0906_005',
+    '2026-09-06 05:50:00+00',
+    'System Worker',
+    'Background Daemon',
+    'REINDEX_VECTOR_CHUNK',
+    'knowledge',
+    'doc_underwriting_up_medical',
+    '127.0.0.1',
+    'SUCCESS',
+    '{"vectorDimension": 1024, "chunksGenerated": 16, "model": "text-embedding-004"}'::jsonb,
+    '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+),
+(
+    'aud_2026_0906_006',
+    '2026-09-06 05:25:10+00',
+    'Budi Pratama',
+    'Senior Underwriter',
+    'REJECT_APPLICATION',
+    'underwriting',
+    '#APP-2026-8818',
+    '192.168.10.45',
+    'FAILED',
+    '{"applicant": "Bambang Kusuma", "reason": "Skor kredit SLIK kol 5 dan terdeteksi fraud manipulasi dokumen slip gaji.", "pinAuthorized": true}'::jsonb,
+    'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210'
+),
+(
+    'aud_2026_0906_007',
+    '2026-09-06 05:20:05+00',
+    'Andi Wijaya',
+    'Junior Underwriter',
+    'SECURITY_PIN_FAILURE',
+    'auth',
+    '#APP-2026-8818',
+    '192.168.10.68',
+    'FAILED',
+    '{"attempt": 1, "errorMessage": "Invalid authorization PIN entered during application reject attempt."}'::jsonb,
+    '456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123'
+),
+(
+    'aud_2026_0906_008',
+    '2026-09-06 04:45:00+00',
+    'Siti Rahma',
+    'Compliance Officer',
+    'CREATE_KNOWLEDGE_DOC',
+    'knowledge',
+    'doc_aml_pep_screening',
+    '192.168.10.22',
+    'SUCCESS',
+    '{"title": "Kepatuhan Anti-Pencucian Uang (AML) & Screening PEP", "policyRef": "POJK-12/2024/AML"}'::jsonb,
+    '789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456'
+)
+ON CONFLICT (id) DO NOTHING;

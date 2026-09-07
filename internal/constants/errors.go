@@ -119,4 +119,18 @@ const (
 	ErrStorageServiceUnavailable              = "storage service unavailable"
 	ErrStorageObjectNameRequired              = "object_name is required"
 	ErrStoragePresignFailed                   = "failed to generate storage presigned url"
+
+	ErrAuditLogNotFound          = "audit log not found"
+	ErrAuditLogActorNameRequired = "actor_name is required"
+	ErrAuditLogActorRoleRequired = "actor_role is required"
+	ErrAuditLogActionRequired    = "action is required"
+	ErrAuditLogCategoryInvalid   = "category must be one of: underwriting, product, knowledge, auth, system"
+	ErrAuditLogStatusInvalid     = "status must be one of: SUCCESS, WARNING, FAILED"
+	ErrAuditLogTargetRequired    = "target_resource is required"
+	ErrAuditLogQueryLimitInvalid = "limit must be between 1 and 100"
 )
+
+var (
+	ErrAuditLogNotFoundError = errors.New(ErrAuditLogNotFound)
+)
+
