@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -95,13 +96,7 @@ func (service *ProductService) CreateProduct(ctx context.Context, rawReq dtos.Cr
 		return models.Product{}, err
 	}
 
-	if service.knowledgeSyncer != nil {
-		if product.Status == models.ProductStatusArchived {
-			_ = service.knowledgeSyncer.RemoveProductKnowledge(ctx, product.Slug)
-		} else {
-			_ = service.knowledgeSyncer.SyncProductKnowledge(ctx, product)
-		}
-	}
+	service.syncKnowledge(ctx, product)
 
 	return product, nil
 }
@@ -187,13 +182,7 @@ func (service *ProductService) UpdateProduct(ctx context.Context, id string, raw
 		return models.Product{}, err
 	}
 
-	if service.knowledgeSyncer != nil {
-		if product.Status == models.ProductStatusArchived {
-			_ = service.knowledgeSyncer.RemoveProductKnowledge(ctx, product.Slug)
-		} else {
-			_ = service.knowledgeSyncer.SyncProductKnowledge(ctx, product)
-		}
-	}
+	service.syncKnowledge(ctx, product)
 
 	return product, nil
 }
@@ -212,13 +201,7 @@ func (service *ProductService) UpdateProductStatus(ctx context.Context, id strin
 	}
 
 	product.Status = status
-	if service.knowledgeSyncer != nil {
-		if status == models.ProductStatusArchived {
-			_ = service.knowledgeSyncer.RemoveProductKnowledge(ctx, product.Slug)
-		} else {
-			_ = service.knowledgeSyncer.SyncProductKnowledge(ctx, product)
-		}
-	}
+	service.syncKnowledge(ctx, product)
 
 	return product, nil
 }
@@ -261,9 +244,7 @@ func (service *ProductService) DeleteProduct(ctx context.Context, id string) err
 		return err
 	}
 
-	if service.knowledgeSyncer != nil {
-		_ = service.knowledgeSyncer.RemoveProductKnowledge(ctx, product.Slug)
-	}
+	service.removeKnowledge(ctx, product.Slug)
 
 	return nil
 }
@@ -591,4 +572,28 @@ func findAnswerForRule(rule models.ProductPricingRule, input dtos.CreateProductQ
 	}
 
 	return ""
+}
+
+func (service *ProductService) syncKnowledge(ctx context.Context, product models.Product) {
+	if service.knowledgeSyncer == nil {
+		return
+	}
+	if product.Status == models.ProductStatusArchived {
+		if err := service.knowledgeSyncer.RemoveProductKnowledge(ctx, product.Slug); err != nil {
+			log.Printf("[ProductService] warning: failed to remove knowledge for %s: %v", product.Slug, err)
+		}
+	} else {
+		if err := service.knowledgeSyncer.SyncProductKnowledge(ctx, product); err != nil {
+			log.Printf("[ProductService] warning: failed to sync knowledge for %s: %v", product.Slug, err)
+		}
+	}
+}
+
+func (service *ProductService) removeKnowledge(ctx context.Context, slug string) {
+	if service.knowledgeSyncer == nil {
+		return
+	}
+	if err := service.knowledgeSyncer.RemoveProductKnowledge(ctx, slug); err != nil {
+		log.Printf("[ProductService] warning: failed to remove knowledge for %s: %v", slug, err)
+	}
 }

@@ -128,7 +128,9 @@ func (repository *PostgresProductRepository) FindByID(ctx context.Context, id st
 	}
 
 	if repository.cache != nil {
-		_ = repository.cache.SetJSON(ctx, cacheKey, product, 1*time.Hour)
+		if err := repository.cache.SetJSON(ctx, cacheKey, product, 1*time.Hour); err != nil {
+			log.Printf("[ProductRepository] warning: failed to cache product %s: %v", id, err)
+		}
 	}
 
 	return product, nil
@@ -249,9 +251,13 @@ func (repository *PostgresProductRepository) invalidateProductCache(ctx context.
 		keys = append(keys, fmt.Sprintf("tenant:%s:catalog:products:id:%s", defaultTenantScope, sanitizeCacheSegment(id)))
 	}
 	if len(keys) > 0 {
-		_ = repository.cache.Delete(ctx, keys...)
+		if err := repository.cache.Delete(ctx, keys...); err != nil {
+			log.Printf("[ProductRepository] warning: failed to delete product cache keys: %v", err)
+		}
 	}
-	_ = repository.cache.DeletePrefix(ctx, fmt.Sprintf("tenant:%s:catalog:products:list:", defaultTenantScope))
+	if err := repository.cache.DeletePrefix(ctx, fmt.Sprintf("tenant:%s:catalog:products:list:", defaultTenantScope)); err != nil {
+		log.Printf("[ProductRepository] warning: failed to delete prefix catalog cache: %v", err)
+	}
 }
 
 func (repository *PostgresProductRepository) HasApplications(ctx context.Context, productID string) (bool, error) {

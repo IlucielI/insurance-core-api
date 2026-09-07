@@ -24,6 +24,7 @@ type controllerProductRepository struct {
 	products []models.Product
 	product  models.Product
 	err      error
+	hasApps  bool
 }
 
 func (repository *controllerProductRepository) FindAll(ctx context.Context, filter repositories.ProductFilter) ([]models.Product, error) {
@@ -103,7 +104,10 @@ func (repository *controllerProductRepository) GetMetrics(ctx context.Context) (
 }
 
 func (repository *controllerProductRepository) HasApplications(ctx context.Context, productID string) (bool, error) {
-	return false, repository.err
+	if repository.err != nil {
+		return false, repository.err
+	}
+	return repository.hasApps, nil
 }
 
 type controllerPricingRuleRepository struct {

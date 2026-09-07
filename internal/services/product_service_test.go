@@ -44,15 +44,15 @@ func (repository *fakeProductRepository) FindByID(ctx context.Context, id string
 	if repository.err != nil {
 		return models.Product{}, repository.err
 	}
-	if repository.product.ID == id || id != "" {
+	if repository.product.ID == id || (repository.product.Slug == id && repository.product.ID != "") {
 		return repository.product, nil
 	}
 	for _, p := range repository.products {
-		if p.ID == id {
+		if p.ID == id || (p.Slug == id && p.ID != "") {
 			return p, nil
 		}
 	}
-	return repository.product, nil
+	return models.Product{}, repositories.ErrProductNotFound
 }
 
 func (repository *fakeProductRepository) Create(ctx context.Context, product *models.Product) error {
@@ -689,6 +689,25 @@ func TestProductServiceGetProductManagementMetrics(t *testing.T) {
 	}
 	if metrics.TotalProducts != 2 {
 		t.Fatalf("metrics.TotalProducts = %d, want 2", metrics.TotalProducts)
+	}
+}
+
+func TestFakeProductRepositoryFindByIDAccuracy(t *testing.T) {
+	ctx := context.Background()
+	repo := &fakeProductRepository{
+		product: models.Product{ID: "prod-1", Slug: "prod-slug"},
+	}
+
+	// 1. Happy path: matching ID
+	p, err := repo.FindByID(ctx, "prod-1")
+	if err != nil || p.ID != "prod-1" {
+		t.Fatalf("FindByID(prod-1) = %+v, error = %v", p, err)
+	}
+
+	// 2. Edge case: unknown ID should return ErrProductNotFound
+	_, err = repo.FindByID(ctx, "unknown-id")
+	if !errors.Is(err, repositories.ErrProductNotFound) {
+		t.Fatalf("FindByID(unknown-id) expected ErrProductNotFound, got: %v", err)
 	}
 }
 

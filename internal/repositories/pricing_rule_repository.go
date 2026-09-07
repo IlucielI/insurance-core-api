@@ -128,12 +128,15 @@ func (r *PostgresPricingRuleRepository) SaveBatch(ctx context.Context, productID
 	}
 
 	if r.cache != nil {
-		_ = r.cache.Delete(ctx,
+		if err := r.cache.Delete(ctx,
 			fmt.Sprintf("tenant:%s:pricing_rules:product_id:%s", defaultTenantScope, sanitizeCacheSegment(productID)),
-		)
-		_ = r.cache.DeletePrefix(ctx, fmt.Sprintf("tenant:%s:pricing_rules:", defaultTenantScope))
+		); err != nil {
+			log.Printf("[PricingRuleRepo] warning: failed to delete cache for product %s: %v", productID, err)
+		}
+		if err := r.cache.DeletePrefix(ctx, fmt.Sprintf("tenant:%s:pricing_rules:", defaultTenantScope)); err != nil {
+			log.Printf("[PricingRuleRepo] warning: failed to delete prefix cache: %v", err)
+		}
 	}
 
 	return nil
 }
-

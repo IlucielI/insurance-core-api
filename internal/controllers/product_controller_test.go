@@ -38,7 +38,10 @@ func TestProductManagement_CreateProduct(t *testing.T) {
 		NonMCULimit:      500000000,
 		Benefits:         []string{"Santunan Kematian"},
 	}
-	payload, _ := json.Marshal(reqBody)
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("json.Marshal(reqBody) error = %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/products", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
@@ -52,7 +55,10 @@ func TestProductManagement_CreateProduct(t *testing.T) {
 	// 2. Duplicate Slug -> 409 Conflict
 	dupBody := reqBody
 	dupBody.Slug = "existing-slug"
-	dupPayload, _ := json.Marshal(dupBody)
+	dupPayload, err := json.Marshal(dupBody)
+	if err != nil {
+		t.Fatalf("json.Marshal(dupBody) error = %v", err)
+	}
 	dupReq := httptest.NewRequest(http.MethodPost, "/api/v1/products", bytes.NewReader(dupPayload))
 	dupReq.Header.Set("Content-Type", "application/json")
 	dupResp, err := app.Test(dupReq)
@@ -66,7 +72,10 @@ func TestProductManagement_CreateProduct(t *testing.T) {
 	// 3. Validation error -> 400 Bad Request
 	badBody := reqBody
 	badBody.MinSumAssured = 0
-	badPayload, _ := json.Marshal(badBody)
+	badPayload, err := json.Marshal(badBody)
+	if err != nil {
+		t.Fatalf("json.Marshal(badBody) error = %v", err)
+	}
 	badReq := httptest.NewRequest(http.MethodPost, "/api/v1/products", bytes.NewReader(badPayload))
 	badReq.Header.Set("Content-Type", "application/json")
 	badResp, err := app.Test(badReq)
@@ -112,7 +121,10 @@ func TestProductManagement_UpdateProduct(t *testing.T) {
 	updateReq := dtos.UpdateProductRequest{
 		Name: &newName,
 	}
-	payload, _ := json.Marshal(updateReq)
+	payload, err := json.Marshal(updateReq)
+	if err != nil {
+		t.Fatalf("json.Marshal(updateReq) error = %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/products/prod-update-1", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
@@ -136,7 +148,10 @@ func TestProductManagement_UpdateStatusAndToggle(t *testing.T) {
 
 	// 1. Update status to active
 	statusReq := dtos.UpdateProductStatusRequest{Status: "active"}
-	payload, _ := json.Marshal(statusReq)
+	payload, err := json.Marshal(statusReq)
+	if err != nil {
+		t.Fatalf("json.Marshal(statusReq) error = %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/products/prod-status-1/status", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
@@ -164,16 +179,29 @@ func TestProductManagement_Delete(t *testing.T) {
 			ID:   "prod-del-1",
 			Slug: "prod-del-1",
 		},
+		hasApps: true,
 	}
 	app := routes.NewRouter(config.Config{AppName: "test"}, prodRepo, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil)
 
+	// 1. Delete blocked by existing applications -> 409 Conflict
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/products/prod-del-1", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test error = %v", err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("resp.StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("resp.StatusCode = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+
+	// 2. Delete allowed -> 200 OK
+	prodRepo.hasApps = false
+	reqOK := httptest.NewRequest(http.MethodDelete, "/api/v1/products/prod-del-1", nil)
+	respOK, err := app.Test(reqOK)
+	if err != nil {
+		t.Fatalf("app.Test error = %v", err)
+	}
+	if respOK.StatusCode != http.StatusOK {
+		t.Fatalf("respOK.StatusCode = %d, want %d", respOK.StatusCode, http.StatusOK)
 	}
 }
 
@@ -181,6 +209,7 @@ func TestProductManagement_GetMetrics(t *testing.T) {
 	prodRepo := &controllerProductRepository{
 		products: []models.Product{
 			{ID: "p1", Status: models.ProductStatusActive},
+			{ID: "p2", Status: models.ProductStatusDraft},
 		},
 	}
 	app := routes.NewRouter(config.Config{AppName: "test"}, prodRepo, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil)
@@ -208,7 +237,10 @@ func TestProductManagement_UpdatePricingRules(t *testing.T) {
 	rules := []models.ProductPricingRule{
 		{RuleCode: "base_rate", RuleName: "Base Rate", RuleType: "base_rate"},
 	}
-	payload, _ := json.Marshal(rules)
+	payload, err := json.Marshal(rules)
+	if err != nil {
+		t.Fatalf("json.Marshal(rules) error = %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/products/prod-rules-1/pricing-rules", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
