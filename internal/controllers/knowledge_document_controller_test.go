@@ -148,7 +148,9 @@ func TestKnowledgeDocumentController_List(t *testing.T) {
 	var resFilter struct {
 		Data []dtos.KnowledgeDocumentResponse `json:"data"`
 	}
-	_ = json.NewDecoder(respFilter.Body).Decode(&resFilter)
+	if err := json.NewDecoder(respFilter.Body).Decode(&resFilter); err != nil {
+		t.Fatalf("json.Decode filter error = %v", err)
+	}
 	if len(resFilter.Data) != 1 || resFilter.Data[0].ID != "doc-1" {
 		t.Fatalf("filtered count = %d, want 1 (doc-1)", len(resFilter.Data))
 	}
@@ -211,7 +213,10 @@ func TestKnowledgeDocumentController_Create(t *testing.T) {
 		Content:  "Konten lengkap teks SOP pemeriksaan medis...",
 		Tags:     []string{"medis", "sop"},
 	}
-	payload, _ := json.Marshal(reqBody)
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("json.Marshal reqBody error = %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/documents", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
@@ -230,7 +235,10 @@ func TestKnowledgeDocumentController_Create(t *testing.T) {
 		Summary:  "Summary",
 		Content:  "Content",
 	}
-	conflictPayload, _ := json.Marshal(reqConflictBody)
+	conflictPayload, err := json.Marshal(reqConflictBody)
+	if err != nil {
+		t.Fatalf("json.Marshal conflict error = %v", err)
+	}
 	reqConflict := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/documents", bytes.NewReader(conflictPayload))
 	reqConflict.Header.Set("Content-Type", "application/json")
 	respConflict, err := app.Test(reqConflict)
@@ -264,12 +272,15 @@ func TestKnowledgeDocumentController_Update(t *testing.T) {
 
 	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{}, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil, repo)
 
-	// 1. Success update
+	// 1. Successful HTTP PUT request
 	newTitle := "Updated Doc One"
 	updateReq := dtos.UpdateKnowledgeDocumentRequest{
 		Title: &newTitle,
 	}
-	payload, _ := json.Marshal(updateReq)
+	payload, err := json.Marshal(updateReq)
+	if err != nil {
+		t.Fatalf("json.Marshal updateReq error = %v", err)
+	}
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/knowledge/documents/doc-1", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req)
@@ -296,7 +307,10 @@ func TestKnowledgeDocumentController_Update(t *testing.T) {
 	conflictReq := dtos.UpdateKnowledgeDocumentRequest{
 		Slug: &conflictSlug,
 	}
-	conflictPayload, _ := json.Marshal(conflictReq)
+	conflictPayload, err := json.Marshal(conflictReq)
+	if err != nil {
+		t.Fatalf("json.Marshal conflictReq error = %v", err)
+	}
 	reqConflict := httptest.NewRequest(http.MethodPut, "/api/v1/knowledge/documents/doc-1", bytes.NewReader(conflictPayload))
 	reqConflict.Header.Set("Content-Type", "application/json")
 	respConflict, err := app.Test(reqConflict)
@@ -317,7 +331,7 @@ func TestKnowledgeDocumentController_Delete(t *testing.T) {
 
 	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{}, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil, repo)
 
-	// 1. Success delete
+	// 1. Successful HTTP DELETE request
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/knowledge/documents/doc-1", nil)
 	resp, err := app.Test(req)
 	if err != nil {
@@ -327,7 +341,7 @@ func TestKnowledgeDocumentController_Delete(t *testing.T) {
 		t.Fatalf("resp.StatusCode = %d, want 200", resp.StatusCode)
 	}
 
-	// 2. Delete non-existent -> 404
+	// 2. Subsequent HTTP DELETE request for removed item returns 404
 	reqNotFound := httptest.NewRequest(http.MethodDelete, "/api/v1/knowledge/documents/doc-1", nil)
 	respNotFound, err := app.Test(reqNotFound)
 	if err != nil {
