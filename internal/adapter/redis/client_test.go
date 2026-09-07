@@ -91,7 +91,7 @@ func TestParseRedisConfig(t *testing.T) {
 				t.Errorf("addr = %s, want %s", addr, tt.wantAddr)
 			}
 			if password != tt.wantPassword {
-				t.Errorf("password = %s, want %s", password, tt.wantPassword)
+				t.Errorf("password mismatch: got value with length %d, want length %d", len(password), len(tt.wantPassword))
 			}
 			if db != tt.wantDB {
 				t.Errorf("db = %d, want %d", db, tt.wantDB)
