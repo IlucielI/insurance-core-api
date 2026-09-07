@@ -331,7 +331,6 @@ func TestKnowledgeDocumentController_Delete(t *testing.T) {
 
 	app := routes.NewRouter(config.Config{AppName: "test"}, &controllerProductRepository{}, &controllerApplicationRepository{}, &controllerReviewCheckRepository{}, nil, nil, nil, nil, repo)
 
-	// 1. Successful HTTP DELETE request
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/knowledge/documents/doc-1", nil)
 	resp, err := app.Test(req)
 	if err != nil {
@@ -341,7 +340,6 @@ func TestKnowledgeDocumentController_Delete(t *testing.T) {
 		t.Fatalf("resp.StatusCode = %d, want 200", resp.StatusCode)
 	}
 
-	// 2. Subsequent HTTP DELETE request for removed item returns 404
 	reqNotFound := httptest.NewRequest(http.MethodDelete, "/api/v1/knowledge/documents/doc-1", nil)
 	respNotFound, err := app.Test(reqNotFound)
 	if err != nil {
