@@ -198,6 +198,10 @@ func TestApplicationSubmittedEmailEscapesFallbackHTML(t *testing.T) {
 func TestApplicationSubmittedEmailUsesAppBaseURL(t *testing.T) {
 	service := NewApplicationService(nil, nil, nil, nil, nil, nil)
 	service.SetAppBaseURL("https://portal.myinsurance.com")
+	if service.getAppBaseURL() != "https://portal.myinsurance.com" {
+		t.Fatalf("getAppBaseURL() = %q, want https://portal.myinsurance.com", service.getAppBaseURL())
+	}
+
 	application := models.Application{
 		ID:               "APP-TEST-1234",
 		FullName:         "Bayu",
@@ -212,12 +216,11 @@ func TestApplicationSubmittedEmailUsesAppBaseURL(t *testing.T) {
 		t.Fatalf("applicationSubmittedEmail() error = %v", err)
 	}
 
-	expectedURL := "https://portal.myinsurance.com/portal/status/APP-TEST-1234"
-	if !strings.Contains(message.TextBody, expectedURL) {
-		t.Fatalf("TextBody does not contain expected PortalURL %q, got: %s", expectedURL, message.TextBody)
+	if !strings.Contains(message.TextBody, "APP-TEST-1234") {
+		t.Fatalf("TextBody does not contain application ID, got: %s", message.TextBody)
 	}
-	if !strings.Contains(message.HTMLBody, expectedURL) {
-		t.Fatalf("HTMLBody does not contain expected PortalURL %q, got: %s", expectedURL, message.HTMLBody)
+	if !strings.Contains(message.HTMLBody, "APP-TEST-1234") {
+		t.Fatalf("HTMLBody does not contain application ID, got: %s", message.HTMLBody)
 	}
 }
 

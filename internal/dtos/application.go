@@ -57,3 +57,10 @@ type UpdateApplicationStatusRequest struct {
 	ReviewedBy      string                   `json:"reviewed_by"`
 	RejectionReason string                   `json:"rejection_reason"`
 }
+
+type RequestDocumentsRequest struct {
+	Notes        string   `json:"notes"`
+	Reason       string   `json:"reason"`
+	RequiredDocs []string `json:"required_docs"`
+	ReviewedBy   string   `json:"reviewed_by"`
+}
