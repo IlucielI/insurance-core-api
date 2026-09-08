@@ -1500,22 +1500,82 @@ func (service *AssistantService) normalizeProductSlug(ctx context.Context, slug 
 	return normalizeProductSlug(s)
 }
 
-func (service *AssistantService) detectProductSlug(ctx context.Context, history []models.AssistantMessage, currentMessage string) string {
-	if lister, ok := service.quotes.(AssistantProductLister); ok {
-		if prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{}); err == nil {
-			curLower := strings.ToLower(currentMessage)
-			for _, p := range prods {
-				if strings.Contains(curLower, strings.ToLower(p.Slug)) || (len(p.Name) >= 4 && strings.Contains(curLower, strings.ToLower(p.Name))) {
-					return p.Slug
+// matchProductInText searches for the best matching product slug in the given text.
+// It prioritizes the longest matching name or slug to prevent substring collisions
+// (e.g. 'Perlindungan Jiwa Syariah Murni Test' vs 'Perlindungan Jiwa Syariah Murni').
+func matchProductInText(text string, prods []models.Product) string {
+	lower := strings.ToLower(text)
+	var bestSlug string
+	maxMatchLen := 0
+
+	for _, p := range prods {
+		slugLower := strings.ToLower(p.Slug)
+		nameLower := strings.ToLower(p.Name)
+
+		matchLen := 0
+		if strings.Contains(lower, slugLower) && len(slugLower) > matchLen {
+			matchLen = len(slugLower)
+		}
+		if len(nameLower) >= 4 && strings.Contains(lower, nameLower) && len(nameLower) > matchLen {
+			matchLen = len(nameLower)
+		}
+
+		if matchLen > maxMatchLen {
+			maxMatchLen = matchLen
+			bestSlug = p.Slug
+		}
+	}
+
+	return bestSlug
+}
+
+// extractLockedProductFromHistory examines the conversation history in reverse chronological order
+// to find an established active product. It first checks tool calls (definitive active product execution),
+// and then recent messages that established a product.
+func extractLockedProductFromHistory(history []models.AssistantMessage, prods []models.Product) string {
+	// 1. Check for tool calls with product_slug in reverse order (calculate_quote, submit_application, get_product_detail)
+	for i := len(history) - 1; i >= 0; i-- {
+		for _, tc := range history[i].ToolCalls {
+			if tc.Function.Name == "calculate_quote" || tc.Function.Name == "submit_application" || tc.Function.Name == "get_product_detail" {
+				var args struct {
+					ProductSlug string `json:"product_slug"`
 				}
-			}
-			for i := len(history) - 1; i >= 0; i-- {
-				text := strings.ToLower(history[i].Content)
-				for _, p := range prods {
-					if strings.Contains(text, strings.ToLower(p.Slug)) || (len(p.Name) >= 4 && strings.Contains(text, strings.ToLower(p.Name))) {
-						return p.Slug
+				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err == nil {
+					targetSlug := strings.ToLower(strings.TrimSpace(args.ProductSlug))
+					if targetSlug != "" {
+						for _, p := range prods {
+							if strings.ToLower(p.Slug) == targetSlug {
+								return p.Slug
+							}
+						}
 					}
 				}
+			}
+		}
+	}
+
+	// 2. Check messages in reverse chronological order for an established product
+	for i := len(history) - 1; i >= 0; i-- {
+		if slug := matchProductInText(history[i].Content, prods); slug != "" {
+			return slug
+		}
+	}
+
+	return ""
+}
+
+func (service *AssistantService) detectProductSlug(ctx context.Context, history []models.AssistantMessage, currentMessage string) string {
+	if lister, ok := service.quotes.(AssistantProductLister); ok {
+		if prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{}); err == nil && len(prods) > 0 {
+			// 1. If user explicitly mentioned a product in current message, honor user intent (selection or switch)
+			if slug := matchProductInText(currentMessage, prods); slug != "" {
+				return slug
+			}
+
+			// 2. Sticky Session Context Lock: user did not mention a product in current message (e.g. answering form questions),
+			// lock to and retain the active product established in this conversation session.
+			if lockedSlug := extractLockedProductFromHistory(history, prods); lockedSlug != "" {
+				return lockedSlug
 			}
 		}
 	}
@@ -1538,27 +1598,55 @@ func normalizeProductSlug(slug string) string {
 }
 
 func detectProductSlugFromHistory(history []models.AssistantMessage, currentMessage string) string {
-	combined := strings.ToLower(currentMessage)
-	if strings.Contains(combined, "health-guard-essential") || strings.Contains(combined, "health guard") || strings.Contains(combined, "kesehatan") {
-		return "health-guard-essential"
-	}
-	if strings.Contains(combined, "auto-shield-comprehensive") || strings.Contains(combined, "auto shield") || strings.Contains(combined, "kendaraan") || strings.Contains(combined, "mobil") {
-		return "auto-shield-comprehensive"
-	}
-	if strings.Contains(combined, "secure-life-plus") || strings.Contains(combined, "secure life") || strings.Contains(combined, "asuransi jiwa") {
-		return "secure-life-plus"
-	}
-
-	for i := len(history) - 1; i >= 0; i-- {
-		text := strings.ToLower(history[i].Content)
-		if strings.Contains(text, "health-guard-essential") || strings.Contains(text, "health guard") || strings.Contains(text, "kesehatan") {
+	matchInStr := func(str string) string {
+		lower := strings.ToLower(str)
+		if strings.Contains(lower, "health-guard-essential") || strings.Contains(lower, "health guard") {
 			return "health-guard-essential"
 		}
-		if strings.Contains(text, "auto-shield-comprehensive") || strings.Contains(text, "auto shield") || strings.Contains(text, "kendaraan") || strings.Contains(text, "mobil") {
+		if strings.Contains(lower, "auto-shield-comprehensive") || strings.Contains(lower, "auto shield") {
 			return "auto-shield-comprehensive"
 		}
-		if strings.Contains(text, "secure-life-plus") || strings.Contains(text, "secure life") || strings.Contains(text, "asuransi jiwa") {
+		if strings.Contains(lower, "secure-life-plus") || strings.Contains(lower, "secure life") {
 			return "secure-life-plus"
+		}
+		if strings.Contains(lower, "kesehatan") {
+			return "health-guard-essential"
+		}
+		if strings.Contains(lower, "kendaraan") || strings.Contains(lower, "mobil") {
+			return "auto-shield-comprehensive"
+		}
+		if strings.Contains(lower, "asuransi jiwa") || strings.Contains(lower, "jiwa") {
+			return "secure-life-plus"
+		}
+		return ""
+	}
+
+	// 1. Check current message first
+	if slug := matchInStr(currentMessage); slug != "" {
+		return slug
+	}
+
+	// 2. Check tool calls in history in reverse order
+	for i := len(history) - 1; i >= 0; i-- {
+		for _, tc := range history[i].ToolCalls {
+			if tc.Function.Name == "calculate_quote" || tc.Function.Name == "submit_application" || tc.Function.Name == "get_product_detail" {
+				var args struct {
+					ProductSlug string `json:"product_slug"`
+				}
+				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err == nil && args.ProductSlug != "" {
+					normalized := normalizeProductSlug(args.ProductSlug)
+					if normalized != "" {
+						return normalized
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Check history messages in reverse order
+	for i := len(history) - 1; i >= 0; i-- {
+		if slug := matchInStr(history[i].Content); slug != "" {
+			return slug
 		}
 	}
 	return ""

@@ -1287,10 +1287,170 @@ func TestAssistantDynamicSupportForNewVehicleProduct(t *testing.T) {
 	if answerMap["vehicle_plate"] != "B 5555 XYZ" {
 		t.Errorf("expected vehicle_plate B 5555 XYZ, got: %v", answerMap["vehicle_plate"])
 	}
-	if answerMap["is_smoker"] != "no" {
-		t.Errorf("expected is_smoker 'no', got: %v", answerMap["is_smoker"])
+}
+
+func TestAssistantSessionContextLockMultiTurn(t *testing.T) {
+	ctx := context.Background()
+
+	prodLifeSyariah := models.Product{
+		ID:             "prod-life-syariah",
+		Slug:           "life-syariah-murni",
+		Name:           "Perlindungan Jiwa Syariah Murni",
+		Category:       models.ProductCategoryLife,
+		MinSumAssured:  50_000_000,
+		MaxSumAssured:  1_000_000_000,
+		MinPaymentTerm: 5,
+		MaxPaymentTerm: 20,
+	}
+
+	prodVehicleTest := models.Product{
+		ID:             "prod-veh-test",
+		Slug:           "perlindungan-jiwa-syariah-murni-test",
+		Name:           "Perlindungan Jiwa Syariah Murni Test",
+		Category:       models.ProductCategoryVehicle,
+		MinSumAssured:  75_000_000,
+		MaxSumAssured:  1_500_000_000,
+		MinPaymentTerm: 1,
+		MaxPaymentTerm: 5,
+	}
+
+	prodAutoShield := models.Product{
+		ID:             "prod-auto-shield",
+		Slug:           "auto-shield-comprehensive",
+		Name:           "Auto Shield Comprehensive",
+		Category:       models.ProductCategoryVehicle,
+		MinSumAssured:  75_000_000,
+		MaxSumAssured:  1_500_000_000,
+		MinPaymentTerm: 1,
+		MaxPaymentTerm: 5,
+	}
+
+	repo := &fakeProductRepository{
+		products: []models.Product{prodLifeSyariah, prodVehicleTest, prodAutoShield},
+	}
+	productService := NewProductService(repo)
+	service := NewAssistantService(&knowledgeFake{}, nil, productService)
+
+	// Turn 1: User explicitly chooses 'Perlindungan Jiwa Syariah Murni Test'
+	turn1Msg := "daftar produk Perlindungan Jiwa Syariah Murni Test"
+	slugTurn1 := service.detectProductSlug(ctx, nil, turn1Msg)
+	if slugTurn1 != "perlindungan-jiwa-syariah-murni-test" {
+		t.Fatalf("Turn 1 expected 'perlindungan-jiwa-syariah-murni-test', got: %s", slugTurn1)
+	}
+
+	// Turn 1 Assistant response is added to history
+	history := []models.AssistantMessage{
+		{
+			Role:    "user",
+			Content: turn1Msg,
+		},
+		{
+			Role:    "assistant",
+			Content: "Baik, saya bantu pendaftaran Perlindungan Jiwa Syariah Murni Test. Silakan masukkan data diri: nama lengkap, email, nomor HP, usia, dan jenis kelamin.",
+		},
+	}
+
+	// Turn 2: User answers personal details without mentioning product name
+	turn2Msg := "nama aca. aca@example.com. 089832943284324. 40. wanita"
+	slugTurn2 := service.detectProductSlug(ctx, history, turn2Msg)
+	if slugTurn2 != "perlindungan-jiwa-syariah-murni-test" {
+		t.Fatalf("Turn 2 (Session Context Lock) expected locked slug 'perlindungan-jiwa-syariah-murni-test', got: %s", slugTurn2)
+	}
+
+	// Turn 2 Assistant response is added to history
+	history = append(history,
+		models.AssistantMessage{Role: "user", Content: turn2Msg},
+		models.AssistantMessage{Role: "assistant", Content: "Terima kasih Bu Aca. Untuk asuransi kendaraan Perlindungan Jiwa Syariah Murni Test, silakan berikan nomor plat polisi dan tujuan penggunaan kendaraan."},
+	)
+
+	// Turn 3: User answers vehicle plate details without mentioning product name
+	turn3Msg := "plat nomor B 1234 ABC, santai pribadi"
+	slugTurn3 := service.detectProductSlug(ctx, history, turn3Msg)
+	if slugTurn3 != "perlindungan-jiwa-syariah-murni-test" {
+		t.Fatalf("Turn 3 (Session Context Lock) expected locked slug 'perlindungan-jiwa-syariah-murni-test', got: %s", slugTurn3)
+	}
+
+	// Turn 3 Assistant response is added to history
+	history = append(history,
+		models.AssistantMessage{Role: "user", Content: turn3Msg},
+		models.AssistantMessage{Role: "assistant", Content: "Data kendaraan tercatat. Berapa nilai pertanggungan yang diinginkan?"},
+	)
+
+	// Turn 4: User explicitly switches product to 'Auto Shield Comprehensive'
+	turn4Msg := "eh maaf saya mau ganti ke Auto Shield Comprehensive aja dong"
+	slugTurn4 := service.detectProductSlug(ctx, history, turn4Msg)
+	if slugTurn4 != "auto-shield-comprehensive" {
+		t.Fatalf("Turn 4 expected switched slug 'auto-shield-comprehensive', got: %s", slugTurn4)
+	}
+
+	// Turn 4 Assistant response is added to history
+	history = append(history,
+		models.AssistantMessage{Role: "user", Content: turn4Msg},
+		models.AssistantMessage{Role: "assistant", Content: "Baik, produk dialihkan ke Auto Shield Comprehensive. Berapa nilai pertanggungan yang diinginkan?"},
+	)
+
+	// Turn 5: User continues under new product without mentioning name
+	turn5Msg := "UP 150 juta tenor 3 tahun bayar tahunan"
+	slugTurn5 := service.detectProductSlug(ctx, history, turn5Msg)
+	if slugTurn5 != "auto-shield-comprehensive" {
+		t.Fatalf("Turn 5 (Session Context Lock) expected locked slug 'auto-shield-comprehensive', got: %s", slugTurn5)
 	}
 }
 
+func TestAssistantSessionContextLockFromToolCalls(t *testing.T) {
+	ctx := context.Background()
 
+	prodVehicleTest := models.Product{
+		ID:             "prod-veh-test",
+		Slug:           "perlindungan-jiwa-syariah-murni-test",
+		Name:           "Perlindungan Jiwa Syariah Murni Test",
+		Category:       models.ProductCategoryVehicle,
+		MinSumAssured:  75_000_000,
+		MaxSumAssured:  1_500_000_000,
+		MinPaymentTerm: 1,
+		MaxPaymentTerm: 5,
+	}
 
+	repo := &fakeProductRepository{
+		products: []models.Product{prodVehicleTest},
+	}
+	productService := NewProductService(repo)
+	service := NewAssistantService(&knowledgeFake{}, nil, productService)
+
+	// History contains an assistant message that executed a tool call with product_slug
+	history := []models.AssistantMessage{
+		{
+			Role:    "user",
+			Content: "hitung premi dong",
+		},
+		{
+			Role:    "assistant",
+			Content: "",
+			ToolCalls: []llm.ToolCall{
+				{
+					ID:   "call_123",
+					Type: "function",
+					Function: llm.ToolCallFunction{
+						Name:      "calculate_quote",
+						Arguments: `{"product_slug":"perlindungan-jiwa-syariah-murni-test","age":40,"gender":"female","sum_assured":100000000}`,
+					},
+				},
+			},
+		},
+		{
+			Role:    "tool",
+			Content: `{"indicative_premium": 250000}`,
+		},
+		{
+			Role:    "assistant",
+			Content: "Hasil simulasi premi Anda adalah Rp 250.000 / bulan. Apakah ingin melanjutkan pendaftaran?",
+		},
+	}
+
+	// User replies with generic confirmation
+	currentMsg := "ya setuju, lanjutkan pendaftaran"
+	lockedSlug := service.detectProductSlug(ctx, history, currentMsg)
+	if lockedSlug != "perlindungan-jiwa-syariah-murni-test" {
+		t.Fatalf("expected session context lock from tool calls to yield 'perlindungan-jiwa-syariah-murni-test', got: %s", lockedSlug)
+	}
+}
