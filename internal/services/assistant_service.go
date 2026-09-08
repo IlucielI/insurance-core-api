@@ -224,22 +224,48 @@ func (service *AssistantService) prepareChatContext(ctx context.Context, message
 		return nil, err
 	}
 
+	var productsList []models.Product
+	if lister, ok := service.quotes.(AssistantProductLister); ok {
+		if prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{}); err == nil {
+			productsList = prods
+		}
+	}
+
+	var catalogContext string
+	if len(productsList) > 0 {
+		var b strings.Builder
+		b.WriteString("[KATALOG PRODUK RESMI AKTIF DI SISTEM (DATABASE LIVE)]:\n")
+		for i, p := range productsList {
+			catName := "Jiwa"
+			if p.Category == models.ProductCategoryHealth {
+				catName = "Kesehatan"
+			} else if p.Category == models.ProductCategoryVehicle {
+				catName = "Kendaraan"
+			}
+			b.WriteString(fmt.Sprintf("%d. %s (Kategori: '%s' / Asuransi %s, Slug: '%s', UP: Rp %s - Rp %s, Tenor: %d-%d tahun)\n",
+				i+1, p.Name, p.Category, catName, p.Slug, formatIDR(p.MinSumAssured), formatIDR(p.MaxSumAssured), p.MinPaymentTerm, p.MaxPaymentTerm))
+		}
+		catalogContext = b.String()
+	}
+
 	contextText := strings.TrimSpace(buildContext(matches) + "\n\n" + quoteContext)
+	if catalogContext != "" {
+		contextText = strings.TrimSpace(contextText + "\n\n" + catalogContext)
+	}
 	if detectedSlug != "" {
 		detectedCat := "life"
-		if lister, ok := service.quotes.(AssistantProductLister); ok {
-			if prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{}); err == nil {
-				for _, p := range prods {
-					if p.Slug == detectedSlug {
-						detectedCat = string(p.Category)
-						break
-					}
-				}
+		for _, p := range productsList {
+			if p.Slug == detectedSlug {
+				detectedCat = string(p.Category)
+				break
 			}
-		} else if strings.Contains(detectedSlug, "vehicle") || strings.Contains(detectedSlug, "auto") {
-			detectedCat = "vehicle"
-		} else if strings.Contains(detectedSlug, "health") {
-			detectedCat = "health"
+		}
+		if detectedCat == "life" {
+			if strings.Contains(detectedSlug, "vehicle") || strings.Contains(detectedSlug, "auto") {
+				detectedCat = "vehicle"
+			} else if strings.Contains(detectedSlug, "health") {
+				detectedCat = "health"
+			}
 		}
 		contextText = strings.TrimSpace(contextText + fmt.Sprintf("\n\n[PANDUAN PRODUK AKTIF]: Nasabah sedang berkonsultasi/mendaftar produk '%s' (Kategori: '%s'). Pastikan kalkulasi premi ('calculate_quote') atau submission ('submit_application') menggunakan product_slug '%s' dan mematuhi panduan kuesioner kategori '%s'.", detectedSlug, detectedCat, detectedSlug, detectedCat))
 	}
@@ -299,22 +325,14 @@ PANDUAN PENGGUNAAN TOOLS & PROSES PENDAFTARAN (BERDASARKAN KATEGORI PRODUK):
      - Data Ahli Waris: Nama lengkap ahli waris dan hubungannya (misal: Pasangan, Anak, Orang Tua).
      - Saat memanggil tool 'submit_application', sertakan parameter 'smoker', 'has_critical_illness', 'critical_illness_details', 'has_hospitalization', 'hospitalization_details', 'has_family_history', 'beneficiary_name', 'beneficiary_relationship'.
   * Sebelum submit, berikan ringkasan data pendaftaran lengkap dan mintalah konfirmasi persetujuan dari nasabah. Setelah nasabah mengonfirmasi ("setuju", "ya", "lanjutkan", dll.), panggil tool 'submit_application'.
-- KATALOG PRODUK RESMI & BATASAN ATURAN (MUTLAK HARUS DIPATUHI):
-  1. Health Guard Essential (Asuransi Kesehatan - Category: 'health'):
-     - Slug: 'health-guard-essential'
-     - Uang Pertanggungan (UP): Minimum Rp 50.000.000 (50 juta), Maksimum Rp 500.000.000 (500 juta).
-     - Masa Bayar Premi (Tenor): 1 s/d 10 tahun.
-  2. Secure Life Plus (Asuransi Jiwa - Category: 'life'):
-     - Slug: 'secure-life-plus'
-     - Uang Pertanggungan (UP): Minimum Rp 100.000.000 (100 juta), Maksimum Rp 1.000.000.000 (1 miliar).
-     - Masa Bayar Premi (Tenor): 5 s/d 20 tahun.
-  3. Auto Shield Comprehensive (Asuransi Kendaraan - Category: 'vehicle'):
-     - Slug: 'auto-shield-comprehensive'
-     - Uang Pertanggungan (UP): Minimum Rp 75.000.000 (75 juta), Maksimum Rp 750.000.000 (750 juta).
-     - Masa Bayar Premi (Tenor): 1 s/d 5 tahun.
+- KATALOG PRODUK AKTIF & ATURAN REKOMENDASI (MUTLAK HARUS DIPATUHI):
+  * Gunakan seluruh data produk aktif dari Konteks Referensi ([KATALOG PRODUK RESMI AKTIF DI SISTEM]) atau hasil pemanggilan tool 'list_products'.
+  * JIKA PENGGUNA BERTANYA PRODUK APA SAJA YANG TERSEDIA ("ada produk apa aja", "rekomendasi produk", "pilihan asuransi", dll.):
+    -> Anda WAJIB MENJELASKAN SELURUH PRODUK AKTIF yang terdaftar di sistem. DILARANG membatasi hanya pada 3 produk jika di sistem terdapat lebih banyak produk aktif!
+    -> Tampilkan nama resmi produk, kategori (Jiwa, Kesehatan, Kendaraan), ringkasan manfaat, dan rentang Uang Pertanggungan (UP) secara rapi dan komunikatif.
 - ATURAN KONSISTENSI PRODUK:
   * Jika nasabah telah memilih produk tertentu, Anda WAJIB MENGGUNAKAN produk tersebut hingga proses selesai!
-  * JANGAN PERNAH menukar produk yang dipilih nasabah ke 'secure-life-plus' atau produk lain saat memanggil tool 'calculate_quote' atau 'submit_application'!
+  * JANGAN PERNAH menukar produk yang dipilih nasabah ke produk lain saat memanggil tool 'calculate_quote' atau 'submit_application'!
 - OPSI FREKUENSI BAYAR PREMI (SINKRON DENGAN FRONTEND):
   * Frekuensi pembayaran premi HANYA tersedia 2 pilihan:
     1. Bulanan ('monthly') - Autodebet fleksibel setiap bulan.
@@ -1534,3 +1552,17 @@ func detectProductSlugFromHistory(history []models.AssistantMessage, currentMess
 	}
 	return ""
 }
+
+func formatIDR(amount int64) string {
+	s := fmt.Sprintf("%d", amount)
+	var res []byte
+	n := len(s)
+	for i := 0; i < n; i++ {
+		if i > 0 && (n-i)%3 == 0 {
+			res = append(res, '.')
+		}
+		res = append(res, s[i])
+	}
+	return string(res)
+}
+
