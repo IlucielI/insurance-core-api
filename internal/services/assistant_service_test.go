@@ -966,3 +966,60 @@ func TestAssistantExecuteTool_NormalizesPaymentFrequency(t *testing.T) {
 		t.Fatalf("expected annual payment frequency, got: %s", appService.capturedInput.ProductQuoteRequest.PaymentFrequency)
 	}
 }
+
+func TestAssistantTools_ProductSlugEnums(t *testing.T) {
+	tools := assistantTools()
+	for _, tool := range tools {
+		if tool.Function.Name == "calculate_quote" || tool.Function.Name == "submit_application" {
+			paramsMap, ok := tool.Function.Parameters.(map[string]any)
+			if !ok {
+				t.Fatalf("expected map[string]any parameters for tool %s", tool.Function.Name)
+			}
+			props, ok := paramsMap["properties"].(map[string]any)
+			if !ok {
+				t.Fatalf("expected properties in parameters for tool %s", tool.Function.Name)
+			}
+			slugParam, ok := props["product_slug"].(map[string]any)
+			if !ok {
+				t.Fatalf("expected product_slug param in tool %s", tool.Function.Name)
+			}
+			enums, ok := slugParam["enum"].([]string)
+			if !ok {
+				t.Fatalf("expected enum []string in product_slug for %s", tool.Function.Name)
+			}
+			expected := []string{"health-guard-essential", "secure-life-plus", "auto-shield-comprehensive"}
+			if len(enums) != len(expected) {
+				t.Fatalf("expected %v, got %v", expected, enums)
+			}
+		}
+	}
+}
+
+func TestAssistantExecuteTool_ProductAndSumAssuredHandling(t *testing.T) {
+	healthProd := productFixture()
+	healthProd.Slug = "health-guard-essential"
+	healthProd.MinSumAssured = 50_000_000
+	healthProd.MaxSumAssured = 500_000_000
+
+	products := &fakeProductRepository{product: healthProd}
+	productService := NewProductService(products)
+	service := NewAssistantService(&knowledgeFake{}, nil, productService)
+
+	// Case 1: LLM defaulted to secure-life-plus, but activeSlug is health-guard-essential, and sum_assured is 50 (shorthand for 50,000,000)
+	args := `{"product_slug":"secure-life-plus","age":30,"gender":"male","sum_assured":50,"payment_term":5,"payment_frequency":"monthly"}`
+	res := service.executeTool(context.Background(), "calculate_quote", args, "health-guard-essential")
+	if strings.Contains(res, "error") {
+		t.Fatalf("expected success with product correction to health-guard-essential, got error: %s", res)
+	}
+
+	// Case 2: Detect product slug from history
+	history := []models.AssistantMessage{
+		{Role: "user", Content: "Saya mau daftar asuransi"},
+		{Role: "assistant", Content: "Produk apa yang Anda inginkan?"},
+		{Role: "user", Content: "pilih Health Guard Essential (Asuransi Kesehatan)"},
+	}
+	detected := detectProductSlugFromHistory(history, "50")
+	if detected != "health-guard-essential" {
+		t.Fatalf("expected detected product to be health-guard-essential, got: %s", detected)
+	}
+}

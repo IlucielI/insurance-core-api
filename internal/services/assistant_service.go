@@ -144,6 +144,7 @@ type preparedChatContext struct {
 	messages       []llm.Message
 	newMessages    []models.AssistantMessage
 	matches        []repositories.KnowledgeChunkMatch
+	detectedSlug   string
 }
 
 func (service *AssistantService) prepareChatContext(ctx context.Context, message string, quoteRequest *dtos.ProductQuoteRequest, slug string, conversationID string) (*preparedChatContext, error) {
@@ -164,14 +165,16 @@ func (service *AssistantService) prepareChatContext(ctx context.Context, message
 	}
 
 	var historyMessages []llm.Message
+	var rawHistory []models.AssistantMessage
 	if service.conversationRepository != nil {
 		if _, err := service.conversationRepository.GetOrCreateConversation(ctx, conversationID, "Insurance Consultation"); err != nil {
 			log.Printf("[AssistantService] warning: failed to get/create conversation %s: %v", conversationID, err)
 		}
-		history, err := service.conversationRepository.ListMessages(ctx, conversationID, 10)
+		history, err := service.conversationRepository.ListMessages(ctx, conversationID, 50)
 		if err != nil {
 			log.Printf("[AssistantService] warning: failed to list messages for conversation %s: %v", conversationID, err)
 		} else {
+			rawHistory = history
 			// Discard leading orphan tool messages to prevent OpenAI 400 Bad Request
 			// ('tool' message must immediately follow an 'assistant' message with matching 'tool_calls')
 			startIndex := 0
@@ -187,6 +190,11 @@ func (service *AssistantService) prepareChatContext(ctx context.Context, message
 				})
 			}
 		}
+	}
+
+	detectedSlug := strings.TrimSpace(slug)
+	if detectedSlug == "" {
+		detectedSlug = detectProductSlugFromHistory(rawHistory, message)
 	}
 
 	embedding, err := service.llm.CreateEmbedding(ctx, llm.EmbeddingInput{Text: message})
@@ -206,12 +214,20 @@ func (service *AssistantService) prepareChatContext(ctx context.Context, message
 		}
 	}
 	matches = filtered
-	quoteContext, err := service.buildQuoteContext(ctx, quoteRequest, slug)
+
+	slugForQuote := slug
+	if slugForQuote == "" {
+		slugForQuote = detectedSlug
+	}
+	quoteContext, err := service.buildQuoteContext(ctx, quoteRequest, slugForQuote)
 	if err != nil {
 		return nil, err
 	}
 
 	contextText := strings.TrimSpace(buildContext(matches) + "\n\n" + quoteContext)
+	if detectedSlug != "" {
+		contextText = strings.TrimSpace(contextText + fmt.Sprintf("\n\n[PANDUAN PRODUK AKTIF]: Nasabah sedang berkonsultasi/mendaftar produk '%s'. Pastikan kalkulasi premi ('calculate_quote') atau submission ('submit_application') menggunakan product_slug '%s' dan mematuhi batasan produk tersebut.", detectedSlug, detectedSlug))
+	}
 	systemMsg := llm.Message{
 		Role: "system",
 		Content: `Anda adalah Bayu Insurance AI, asisten virtual resmi khusus untuk layanan produk, underwriting, polis, dan operasional asuransi digital di Bayu Insurance (berlisensi dan diawasi oleh OJK).
@@ -249,6 +265,23 @@ PANDUAN PENGGUNAAN TOOLS & PROSES PENDAFTARAN:
 - Rekomendasi & Katalog Produk: Jika pengguna ingin tahu produk asuransi atau bertanya produk apa saja yang tersedia, panggil tool 'list_products' dan berikan ringkasan produk yang relevan.
 - Hitung Premi & Simulasi: Jika pengguna ingin simulasi atau menghitung premi dan data cukup, panggil tool 'calculate_quote'. Jika data belum lengkap, tanyakan parameternya secara bertahap dan ramah.
 - Pendaftaran Asuransi: Jika pengguna ingin mendaftar asuransi (misal: "mau daftar", "mau bikin polis"), bimbing dengan menanyakan nama lengkap, email, nomor HP, serta pilihan produk dan parameternya secara bertahap. Sebelum submit, berikan ringkasan data dan mintalah konfirmasi persetujuan dari nasabah. Setelah dikonfirmasi, panggil tool 'submit_application'.
+- KATALOG PRODUK RESMI & BATASAN ATURAN (MUTLAK HARUS DIPATUHI):
+  1. Health Guard Essential (Asuransi Kesehatan):
+     - Slug: 'health-guard-essential'
+     - Uang Pertanggungan (UP): Minimum Rp 50.000.000 (50 juta), Maksimum Rp 500.000.000 (500 juta).
+     - Masa Bayar Premi (Tenor): 1 s/d 10 tahun.
+  2. Secure Life Plus (Asuransi Jiwa):
+     - Slug: 'secure-life-plus'
+     - Uang Pertanggungan (UP): Minimum Rp 100.000.000 (100 juta), Maksimum Rp 1.000.000.000 (1 miliar).
+     - Masa Bayar Premi (Tenor): 5 s/d 20 tahun.
+  3. Auto Shield Comprehensive (Asuransi Kendaraan):
+     - Slug: 'auto-shield-comprehensive'
+     - Uang Pertanggungan (UP): Minimum Rp 75.000.000 (75 juta), Maksimum Rp 750.000.000 (750 juta).
+     - Masa Bayar Premi (Tenor): 1 s/d 5 tahun.
+- ATURAN KONSISTENSI PRODUK:
+  * Jika nasabah telah memilih produk tertentu (contoh: "Health Guard Essential" / Asuransi Kesehatan), Anda WAJIB MENGGUNAKAN produk tersebut hingga proses selesai!
+  * JANGAN PERNAH menukar produk yang dipilih nasabah ke 'secure-life-plus' atau produk lain saat memanggil tool 'calculate_quote' atau 'submit_application'!
+  * Jika nasabah memilih Health Guard Essential dan memasukkan Uang Pertanggungan Rp 50 juta, ini adalah VALID karena minimum UP produk Health Guard Essential adalah Rp 50 juta (BUKAN 100 juta)! Gunakan selalu product_slug 'health-guard-essential'.
 - OPSI FREKUENSI BAYAR PREMI (SINKRON DENGAN FRONTEND):
   * Frekuensi pembayaran premi HANYA tersedia 2 pilihan:
     1. Bulanan ('monthly') - Autodebet fleksibel setiap bulan.
@@ -291,6 +324,7 @@ PANDUAN PENGGUNAAN TOOLS & PROSES PENDAFTARAN:
 		messages:       messages,
 		newMessages:    newMessages,
 		matches:        matches,
+		detectedSlug:   detectedSlug,
 	}, nil
 }
 
@@ -340,7 +374,7 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 
 		for _, toolCall := range output.ToolCalls {
 			toolsUsed = append(toolsUsed, toolCall.Function.Name)
-			toolResult := service.executeTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
+			toolResult := service.executeTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments, prep.detectedSlug)
 			messages = append(messages, llm.Message{
 				Role:       "tool",
 				Content:    toolResult,
@@ -477,7 +511,7 @@ func (service *AssistantService) ChatStream(ctx context.Context, req dtos.Assist
 				}
 			}
 
-			toolResult := service.executeTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
+			toolResult := service.executeTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments, prep.detectedSlug)
 
 			if onEvent != nil {
 				if err := onEvent(dtos.AssistantStreamEvent{
@@ -635,7 +669,12 @@ func toolError(msg string) string {
 	return string(b)
 }
 
-func (service *AssistantService) executeTool(ctx context.Context, name string, rawArgs string) string {
+func (service *AssistantService) executeTool(ctx context.Context, name string, rawArgs string, activeSlug ...string) string {
+	defaultSlug := ""
+	if len(activeSlug) > 0 {
+		defaultSlug = strings.TrimSpace(activeSlug[0])
+	}
+
 	switch name {
 	case "calculate_quote":
 		if service.quotes == nil {
@@ -655,9 +694,24 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
 			return toolError("invalid arguments: " + err.Error())
 		}
-		args.ProductSlug = strings.TrimSpace(args.ProductSlug)
+		args.ProductSlug = normalizeProductSlug(args.ProductSlug)
+		if args.ProductSlug == "" && defaultSlug != "" {
+			args.ProductSlug = defaultSlug
+		}
+		if defaultSlug != "" && args.ProductSlug != defaultSlug {
+			if defaultSlug == "health-guard-essential" && args.ProductSlug == "secure-life-plus" {
+				args.ProductSlug = defaultSlug
+			} else if defaultSlug == "auto-shield-comprehensive" && args.ProductSlug == "secure-life-plus" {
+				args.ProductSlug = defaultSlug
+			}
+		}
+
 		if args.ProductSlug == "" {
 			return toolError("product_slug is required")
+		}
+
+		if args.SumAssured > 0 && args.SumAssured < 10000 {
+			args.SumAssured = args.SumAssured * 1_000_000
 		}
 
 		paymentFreq := strings.ToLower(strings.TrimSpace(args.PaymentFrequency))
@@ -700,6 +754,12 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 
 		quote, err := service.quotes.CreateProductQuote(ctx, args.ProductSlug, dtos.ProductQuoteRequestToInput(validatedReq))
 		if err != nil {
+			if errors.Is(err, constants.QuoteSumAssuredOutOfRangeError) {
+				return toolError(fmt.Sprintf("Uang pertanggungan Rp %d di luar batas range yang diizinkan untuk produk '%s'.", quoteReq.SumAssured, args.ProductSlug))
+			}
+			if errors.Is(err, constants.QuotePaymentTermOutOfRangeError) {
+				return toolError(fmt.Sprintf("Masa bayar premi %d tahun di luar batas range yang diizinkan untuk produk '%s'.", quoteReq.PaymentTerm, args.ProductSlug))
+			}
 			return toolError(err.Error())
 		}
 		res, err := json.Marshal(quote)
@@ -777,9 +837,24 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
 			return toolError("invalid arguments: " + err.Error())
 		}
-		args.ProductSlug = strings.TrimSpace(args.ProductSlug)
+		args.ProductSlug = normalizeProductSlug(args.ProductSlug)
+		if args.ProductSlug == "" && defaultSlug != "" {
+			args.ProductSlug = defaultSlug
+		}
+		if defaultSlug != "" && args.ProductSlug != defaultSlug {
+			if defaultSlug == "health-guard-essential" && args.ProductSlug == "secure-life-plus" {
+				args.ProductSlug = defaultSlug
+			} else if defaultSlug == "auto-shield-comprehensive" && args.ProductSlug == "secure-life-plus" {
+				args.ProductSlug = defaultSlug
+			}
+		}
+
 		if args.ProductSlug == "" {
 			return toolError("product_slug is required")
+		}
+
+		if args.SumAssured > 0 && args.SumAssured < 10000 {
+			args.SumAssured = args.SumAssured * 1_000_000
 		}
 
 		cleanPhone := strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(args.Phone), "-", ""), " ", "")
@@ -834,6 +909,12 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 
 		createdApp, err := service.applications.Create(ctx, args.ProductSlug, validatedReq)
 		if err != nil {
+			if errors.Is(err, constants.QuoteSumAssuredOutOfRangeError) {
+				return toolError(fmt.Sprintf("Uang pertanggungan Rp %d di luar batas range produk '%s'.", appReq.SumAssured, args.ProductSlug))
+			}
+			if errors.Is(err, constants.QuotePaymentTermOutOfRangeError) {
+				return toolError(fmt.Sprintf("Masa bayar premi %d tahun di luar batas range produk '%s'.", appReq.PaymentTerm, args.ProductSlug))
+			}
 			return toolError(err.Error())
 		}
 
@@ -871,7 +952,8 @@ func assistantTools() []llm.Tool {
 					"properties": map[string]any{
 						"product_slug": map[string]any{
 							"type":        "string",
-							"description": "The slug of the product to quote, e.g. 'secure-life-plus'",
+							"enum":        []string{"health-guard-essential", "secure-life-plus", "auto-shield-comprehensive"},
+							"description": "Slug produk asuransi: 'health-guard-essential' (Health Guard Essential / Asuransi Kesehatan, min UP Rp 50 juta), 'secure-life-plus' (Secure Life Plus / Asuransi Jiwa, min UP Rp 100 juta), atau 'auto-shield-comprehensive' (Auto Shield Comprehensive / Asuransi Kendaraan, min UP Rp 75 juta). WAJIB sesuai produk yang dipilih nasabah.",
 						},
 						"age": map[string]any{
 							"type":        "integer",
@@ -944,7 +1026,8 @@ func assistantTools() []llm.Tool {
 					"properties": map[string]any{
 						"product_slug": map[string]any{
 							"type":        "string",
-							"description": "The product slug to apply for, e.g. 'secure-life-plus'",
+							"enum":        []string{"health-guard-essential", "secure-life-plus", "auto-shield-comprehensive"},
+							"description": "Slug produk asuransi: 'health-guard-essential' (Health Guard Essential / Asuransi Kesehatan, min UP Rp 50 juta), 'secure-life-plus' (Secure Life Plus / Asuransi Jiwa, min UP Rp 100 juta), atau 'auto-shield-comprehensive' (Auto Shield Comprehensive / Asuransi Kendaraan, min UP Rp 75 juta). WAJIB sesuai produk yang dipilih nasabah.",
 						},
 						"full_name": map[string]any{
 							"type":        "string",
@@ -1076,4 +1159,46 @@ func max(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+func normalizeProductSlug(slug string) string {
+	s := strings.ToLower(strings.TrimSpace(slug))
+	s = strings.ReplaceAll(s, "_", "-")
+	switch {
+	case strings.Contains(s, "health") || strings.Contains(s, "kesehatan"):
+		return "health-guard-essential"
+	case strings.Contains(s, "auto") || strings.Contains(s, "kendaraan") || strings.Contains(s, "mobil"):
+		return "auto-shield-comprehensive"
+	case strings.Contains(s, "secure") || strings.Contains(s, "life") || strings.Contains(s, "jiwa"):
+		return "secure-life-plus"
+	default:
+		return s
+	}
+}
+
+func detectProductSlugFromHistory(history []models.AssistantMessage, currentMessage string) string {
+	combined := strings.ToLower(currentMessage)
+	if strings.Contains(combined, "health-guard-essential") || strings.Contains(combined, "health guard") || strings.Contains(combined, "kesehatan") {
+		return "health-guard-essential"
+	}
+	if strings.Contains(combined, "auto-shield-comprehensive") || strings.Contains(combined, "auto shield") || strings.Contains(combined, "kendaraan") || strings.Contains(combined, "mobil") {
+		return "auto-shield-comprehensive"
+	}
+	if strings.Contains(combined, "secure-life-plus") || strings.Contains(combined, "secure life") || strings.Contains(combined, "asuransi jiwa") {
+		return "secure-life-plus"
+	}
+
+	for i := len(history) - 1; i >= 0; i-- {
+		text := strings.ToLower(history[i].Content)
+		if strings.Contains(text, "health-guard-essential") || strings.Contains(text, "health guard") || strings.Contains(text, "kesehatan") {
+			return "health-guard-essential"
+		}
+		if strings.Contains(text, "auto-shield-comprehensive") || strings.Contains(text, "auto shield") || strings.Contains(text, "kendaraan") || strings.Contains(text, "mobil") {
+			return "auto-shield-comprehensive"
+		}
+		if strings.Contains(text, "secure-life-plus") || strings.Contains(text, "secure life") || strings.Contains(text, "asuransi jiwa") {
+			return "secure-life-plus"
+		}
+	}
+	return ""
 }
