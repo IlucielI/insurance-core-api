@@ -59,7 +59,8 @@ const (
 )
 
 const (
-	ErrQuoteAgeInvalid              = "age must be between 18 and 60"
+	ErrQuoteAgeInvalid              = "age must be greater than or equal to 0"
+	ErrQuoteAgeOutOfRange           = "age is outside product allowed range"
 	ErrQuoteGenderInvalid           = "gender must be male or female"
 	ErrQuoteSmokerInvalid           = "smoker must be yes or no"
 	ErrQuoteOccupationInvalid       = "occupation_class must be one of: low, standard, high"
@@ -79,6 +80,7 @@ var (
 	ErrApplicationReviewCheckInvalidError          = errors.New(ErrApplicationReviewCheckInvalid)
 	QuoteSumAssuredOutOfRangeError                 = errors.New(ErrQuoteSumAssuredOutOfRange)
 	QuotePaymentTermOutOfRangeError                = errors.New(ErrQuotePaymentTermOutOfRange)
+	QuoteAgeOutOfRangeError                        = errors.New(ErrQuoteAgeOutOfRange)
 	QuotePricingRulesInvalidError                  = errors.New(ErrQuotePricingRulesInvalid)
 	ErrProductSlugAlreadyExistsError               = errors.New(ErrProductSlugAlreadyExists)
 	ErrProductHasApplicationsError                 = errors.New(ErrProductHasApplications)
@@ -87,7 +89,8 @@ var (
 
 func IsQuoteValidationError(err error) bool {
 	return errors.Is(err, QuoteSumAssuredOutOfRangeError) ||
-		errors.Is(err, QuotePaymentTermOutOfRangeError)
+		errors.Is(err, QuotePaymentTermOutOfRangeError) ||
+		errors.Is(err, QuoteAgeOutOfRangeError)
 }
 
 const (

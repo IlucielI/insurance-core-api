@@ -110,7 +110,11 @@ func ValidateProductQuoteRequest(request dtos.ProductQuoteRequest) (dtos.Product
 		request.Smoker = constants.SmokerNo
 	}
 
-	if validation.Validate(request.Age, validation.Min(constants.MinQuoteAge), validation.Max(constants.MaxQuoteAge)) != nil {
+	if request.Gender == "" {
+		request.Gender = constants.GenderMale
+	}
+
+	if request.Age < 0 {
 		return dtos.ProductQuoteRequest{}, errors.New(constants.ErrQuoteAgeInvalid)
 	}
 
