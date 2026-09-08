@@ -1023,3 +1023,146 @@ func TestAssistantExecuteTool_ProductAndSumAssuredHandling(t *testing.T) {
 		t.Fatalf("expected detected product to be health-guard-essential, got: %s", detected)
 	}
 }
+
+func TestAssistantExecuteTool_SubmitApplication_HealthProduct_WithMedicalHistory(t *testing.T) {
+	healthProd := productFixture()
+	healthProd.Slug = "health-guard-essential"
+	healthProd.Category = models.ProductCategoryHealth
+
+	products := &fakeProductRepository{product: healthProd}
+	productService := NewProductService(products)
+	appService := &fakeApplicationService{
+		createdApp: models.Application{ID: "app-health-001", FullName: "Ahmad Yani", Premium: 450000},
+	}
+
+	service := NewAssistantService(&knowledgeFake{}, nil, productService).WithApplicationService(appService)
+
+	args := `{
+		"product_slug": "health-guard-essential",
+		"full_name": "Ahmad Yani",
+		"email": "ahmad@example.com",
+		"phone": "08123456789",
+		"age": 40,
+		"gender": "male",
+		"sum_assured": 100000000,
+		"payment_term": 5,
+		"payment_frequency": "monthly",
+		"smoker": "no",
+		"has_critical_illness": "yes",
+		"critical_illness_details": "Diabetes Tipe 2 terkontrol",
+		"has_hospitalization": "yes",
+		"hospitalization_details": "Operasi Usus Buntu di RS Siloam",
+		"has_family_history": "no",
+		"beneficiary_name": "Siti Rahma",
+		"beneficiary_relationship": "Istri"
+	}`
+
+	res := service.executeTool(context.Background(), "submit_application", args, "health-guard-essential")
+	if strings.Contains(res, "error") {
+		t.Fatalf("expected successful submission, got: %s", res)
+	}
+
+	if appService.capturedSlug != "health-guard-essential" {
+		t.Fatalf("expected slug health-guard-essential, got: %s", appService.capturedSlug)
+	}
+
+	// Verify answers map
+	answerMap := make(map[string]any)
+	for _, ans := range appService.capturedInput.Answers {
+		answerMap[ans.Code] = ans.Value
+	}
+
+	if answerMap["is_smoker"] != "no" {
+		t.Errorf("expected is_smoker no, got: %v", answerMap["is_smoker"])
+	}
+	if answerMap["has_critical_illness"] != "yes" {
+		t.Errorf("expected has_critical_illness yes, got: %v", answerMap["has_critical_illness"])
+	}
+	if answerMap["critical_illness_details"] != "Diabetes Tipe 2 terkontrol" {
+		t.Errorf("expected critical_illness_details, got: %v", answerMap["critical_illness_details"])
+	}
+	if answerMap["has_hospitalization_2y"] != "yes" {
+		t.Errorf("expected has_hospitalization_2y yes, got: %v", answerMap["has_hospitalization_2y"])
+	}
+	if answerMap["hospitalization_details"] != "Operasi Usus Buntu di RS Siloam" {
+		t.Errorf("expected hospitalization_details, got: %v", answerMap["hospitalization_details"])
+	}
+	if answerMap["has_family_history"] != "no" {
+		t.Errorf("expected has_family_history no, got: %v", answerMap["has_family_history"])
+	}
+	if answerMap["beneficiary_name"] != "Siti Rahma" {
+		t.Errorf("expected beneficiary_name Siti Rahma, got: %v", answerMap["beneficiary_name"])
+	}
+	if answerMap["beneficiary_relationship"] != "Istri" {
+		t.Errorf("expected beneficiary_relationship Istri, got: %v", answerMap["beneficiary_relationship"])
+	}
+	if answerMap["agree_truth_declaration"] != true || answerMap["agree_policy_terms"] != true {
+		t.Errorf("expected legal declarations to be true, got: %v, %v", answerMap["agree_truth_declaration"], answerMap["agree_policy_terms"])
+	}
+}
+
+func TestAssistantExecuteTool_SubmitApplication_VehicleProduct_WithPlateAndUsage(t *testing.T) {
+	vehicleProd := productFixture()
+	vehicleProd.Slug = "auto-shield-comprehensive"
+	vehicleProd.Category = models.ProductCategoryVehicle
+
+	products := &fakeProductRepository{product: vehicleProd}
+	productService := NewProductService(products)
+	appService := &fakeApplicationService{
+		createdApp: models.Application{ID: "app-veh-001", FullName: "Bambang Wijaya", Premium: 1500000},
+	}
+
+	service := NewAssistantService(&knowledgeFake{}, nil, productService).WithApplicationService(appService)
+
+	args := `{
+		"product_slug": "auto-shield-comprehensive",
+		"full_name": "Bambang Wijaya",
+		"email": "bambang@example.com",
+		"phone": "08198765432",
+		"age": 35,
+		"gender": "male",
+		"sum_assured": 150000000,
+		"payment_term": 3,
+		"payment_frequency": "annual",
+		"vehicle_plate": "B 9999 XYZ",
+		"vehicle_usage": "high",
+		"beneficiary_name": "Budi",
+		"beneficiary_relationship": "Anak"
+	}`
+
+	res := service.executeTool(context.Background(), "submit_application", args, "auto-shield-comprehensive")
+	if strings.Contains(res, "error") {
+		t.Fatalf("expected successful submission, got: %s", res)
+	}
+
+	if appService.capturedSlug != "auto-shield-comprehensive" {
+		t.Fatalf("expected slug auto-shield-comprehensive, got: %s", appService.capturedSlug)
+	}
+
+	// Verify vehicle fields
+	if appService.capturedInput.Smoker != constants.SmokerNo {
+		t.Errorf("expected smoker to be forced to non-smoker for vehicle, got: %v", appService.capturedInput.Smoker)
+	}
+	if appService.capturedInput.OccupationClass != "high" {
+		t.Errorf("expected occupation_class to be mapped from vehicle_usage high, got: %v", appService.capturedInput.OccupationClass)
+	}
+
+	answerMap := make(map[string]any)
+	for _, ans := range appService.capturedInput.Answers {
+		answerMap[ans.Code] = ans.Value
+	}
+
+	if answerMap["vehicle_plate"] != "B 9999 XYZ" {
+		t.Errorf("expected vehicle_plate B 9999 XYZ, got: %v", answerMap["vehicle_plate"])
+	}
+	if answerMap["occupation_class"] != "high" {
+		t.Errorf("expected occupation_class high, got: %v", answerMap["occupation_class"])
+	}
+	if answerMap["beneficiary_name"] != "Budi" {
+		t.Errorf("expected beneficiary_name Budi, got: %v", answerMap["beneficiary_name"])
+	}
+	if answerMap["agree_truth_declaration"] != true || answerMap["agree_policy_terms"] != true {
+		t.Errorf("expected legal declarations to be true, got: %v, %v", answerMap["agree_truth_declaration"], answerMap["agree_policy_terms"])
+	}
+}
+

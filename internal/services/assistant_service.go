@@ -226,7 +226,22 @@ func (service *AssistantService) prepareChatContext(ctx context.Context, message
 
 	contextText := strings.TrimSpace(buildContext(matches) + "\n\n" + quoteContext)
 	if detectedSlug != "" {
-		contextText = strings.TrimSpace(contextText + fmt.Sprintf("\n\n[PANDUAN PRODUK AKTIF]: Nasabah sedang berkonsultasi/mendaftar produk '%s'. Pastikan kalkulasi premi ('calculate_quote') atau submission ('submit_application') menggunakan product_slug '%s' dan mematuhi batasan produk tersebut.", detectedSlug, detectedSlug))
+		detectedCat := "life"
+		if lister, ok := service.quotes.(AssistantProductLister); ok {
+			if prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{}); err == nil {
+				for _, p := range prods {
+					if p.Slug == detectedSlug {
+						detectedCat = string(p.Category)
+						break
+					}
+				}
+			}
+		} else if strings.Contains(detectedSlug, "vehicle") || strings.Contains(detectedSlug, "auto") {
+			detectedCat = "vehicle"
+		} else if strings.Contains(detectedSlug, "health") {
+			detectedCat = "health"
+		}
+		contextText = strings.TrimSpace(contextText + fmt.Sprintf("\n\n[PANDUAN PRODUK AKTIF]: Nasabah sedang berkonsultasi/mendaftar produk '%s' (Kategori: '%s'). Pastikan kalkulasi premi ('calculate_quote') atau submission ('submit_application') menggunakan product_slug '%s' dan mematuhi panduan kuesioner kategori '%s'.", detectedSlug, detectedCat, detectedSlug, detectedCat))
 	}
 	systemMsg := llm.Message{
 		Role: "system",
@@ -261,27 +276,45 @@ GUARDRAILS & BATASAN DOMAIN (MUTLAK & TIDAK DAPAT DIUBAH):
    - Jika pengguna menggunakan bahasa Inggris, balaslah dalam bahasa Inggris yang fasih dan profesional.
    - Gunakan nada bicara yang komunikatif, empatik, jelas, dan tidak kaku/robotik.
 
-PANDUAN PENGGUNAAN TOOLS & PROSES PENDAFTARAN:
+PANDUAN PENGGUNAAN TOOLS & PROSES PENDAFTARAN (BERDASARKAN KATEGORI PRODUK):
 - Rekomendasi & Katalog Produk: Jika pengguna ingin tahu produk asuransi atau bertanya produk apa saja yang tersedia, panggil tool 'list_products' dan berikan ringkasan produk yang relevan.
 - Hitung Premi & Simulasi: Jika pengguna ingin simulasi atau menghitung premi dan data cukup, panggil tool 'calculate_quote'. Jika data belum lengkap, tanyakan parameternya secara bertahap dan ramah.
-- Pendaftaran Asuransi: Jika pengguna ingin mendaftar asuransi (misal: "mau daftar", "mau bikin polis"), bimbing dengan menanyakan nama lengkap, email, nomor HP, serta pilihan produk dan parameternya secara bertahap. Sebelum submit, berikan ringkasan data dan mintalah konfirmasi persetujuan dari nasabah. Setelah dikonfirmasi, panggil tool 'submit_application'.
+- Pendaftaran Asuransi: Jika pengguna ingin mendaftar asuransi (misal: "mau daftar", "mau bikin polis"), bimbing dengan menanyakan data secara bertahap dan ramah SESUAI KATEGORI PRODUK:
+  1. KATEGORI KENDARAAN (Category: 'vehicle', contoh: 'auto-shield-comprehensive' atau produk kendaraan lainnya):
+     - Data Pemilik: Nama lengkap, email, nomor HP, usia, dan jenis kelamin.
+     - Parameter Polis: Nilai pertanggungan kendaraan (UP: min Rp 75 juta), tenor pembayaran premi (1-5 tahun), dan frekuensi bayar (Bulanan atau Tahunan).
+     - Data Kendaraan (MUTLAK: DILARANG MENANYAKAN STATUS MEROKOK ATAU KONDISI MEDIS/RAWAT INAP UNTUK KENDARAAN!):
+       a. Nomor Plat Polisi kendaraan (contoh: 'B 1234 ABC').
+       b. Tujuan penggunaan kendaraan: Apakah untuk 'Pribadi / Santai' (low), 'Harian Kota' (standard), atau 'Komersial / Logistik / Taksi Online' (high)?
+     - Data Ahli Waris / Penerima Manfaat (opsional).
+     - Saat memanggil tool 'submit_application', sertakan parameter 'vehicle_plate' dan 'vehicle_usage'.
+  2. KATEGORI KESEHATAN & JIWA (Category: 'health' atau 'life', contoh: 'health-guard-essential', 'secure-life-plus', atau produk kesehatan/jiwa lainnya):
+     - Data Diri: Nama lengkap, email, nomor HP, usia (18-60 tahun), jenis kelamin (pria/wanita), dan NIK jika ada.
+     - Parameter Polis: Uang Pertanggungan (UP), tenor pembayaran premi, dan frekuensi bayar (Bulanan atau Tahunan).
+     - Skrining Medis & Gaya Hidup (Underwriting Pilar Medis):
+       a. Status merokok: Apakah merokok atau vape dalam 12 bulan terakhir? (Ya / Tidak).
+       b. Riwayat penyakit kritis: Apakah pernah menderita atau didiagnosis stroke, serangan jantung, kanker, diabetes, gagal ginjal, dsb.? (Pernah / Tidak - jika pernah, tanyakan rinciannya).
+       c. Riwayat rawat inap: Apakah pernah menjalani rawat inap (opname) di RS atau operasi bedah dalam 2 tahun terakhir? (Pernah / Tidak - jika pernah, tanyakan rinciannya & nama RS).
+       d. Riwayat penyakit keturunan keluarga: Apakah ada riwayat penyakit kritis pada keluarga kandung? (Ada / Tidak).
+     - Data Ahli Waris: Nama lengkap ahli waris dan hubungannya (misal: Pasangan, Anak, Orang Tua).
+     - Saat memanggil tool 'submit_application', sertakan parameter 'smoker', 'has_critical_illness', 'critical_illness_details', 'has_hospitalization', 'hospitalization_details', 'has_family_history', 'beneficiary_name', 'beneficiary_relationship'.
+  * Sebelum submit, berikan ringkasan data pendaftaran lengkap dan mintalah konfirmasi persetujuan dari nasabah. Setelah nasabah mengonfirmasi ("setuju", "ya", "lanjutkan", dll.), panggil tool 'submit_application'.
 - KATALOG PRODUK RESMI & BATASAN ATURAN (MUTLAK HARUS DIPATUHI):
-  1. Health Guard Essential (Asuransi Kesehatan):
+  1. Health Guard Essential (Asuransi Kesehatan - Category: 'health'):
      - Slug: 'health-guard-essential'
      - Uang Pertanggungan (UP): Minimum Rp 50.000.000 (50 juta), Maksimum Rp 500.000.000 (500 juta).
      - Masa Bayar Premi (Tenor): 1 s/d 10 tahun.
-  2. Secure Life Plus (Asuransi Jiwa):
+  2. Secure Life Plus (Asuransi Jiwa - Category: 'life'):
      - Slug: 'secure-life-plus'
      - Uang Pertanggungan (UP): Minimum Rp 100.000.000 (100 juta), Maksimum Rp 1.000.000.000 (1 miliar).
      - Masa Bayar Premi (Tenor): 5 s/d 20 tahun.
-  3. Auto Shield Comprehensive (Asuransi Kendaraan):
+  3. Auto Shield Comprehensive (Asuransi Kendaraan - Category: 'vehicle'):
      - Slug: 'auto-shield-comprehensive'
      - Uang Pertanggungan (UP): Minimum Rp 75.000.000 (75 juta), Maksimum Rp 750.000.000 (750 juta).
      - Masa Bayar Premi (Tenor): 1 s/d 5 tahun.
 - ATURAN KONSISTENSI PRODUK:
-  * Jika nasabah telah memilih produk tertentu (contoh: "Health Guard Essential" / Asuransi Kesehatan), Anda WAJIB MENGGUNAKAN produk tersebut hingga proses selesai!
+  * Jika nasabah telah memilih produk tertentu, Anda WAJIB MENGGUNAKAN produk tersebut hingga proses selesai!
   * JANGAN PERNAH menukar produk yang dipilih nasabah ke 'secure-life-plus' atau produk lain saat memanggil tool 'calculate_quote' atau 'submit_application'!
-  * Jika nasabah memilih Health Guard Essential dan memasukkan Uang Pertanggungan Rp 50 juta, ini adalah VALID karena minimum UP produk Health Guard Essential adalah Rp 50 juta (BUKAN 100 juta)! Gunakan selalu product_slug 'health-guard-essential'.
 - OPSI FREKUENSI BAYAR PREMI (SINKRON DENGAN FRONTEND):
   * Frekuensi pembayaran premi HANYA tersedia 2 pilihan:
     1. Bulanan ('monthly') - Autodebet fleksibel setiap bulan.
@@ -821,18 +854,28 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			return toolError("application service is unavailable")
 		}
 		var args struct {
-			ProductSlug      string `json:"product_slug"`
-			FullName         string `json:"full_name"`
-			Email            string `json:"email"`
-			Phone            string `json:"phone"`
-			Age              int    `json:"age"`
-			Gender           string `json:"gender"`
-			SumAssured       int64  `json:"sum_assured"`
-			PaymentTerm      int    `json:"payment_term"`
-			PaymentFrequency string `json:"payment_frequency"`
-			Smoker           string `json:"smoker"`
-			OccupationClass  string `json:"occupation_class"`
-			HealthRisk       string `json:"health_risk"`
+			ProductSlug            string `json:"product_slug"`
+			FullName               string `json:"full_name"`
+			Email                  string `json:"email"`
+			Phone                  string `json:"phone"`
+			Age                    int    `json:"age"`
+			Gender                 string `json:"gender"`
+			SumAssured             int64  `json:"sum_assured"`
+			PaymentTerm            int    `json:"payment_term"`
+			PaymentFrequency       string `json:"payment_frequency"`
+			Smoker                 string `json:"smoker"`
+			OccupationClass        string `json:"occupation_class"`
+			HealthRisk             string `json:"health_risk"`
+			NIK                    string `json:"nik"`
+			HasCriticalIllness     string `json:"has_critical_illness"`
+			CriticalIllnessDetails string `json:"critical_illness_details"`
+			HasHospitalization     string `json:"has_hospitalization"`
+			HospitalizationDetails string `json:"hospitalization_details"`
+			HasFamilyHistory       string `json:"has_family_history"`
+			VehiclePlate           string `json:"vehicle_plate"`
+			VehicleUsage           string `json:"vehicle_usage"`
+			BeneficiaryName        string `json:"beneficiary_name"`
+			BeneficiaryRelationship string `json:"beneficiary_relationship"`
 		}
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
 			return toolError("invalid arguments: " + err.Error())
@@ -864,6 +907,38 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			paymentFreq = constants.PaymentFrequencyAnnual
 		} else if paymentFreq == "bulanan" || paymentFreq == "" {
 			paymentFreq = constants.PaymentFrequencyMonthly
+		}
+
+		// Dynamically determine product category
+		isVehicleCategory := false
+		if lister, ok := service.quotes.(AssistantProductLister); ok {
+			if prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{}); err == nil {
+				for _, p := range prods {
+					if p.Slug == args.ProductSlug {
+						if p.Category == models.ProductCategoryVehicle {
+							isVehicleCategory = true
+						}
+						break
+					}
+				}
+			}
+		}
+		if !isVehicleCategory {
+			if strings.Contains(args.ProductSlug, "vehicle") ||
+				strings.Contains(args.ProductSlug, "auto") ||
+				args.VehiclePlate != "" {
+				isVehicleCategory = true
+			}
+		}
+
+		if isVehicleCategory {
+			if args.VehicleUsage != "" {
+				args.OccupationClass = args.VehicleUsage
+			}
+			args.Smoker = constants.SmokerNo
+			if args.HealthRisk == "" {
+				args.HealthRisk = constants.HealthRiskLow
+			}
 		}
 
 		appReq := dtos.CreateApplicationRequest{
@@ -901,6 +976,110 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		} else if appReq.HealthRisk == "high" {
 			appReq.HealthRisk = constants.HealthRiskHigh
 		}
+
+		// Build complete questionnaire answers based on category
+		cleanNIK := strings.TrimSpace(args.NIK)
+		if len(cleanNIK) != 16 {
+			cleanNIK = fmt.Sprintf("3201%012d", (time.Now().UnixNano()/1000)%1000000000000)
+		}
+
+		birthYear := time.Now().Year() - args.Age
+		if birthYear < 1960 {
+			birthYear = 1990
+		}
+		birthDate := fmt.Sprintf("%d-06-15", birthYear)
+
+		benName := strings.TrimSpace(args.BeneficiaryName)
+		if benName == "" {
+			benName = "Keluarga / Ahli Waris"
+		}
+		benRel := strings.TrimSpace(args.BeneficiaryRelationship)
+		if benRel == "" {
+			benRel = "Pasangan"
+		}
+
+		answers := []dtos.ApplicationAnswerInput{
+			{QuestionID: "q_id_nik", Code: "nik", Value: cleanNIK},
+			{QuestionID: "q_id_full_name", Code: "full_name", Value: appReq.FullName},
+			{QuestionID: "q_id_birth_date", Code: "birth_date", Value: birthDate},
+			{QuestionID: "q_id_gender", Code: "gender", Value: appReq.Gender},
+			{QuestionID: "q_id_phone", Code: "phone", Value: appReq.Phone},
+			{QuestionID: "q_id_email", Code: "email", Value: appReq.Email},
+			{QuestionID: "q_fin_occupation_class", Code: "occupation_class", Value: appReq.OccupationClass},
+			{QuestionID: "q_fin_monthly_income", Code: "monthly_income", Value: 10000000},
+			{QuestionID: "q_fin_monthly_expenses", Code: "monthly_expenses", Value: 4000000},
+			{QuestionID: "q_fin_existing_debts", Code: "existing_debts_monthly", Value: 1000000},
+			{QuestionID: "q_ben_name", Code: "beneficiary_name", Value: benName},
+			{QuestionID: "q_ben_relationship", Code: "beneficiary_relationship", Value: benRel},
+			{QuestionID: "q_ben_nik", Code: "beneficiary_nik", Value: "3201990000000001"},
+			{QuestionID: "q_ben_share", Code: "beneficiary_share", Value: 100},
+			{QuestionID: "q_legal_truth", Code: "agree_truth_declaration", Value: true},
+			{QuestionID: "q_legal_terms", Code: "agree_policy_terms", Value: true},
+		}
+
+		if isVehicleCategory {
+			vehPlate := strings.TrimSpace(args.VehiclePlate)
+			if vehPlate == "" {
+				vehPlate = "B 1234 ABC"
+			}
+			answers = append(answers,
+				dtos.ApplicationAnswerInput{QuestionID: "q_fin_occupation", Code: "occupation", Value: "Pengemudi / Pemilik Kendaraan"},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_weight", Code: "weight_kg", Value: 70},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_height", Code: "height_cm", Value: 170},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_smoker", Code: "is_smoker", Value: "no"},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_critical_illness", Code: "has_critical_illness", Value: "no"},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_hospitalization", Code: "has_hospitalization_2y", Value: "no"},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_family_history", Code: "has_family_history", Value: "no"},
+				dtos.ApplicationAnswerInput{QuestionID: "q_vehicle_plate", Code: "vehicle_plate", Value: vehPlate},
+			)
+		} else {
+			smokerVal := "no"
+			if appReq.Smoker == constants.SmokerYes {
+				smokerVal = "yes"
+			}
+
+			critVal := "no"
+			if strings.ToLower(args.HasCriticalIllness) == "yes" || strings.ToLower(args.HasCriticalIllness) == "ya" || strings.ToLower(args.HasCriticalIllness) == "pernah" {
+				critVal = "yes"
+			}
+
+			hospVal := "no"
+			if strings.ToLower(args.HasHospitalization) == "yes" || strings.ToLower(args.HasHospitalization) == "ya" || strings.ToLower(args.HasHospitalization) == "pernah" {
+				hospVal = "yes"
+			}
+
+			famVal := "no"
+			if strings.ToLower(args.HasFamilyHistory) == "yes" || strings.ToLower(args.HasFamilyHistory) == "ya" || strings.ToLower(args.HasFamilyHistory) == "ada" {
+				famVal = "yes"
+			}
+
+			answers = append(answers,
+				dtos.ApplicationAnswerInput{QuestionID: "q_fin_occupation", Code: "occupation", Value: "Karyawan Swasta"},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_weight", Code: "weight_kg", Value: 65},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_height", Code: "height_cm", Value: 170},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_smoker", Code: "is_smoker", Value: smokerVal},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_critical_illness", Code: "has_critical_illness", Value: critVal},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_hospitalization", Code: "has_hospitalization_2y", Value: hospVal},
+				dtos.ApplicationAnswerInput{QuestionID: "q_med_family_history", Code: "has_family_history", Value: famVal},
+			)
+
+			if critVal == "yes" && strings.TrimSpace(args.CriticalIllnessDetails) != "" {
+				answers = append(answers, dtos.ApplicationAnswerInput{
+					QuestionID: "q_med_critical_illness_details",
+					Code:       "critical_illness_details",
+					Value:      strings.TrimSpace(args.CriticalIllnessDetails),
+				})
+			}
+			if hospVal == "yes" && strings.TrimSpace(args.HospitalizationDetails) != "" {
+				answers = append(answers, dtos.ApplicationAnswerInput{
+					QuestionID: "q_med_hospitalization_details",
+					Code:       "hospitalization_details",
+					Value:      strings.TrimSpace(args.HospitalizationDetails),
+				})
+			}
+		}
+
+		appReq.Answers = answers
 
 		validatedReq, err := validations.ValidateApplicationRequest(appReq)
 		if err != nil {
@@ -979,17 +1158,17 @@ func assistantTools() []llm.Tool {
 						},
 						"smoker": map[string]any{
 							"type":        "string",
-							"enum":        []string{"smoker", "non_smoker"},
-							"description": "Smoker status",
+							"enum":        []string{"smoker", "non_smoker", "yes", "no"},
+							"description": "Smoker status ('smoker'/'yes' or 'non_smoker'/'no'). ONLY for life and health insurance products. Do NOT ask or use for vehicle category products.",
 						},
 						"occupation_class": map[string]any{
 							"type":        "string",
-							"description": "Occupation class ('1', '2', '3', '4')",
+							"description": "Occupation risk class ('low', 'standard', 'high' or '1', '2', '3', '4'). NOTE: For vehicle products (category 'vehicle'), this represents vehicle usage: 'low' (pribadi/santai), 'standard' (harian kota), 'high' (komersial/taksi online).",
 						},
 						"health_risk": map[string]any{
 							"type":        "string",
-							"enum":        []string{"standard", "substandard"},
-							"description": "Health risk status",
+							"enum":        []string{"standard", "substandard", "low", "medium", "high"},
+							"description": "Health risk status. Only for health/life products.",
 						},
 					},
 					"required": []string{"product_slug", "age", "gender", "sum_assured", "payment_term"},
@@ -1006,7 +1185,7 @@ func assistantTools() []llm.Tool {
 					"properties": map[string]any{
 						"category": map[string]any{
 							"type":        "string",
-							"description": "Product category to filter by (e.g. 'life', 'health')",
+							"description": "Product category to filter by (e.g. 'life', 'health', 'vehicle')",
 						},
 						"search": map[string]any{
 							"type":        "string",
@@ -1020,14 +1199,14 @@ func assistantTools() []llm.Tool {
 			Type: "function",
 			Function: llm.ToolFunction{
 				Name:        "submit_application",
-				Description: "Submits a formal insurance policy application. ONLY invoke this tool after the customer has provided all personal details (full_name, email, phone) and policy parameters (product_slug, age, gender, sum_assured, payment_term, payment_frequency), and has confirmed they want to submit the application.",
+				Description: "Submits a formal insurance policy application. ONLY invoke this tool after customer has provided all personal details and policy parameters according to the product category, and has confirmed they want to submit the application.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"product_slug": map[string]any{
 							"type":        "string",
 							"enum":        []string{"health-guard-essential", "secure-life-plus", "auto-shield-comprehensive"},
-							"description": "Slug produk asuransi: 'health-guard-essential' (Health Guard Essential / Asuransi Kesehatan, min UP Rp 50 juta), 'secure-life-plus' (Secure Life Plus / Asuransi Jiwa, min UP Rp 100 juta), atau 'auto-shield-comprehensive' (Auto Shield Comprehensive / Asuransi Kendaraan, min UP Rp 75 juta). WAJIB sesuai produk yang dipilih nasabah.",
+							"description": "Slug produk asuransi (contoh: 'health-guard-essential', 'secure-life-plus', 'auto-shield-comprehensive', atau produk baru lainnya). WAJIB sesuai produk yang dipilih nasabah.",
 						},
 						"full_name": map[string]any{
 							"type":        "string",
@@ -1063,10 +1242,46 @@ func assistantTools() []llm.Tool {
 							"enum":        []string{"monthly", "annual"},
 							"description": "Payment frequency ('monthly' or 'annual'). Note: 'annual' receives a payment discount. Default is 'monthly'.",
 						},
+						"nik": map[string]any{
+							"type":        "string",
+							"description": "Customer 16-digit NIK e-KTP (optional, auto-generated if omitted)",
+						},
 						"smoker": map[string]any{
 							"type":        "string",
 							"enum":        []string{"smoker", "non_smoker", "yes", "no"},
-							"description": "Smoker status",
+							"description": "Smoker status. ONLY for life and health insurance products.",
+						},
+						"has_critical_illness": map[string]any{
+							"type":        "string",
+							"enum":        []string{"yes", "no"},
+							"description": "Critical illness history ('yes' or 'no'). ONLY for life and health insurance products.",
+						},
+						"critical_illness_details": map[string]any{
+							"type":        "string",
+							"description": "Details of critical illness if has_critical_illness is yes",
+						},
+						"has_hospitalization": map[string]any{
+							"type":        "string",
+							"enum":        []string{"yes", "no"},
+							"description": "Hospitalization/surgery in last 2 years ('yes' or 'no'). ONLY for life and health insurance products.",
+						},
+						"hospitalization_details": map[string]any{
+							"type":        "string",
+							"description": "Details of hospitalization or surgery if has_hospitalization is yes",
+						},
+						"has_family_history": map[string]any{
+							"type":        "string",
+							"enum":        []string{"yes", "no"},
+							"description": "Family hereditary critical illness history ('yes' or 'no'). ONLY for life and health products.",
+						},
+						"vehicle_plate": map[string]any{
+							"type":        "string",
+							"description": "Vehicle license plate number (e.g. 'B 1234 ABC'). ONLY for vehicle category insurance products.",
+						},
+						"vehicle_usage": map[string]any{
+							"type":        "string",
+							"enum":        []string{"low", "standard", "high"},
+							"description": "Vehicle usage purpose ('low' for personal/pribadi, 'standard' for daily/harian, 'high' for commercial/logistics/taksi online). ONLY for vehicle category insurance products.",
 						},
 						"occupation_class": map[string]any{
 							"type":        "string",
@@ -1075,6 +1290,14 @@ func assistantTools() []llm.Tool {
 						"health_risk": map[string]any{
 							"type":        "string",
 							"description": "Health risk classification ('low', 'medium', 'high')",
+						},
+						"beneficiary_name": map[string]any{
+							"type":        "string",
+							"description": "Name of beneficiary / ahli waris",
+						},
+						"beneficiary_relationship": map[string]any{
+							"type":        "string",
+							"description": "Relationship with beneficiary (e.g. 'Pasangan', 'Anak', 'Orang Tua')",
 						},
 					},
 					"required": []string{"product_slug", "full_name", "email", "phone", "age", "gender", "sum_assured", "payment_term"},
