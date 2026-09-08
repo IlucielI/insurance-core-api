@@ -351,7 +351,8 @@ func (service *ApplicationService) RequestDocuments(ctx context.Context, applica
 	if service.messageBus == nil && service.mailer != nil {
 		var textBody, htmlBody string
 		if service.emailRenderer != nil {
-			textBody, htmlBody, _ = service.emailRenderer.RenderApplicationRFI(emailtemplate.ApplicationRFIData{
+			var renderErr error
+			textBody, htmlBody, renderErr = service.emailRenderer.RenderApplicationRFI(emailtemplate.ApplicationRFIData{
 				FullName:        app.FullName,
 				ProductName:     productName,
 				ApplicationID:   app.ID,
@@ -360,6 +361,9 @@ func (service *ApplicationService) RequestDocuments(ctx context.Context, applica
 				SLADeadline:     "3 x 24 Jam",
 				UploadPortalURL: fmt.Sprintf("%s/portal/rfi/%s", service.getAppBaseURL(), app.ID),
 			})
+			if renderErr != nil {
+				log.Printf("[ApplicationService] warning: failed to render RFI email template: %v", renderErr)
+			}
 		}
 		if textBody == "" {
 			textBody = fmt.Sprintf("Halo %s,\n\nMohon unggah dokumen tambahan untuk pengajuan %s (#%s):\n%s\n\nTerima kasih.", app.FullName, productName, app.ID, notes)
@@ -370,7 +374,9 @@ func (service *ApplicationService) RequestDocuments(ctx context.Context, applica
 			TextBody: textBody,
 			HTMLBody: htmlBody,
 		}
-		_ = service.mailer.Send(ctx, msg)
+		if err := service.mailer.Send(ctx, msg); err != nil {
+			log.Printf("[ApplicationService] warning: failed to send RFI email to %s: %v", app.Email, err)
+		}
 	}
 
 	return nil

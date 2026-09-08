@@ -566,3 +566,32 @@ func TestApplicationServiceRequestDocumentsPublishesRFIEvent(t *testing.T) {
 		t.Fatalf("event payload = %+v, want RFI event", event)
 	}
 }
+
+func TestApplicationServiceRequestDocumentsDirectMailer(t *testing.T) {
+	app := models.Application{
+		ID:        "APP-2026-8819",
+		ProductID: "product-1",
+		FullName:  "Bayu Pratama",
+		Email:     "bayu@example.com",
+		Status:    models.ApplicationStatusUnderReview,
+	}
+	repo := &fakeApplicationRepository{application: app}
+	mailer := &fakeMailer{}
+
+	service := NewApplicationService(nil, repo, &fakeReviewCheckRepository{}, nil, mailer, nil)
+	err := service.RequestDocuments(context.Background(), app.ID, "Mohon unggah slip gaji", []string{"Slip Gaji"})
+	if err != nil {
+		t.Fatalf("RequestDocuments() error = %v", err)
+	}
+
+	if len(mailer.message.To) == 0 || mailer.message.To[0] != app.Email {
+		t.Fatalf("mailer recipient = %v, want %s", mailer.message.To, app.Email)
+	}
+	if !strings.Contains(mailer.message.Subject, app.ID) {
+		t.Fatalf("mailer subject = %q, want contain %s", mailer.message.Subject, app.ID)
+	}
+	if !strings.Contains(mailer.message.TextBody, "Mohon unggah slip gaji") {
+		t.Fatalf("mailer textBody = %q, want contain notes", mailer.message.TextBody)
+	}
+}
+
