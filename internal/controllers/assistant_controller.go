@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/bayuanugerah/insurance-core-api/internal/constants"
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
@@ -182,7 +183,10 @@ func (controller *AssistantController) ChatStream(ctx *fiber.Ctx) error {
 	ctx.Set("X-Accel-Buffering", "no")
 
 	ctx.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		err := streamService.ChatStream(ctx.Context(), request, func(event dtos.AssistantStreamEvent) error {
+		streamCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		err := streamService.ChatStream(streamCtx, request, func(event dtos.AssistantStreamEvent) error {
 			data, err := json.Marshal(event)
 			if err != nil {
 				return err

@@ -4,10 +4,10 @@
 INSERT INTO product_pricing_rules (
     id, product_id, rule_code, rule_name, rule_type, factors, is_active, order_index
 ) VALUES
--- Life Product (prod_life_plus)
+-- Life Product (prod_secure_life_plus)
 (
     'pr_life_base_rate',
-    'prod_life_plus',
+    'prod_secure_life_plus',
     'base_rate',
     'Tarif Dasar Premi Jiwa',
     'base_rate',
@@ -17,7 +17,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_life_age_bracket',
-    'prod_life_plus',
+    'prod_secure_life_plus',
     'age_bracket',
     'Faktor Kelompok Usia',
     'bracket',
@@ -27,7 +27,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_life_gender',
-    'prod_life_plus',
+    'prod_secure_life_plus',
     'gender',
     'Faktor Aktuaria Jenis Kelamin',
     'multiplier_map',
@@ -37,7 +37,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_life_smoker',
-    'prod_life_plus',
+    'prod_secure_life_plus',
     'smoker',
     'Faktor Status Merokok',
     'multiplier_map',
@@ -47,7 +47,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_life_occupation',
-    'prod_life_plus',
+    'prod_secure_life_plus',
     'occupation_class',
     'Faktor Tingkat Risiko Pekerjaan',
     'multiplier_map',
@@ -57,7 +57,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_life_health_risk',
-    'prod_life_plus',
+    'prod_secure_life_plus',
     'health_risk',
     'Faktor Profil Risiko Medis',
     'multiplier_map',
@@ -67,7 +67,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_life_frequency_loading',
-    'prod_life_plus',
+    'prod_secure_life_plus',
     'frequency_loading',
     'Loading Frekuensi Pembayaran',
     'frequency_loading',
@@ -76,10 +76,10 @@ INSERT INTO product_pricing_rules (
     7
 ),
 
--- Health Product (prod_health_optima)
+-- Health Product (prod_health_guard_essential)
 (
     'pr_health_base_rate',
-    'prod_health_optima',
+    'prod_health_guard_essential',
     'base_rate',
     'Tarif Dasar Premi Kesehatan',
     'base_rate',
@@ -89,7 +89,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_health_age_bracket',
-    'prod_health_optima',
+    'prod_health_guard_essential',
     'age_bracket',
     'Faktor Kelompok Usia Kesehatan',
     'bracket',
@@ -99,7 +99,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_health_gender',
-    'prod_health_optima',
+    'prod_health_guard_essential',
     'gender',
     'Faktor Aktuaria Jenis Kelamin',
     'multiplier_map',
@@ -109,7 +109,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_health_smoker',
-    'prod_health_optima',
+    'prod_health_guard_essential',
     'smoker',
     'Faktor Status Merokok',
     'multiplier_map',
@@ -119,7 +119,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_health_occupation',
-    'prod_health_optima',
+    'prod_health_guard_essential',
     'occupation_class',
     'Faktor Tingkat Risiko Pekerjaan',
     'multiplier_map',
@@ -129,7 +129,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_health_health_risk',
-    'prod_health_optima',
+    'prod_health_guard_essential',
     'health_risk',
     'Faktor Profil Risiko Medis',
     'multiplier_map',
@@ -139,7 +139,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_health_frequency_loading',
-    'prod_health_optima',
+    'prod_health_guard_essential',
     'frequency_loading',
     'Loading Frekuensi Pembayaran',
     'frequency_loading',
@@ -148,10 +148,10 @@ INSERT INTO product_pricing_rules (
     7
 ),
 
--- Vehicle Product (prod_vehicle_guard)
+-- Vehicle Product (prod_auto_shield_comprehensive)
 (
     'pr_vehicle_base_rate',
-    'prod_vehicle_guard',
+    'prod_auto_shield_comprehensive',
     'base_rate',
     'Tarif Dasar Premi Kendaraan',
     'base_rate',
@@ -161,7 +161,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_vehicle_age_bracket',
-    'prod_vehicle_guard',
+    'prod_auto_shield_comprehensive',
     'age_bracket',
     'Faktor Usia Pengemudi',
     'bracket',
@@ -171,7 +171,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_vehicle_gender',
-    'prod_vehicle_guard',
+    'prod_auto_shield_comprehensive',
     'gender',
     'Faktor Jenis Kelamin',
     'multiplier_map',
@@ -181,7 +181,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_vehicle_occupation',
-    'prod_vehicle_guard',
+    'prod_auto_shield_comprehensive',
     'occupation_class',
     'Faktor Penggunaan Kendaraan',
     'multiplier_map',
@@ -191,7 +191,7 @@ INSERT INTO product_pricing_rules (
 ),
 (
     'pr_vehicle_frequency_loading',
-    'prod_vehicle_guard',
+    'prod_auto_shield_comprehensive',
     'frequency_loading',
     'Loading Frekuensi Pembayaran',
     'frequency_loading',

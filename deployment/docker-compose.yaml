@@ -33,7 +33,7 @@ services:
       minio:
         condition: service_healthy
       nats:
-        condition: service_healthy
+        condition: service_started
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -71,11 +71,6 @@ services:
     ports:
       - "4222:4222"
       - "8222:8222"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
     restart: unless-stopped
 
   minio:
@@ -91,7 +86,7 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
       timeout: 3s
       retries: 10
