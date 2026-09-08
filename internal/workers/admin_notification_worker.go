@@ -30,6 +30,7 @@ type ApplicationSLASource interface {
 type AdminNotificationWorker struct {
 	subscriber          ports.MessageSubscriber
 	notificationService services.NotificationService
+	auditService        services.AuditLogService
 	slaSource           ApplicationSLASource
 	queueGroup          string
 	subscriptions       []*nats.Subscription
@@ -58,6 +59,13 @@ func NewAdminNotificationWorker(
 		tickerInterval:      DefaultSLACheckInterval,
 		slaThresholdHours:   DefaultSLAThresholdHours,
 	}
+}
+
+func (w *AdminNotificationWorker) WithAuditService(auditService services.AuditLogService) *AdminNotificationWorker {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.auditService = auditService
+	return w
 }
 
 func (w *AdminNotificationWorker) SetTickerInterval(d time.Duration) {
@@ -259,6 +267,25 @@ func (w *AdminNotificationWorker) handleApplicationSubmitted(ctx context.Context
 		return fmt.Errorf("create in-app notification: %w", err)
 	}
 
+	if w.auditService != nil {
+		if _, err := w.auditService.Record(reqCtx, dtos.CreateAuditLogRequest{
+			ActorName:      event.FullName,
+			ActorRole:      "Applicant",
+			Action:         "APPLICATION_SUBMITTED",
+			Category:       "underwriting",
+			TargetResource: fmt.Sprintf("application:%s", event.ApplicationID),
+			Status:         "success",
+			Details: map[string]any{
+				"product_name":      productName,
+				"sum_assured":       event.SumAssured,
+				"premium":           event.Premium,
+				"payment_frequency": event.PaymentFrequency,
+			},
+		}); err != nil {
+			log.Printf("[AdminNotificationWorker] warning: failed to create audit log for submitted app: %v", err)
+		}
+	}
+
 	log.Printf("[AdminNotificationWorker] notification created for submitted app: %s (id: %s)", event.ApplicationID, resp.ID)
 	return nil
 }
@@ -289,6 +316,25 @@ func (w *AdminNotificationWorker) handleApplicationApproved(ctx context.Context,
 	resp, err := w.notificationService.Create(reqCtx, req)
 	if err != nil {
 		return fmt.Errorf("create in-app notification: %w", err)
+	}
+
+	if w.auditService != nil {
+		if _, err := w.auditService.Record(reqCtx, dtos.CreateAuditLogRequest{
+			ActorName:      reviewedBy,
+			ActorRole:      "Underwriter",
+			Action:         "POLICY_APPROVED",
+			Category:       "underwriting",
+			TargetResource: fmt.Sprintf("application:%s", event.ApplicationID),
+			Status:         "success",
+			Details: map[string]any{
+				"policy_number": event.PolicyNumber,
+				"product_name":  event.ProductName,
+				"full_name":     event.FullName,
+				"reviewed_by":   reviewedBy,
+			},
+		}); err != nil {
+			log.Printf("[AdminNotificationWorker] warning: failed to create audit log for approved app: %v", err)
+		}
 	}
 
 	log.Printf("[AdminNotificationWorker] notification created for approved app: %s (id: %s)", event.ApplicationID, resp.ID)
@@ -323,6 +369,23 @@ func (w *AdminNotificationWorker) handleApplicationRejected(ctx context.Context,
 		return fmt.Errorf("create in-app notification: %w", err)
 	}
 
+	if w.auditService != nil {
+		if _, err := w.auditService.Record(reqCtx, dtos.CreateAuditLogRequest{
+			ActorName:      "Lead Underwriter",
+			ActorRole:      "Underwriter",
+			Action:         "APPLICATION_REJECTED",
+			Category:       "underwriting",
+			TargetResource: fmt.Sprintf("application:%s", event.ApplicationID),
+			Status:         "success",
+			Details: map[string]any{
+				"rejection_reason": rejectionReason,
+				"product_name":     event.ProductName,
+			},
+		}); err != nil {
+			log.Printf("[AdminNotificationWorker] warning: failed to create audit log for rejected app: %v", err)
+		}
+	}
+
 	log.Printf("[AdminNotificationWorker] notification created for rejected app: %s (id: %s)", event.ApplicationID, resp.ID)
 	return nil
 }
@@ -353,6 +416,23 @@ func (w *AdminNotificationWorker) handleApplicationRFIRequested(ctx context.Cont
 	resp, err := w.notificationService.Create(reqCtx, req)
 	if err != nil {
 		return fmt.Errorf("create in-app notification: %w", err)
+	}
+
+	if w.auditService != nil {
+		if _, err := w.auditService.Record(reqCtx, dtos.CreateAuditLogRequest{
+			ActorName:      "Lead Underwriter",
+			ActorRole:      "Underwriter",
+			Action:         "RFI_REQUESTED",
+			Category:       "underwriting",
+			TargetResource: fmt.Sprintf("application:%s", event.ApplicationID),
+			Status:         "success",
+			Details: map[string]any{
+				"required_docs": event.RequiredDocs,
+				"notes":         event.Notes,
+			},
+		}); err != nil {
+			log.Printf("[AdminNotificationWorker] warning: failed to create audit log for RFI app: %v", err)
+		}
 	}
 
 	log.Printf("[AdminNotificationWorker] notification created for RFI app: %s (id: %s)", event.ApplicationID, resp.ID)

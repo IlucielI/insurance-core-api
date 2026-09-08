@@ -171,7 +171,8 @@ func main() {
 	}
 
 	if natsClient != nil && notificationService != nil {
-		adminNotifWorker := workers.NewAdminNotificationWorker(natsClient, notificationService, applicationRepository)
+		adminNotifWorker := workers.NewAdminNotificationWorker(natsClient, notificationService, applicationRepository).
+			WithAuditService(auditLogService)
 		if err := adminNotifWorker.Start(context.Background()); err != nil {
 			log.Printf("failed to start admin notification worker: %v", err)
 		} else {
