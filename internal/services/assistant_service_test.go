@@ -1166,3 +1166,131 @@ func TestAssistantExecuteTool_SubmitApplication_VehicleProduct_WithPlateAndUsage
 	}
 }
 
+func TestAssistantDynamicSupportForNewProducts(t *testing.T) {
+	ctx := context.Background()
+
+	newProduct := productFixture()
+	newProduct.ID = "prod-custom-99"
+	newProduct.Slug = "prime-family-protection"
+	newProduct.Name = "Prime Family Protection"
+	newProduct.Category = models.ProductCategoryLife
+	newProduct.MinSumAssured = 50_000_000
+	newProduct.MaxSumAssured = 1_000_000_000
+	newProduct.MinPaymentTerm = 1
+	newProduct.MaxPaymentTerm = 20
+
+	repo := &fakeProductRepository{
+		products: []models.Product{newProduct},
+		product:  newProduct,
+	}
+	productService := NewProductService(repo)
+	appService := &fakeApplicationService{}
+	service := NewAssistantService(&knowledgeFake{}, nil, productService).WithApplicationService(appService)
+
+	// 1. Verify getAssistantTools dynamically includes the new product slug in enum
+	tools := service.getAssistantTools(ctx)
+	foundSlugInEnum := false
+	for _, tool := range tools {
+		if tool.Function.Name == "calculate_quote" {
+			params := tool.Function.Parameters.(map[string]any)
+			props := params["properties"].(map[string]any)
+			slugProp := props["product_slug"].(map[string]any)
+			enums := slugProp["enum"].([]string)
+			for _, enumVal := range enums {
+				if enumVal == "prime-family-protection" {
+					foundSlugInEnum = true
+					break
+				}
+			}
+		}
+	}
+	if !foundSlugInEnum {
+		t.Fatalf("expected getAssistantTools to include 'prime-family-protection' in enum")
+	}
+
+	// 2. Verify detectProductSlug detects the new product from message
+	detected := service.detectProductSlug(ctx, nil, "saya mau daftar asuransi Prime Family Protection dong")
+	if detected != "prime-family-protection" {
+		t.Fatalf("expected detected slug 'prime-family-protection', got: %s", detected)
+	}
+
+	// 3. Verify normalizeProductSlug preserves the new product slug
+	normalized := service.normalizeProductSlug(ctx, "prime-family-protection")
+	if normalized != "prime-family-protection" {
+		t.Fatalf("expected normalized slug 'prime-family-protection', got: %s", normalized)
+	}
+
+	// 4. Verify executeTool calculate_quote works with the new product
+	calcArgs := `{"product_slug":"prime-family-protection","age":35,"gender":"male","sum_assured":200000000,"payment_term":10,"payment_frequency":"monthly"}`
+	resCalc := service.executeTool(ctx, "calculate_quote", calcArgs)
+	if strings.Contains(resCalc, "error") {
+		t.Fatalf("expected calculate_quote to succeed for new product, got: %s", resCalc)
+	}
+
+	// 5. Verify executeTool submit_application works with the new product
+	submitArgs := `{"product_slug":"prime-family-protection","full_name":"Budi Santoso","email":"budi@example.com","phone":"08123456789","age":35,"gender":"male","sum_assured":200000000,"payment_term":10,"payment_frequency":"monthly","nik":"3201234567890123"}`
+	resSubmit := service.executeTool(ctx, "submit_application", submitArgs)
+	if strings.Contains(resSubmit, "error") {
+		t.Fatalf("expected submit_application to succeed for new product, got: %s", resSubmit)
+	}
+	if appService.capturedSlug != "prime-family-protection" {
+		t.Fatalf("expected appService captured slug 'prime-family-protection', got: %s", appService.capturedSlug)
+	}
+}
+
+func TestAssistantDynamicSupportForNewVehicleProduct(t *testing.T) {
+	ctx := context.Background()
+
+	newVehicle := productFixture()
+	newVehicle.ID = "prod-custom-veh-88"
+	newVehicle.Slug = "motor-super-shield"
+	newVehicle.Name = "Motor Super Shield"
+	newVehicle.Category = models.ProductCategoryVehicle
+	newVehicle.MinSumAssured = 30_000_000
+	newVehicle.MaxSumAssured = 500_000_000
+	newVehicle.MinPaymentTerm = 1
+	newVehicle.MaxPaymentTerm = 5
+
+	repo := &fakeProductRepository{
+		products: []models.Product{newVehicle},
+		product:  newVehicle,
+	}
+	productService := NewProductService(repo)
+	appService := &fakeApplicationService{}
+	service := NewAssistantService(&knowledgeFake{}, nil, productService).WithApplicationService(appService)
+
+	// 1. Verify detectProductSlug detects the new vehicle product
+	detected := service.detectProductSlug(ctx, nil, "saya mau asuransi motor super shield")
+	if detected != "motor-super-shield" {
+		t.Fatalf("expected detected slug 'motor-super-shield', got: %s", detected)
+	}
+
+	// 2. Submit application for new vehicle product
+	submitArgs := `{"product_slug":"motor-super-shield","full_name":"Doni Pratama","email":"doni@example.com","phone":"08123456789","age":28,"gender":"male","sum_assured":100000000,"payment_term":3,"payment_frequency":"annual","vehicle_plate":"B 5555 XYZ","vehicle_usage":"high"}`
+	resSubmit := service.executeTool(ctx, "submit_application", submitArgs)
+	if strings.Contains(resSubmit, "error") {
+		t.Fatalf("expected submit_application to succeed for new vehicle product, got: %s", resSubmit)
+	}
+	if appService.capturedSlug != "motor-super-shield" {
+		t.Fatalf("expected appService captured slug 'motor-super-shield', got: %s", appService.capturedSlug)
+	}
+
+	// Verify auto-fill of vehicle fields and safe medical defaults
+	if appService.capturedInput.Smoker != constants.SmokerNo {
+		t.Errorf("expected smoker to be forced to non-smoker for vehicle, got: %v", appService.capturedInput.Smoker)
+	}
+
+	answerMap := make(map[string]any)
+	for _, ans := range appService.capturedInput.Answers {
+		answerMap[ans.Code] = ans.Value
+	}
+	if answerMap["vehicle_plate"] != "B 5555 XYZ" {
+		t.Errorf("expected vehicle_plate B 5555 XYZ, got: %v", answerMap["vehicle_plate"])
+	}
+	if answerMap["is_smoker"] != "no" {
+		t.Errorf("expected is_smoker 'no', got: %v", answerMap["is_smoker"])
+	}
+}
+
+
+

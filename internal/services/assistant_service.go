@@ -194,7 +194,7 @@ func (service *AssistantService) prepareChatContext(ctx context.Context, message
 
 	detectedSlug := strings.TrimSpace(slug)
 	if detectedSlug == "" {
-		detectedSlug = detectProductSlugFromHistory(rawHistory, message)
+		detectedSlug = service.detectProductSlug(ctx, rawHistory, message)
 	}
 
 	embedding, err := service.llm.CreateEmbedding(ctx, llm.EmbeddingInput{Text: message})
@@ -372,7 +372,7 @@ func (service *AssistantService) chat(ctx context.Context, message string, quote
 	newMessages := prep.newMessages
 	matches := prep.matches
 
-	tools := assistantTools()
+	tools := service.getAssistantTools(ctx)
 	toolsUsed := make([]string, 0)
 	var answer string
 
@@ -487,7 +487,7 @@ func (service *AssistantService) ChatStream(ctx context.Context, req dtos.Assist
 	newMessages := prep.newMessages
 	matches := prep.matches
 
-	tools := assistantTools()
+	tools := service.getAssistantTools(ctx)
 	toolsUsed := make([]string, 0)
 	var answerBuilder strings.Builder
 
@@ -727,7 +727,7 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
 			return toolError("invalid arguments: " + err.Error())
 		}
-		args.ProductSlug = normalizeProductSlug(args.ProductSlug)
+		args.ProductSlug = service.normalizeProductSlug(ctx, args.ProductSlug)
 		if args.ProductSlug == "" && defaultSlug != "" {
 			args.ProductSlug = defaultSlug
 		}
@@ -735,6 +735,8 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			if defaultSlug == "health-guard-essential" && args.ProductSlug == "secure-life-plus" {
 				args.ProductSlug = defaultSlug
 			} else if defaultSlug == "auto-shield-comprehensive" && args.ProductSlug == "secure-life-plus" {
+				args.ProductSlug = defaultSlug
+			} else if args.ProductSlug == "secure-life-plus" {
 				args.ProductSlug = defaultSlug
 			}
 		}
@@ -880,7 +882,7 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
 			return toolError("invalid arguments: " + err.Error())
 		}
-		args.ProductSlug = normalizeProductSlug(args.ProductSlug)
+		args.ProductSlug = service.normalizeProductSlug(ctx, args.ProductSlug)
 		if args.ProductSlug == "" && defaultSlug != "" {
 			args.ProductSlug = defaultSlug
 		}
@@ -888,6 +890,8 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			if defaultSlug == "health-guard-essential" && args.ProductSlug == "secure-life-plus" {
 				args.ProductSlug = defaultSlug
 			} else if defaultSlug == "auto-shield-comprehensive" && args.ProductSlug == "secure-life-plus" {
+				args.ProductSlug = defaultSlug
+			} else if args.ProductSlug == "secure-life-plus" {
 				args.ProductSlug = defaultSlug
 			}
 		}
@@ -1384,15 +1388,120 @@ func max(a, b float64) float64 {
 	return b
 }
 
+func (service *AssistantService) getAssistantTools(ctx context.Context) []llm.Tool {
+	baseTools := assistantTools()
+	if service.quotes == nil {
+		return baseTools
+	}
+	lister, ok := service.quotes.(AssistantProductLister)
+	if !ok {
+		return baseTools
+	}
+	prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{})
+	if err != nil || len(prods) == 0 {
+		return baseTools
+	}
+
+	slugSet := make(map[string]struct{})
+	var slugs []string
+	for _, p := range prods {
+		if _, exists := slugSet[p.Slug]; !exists {
+			slugSet[p.Slug] = struct{}{}
+			slugs = append(slugs, p.Slug)
+		}
+	}
+	if len(slugs) == 0 {
+		return baseTools
+	}
+
+	tools := make([]llm.Tool, len(baseTools))
+	for i, t := range baseTools {
+		tools[i] = t
+		if t.Function.Name == "calculate_quote" || t.Function.Name == "submit_application" {
+			paramsMap, ok := t.Function.Parameters.(map[string]any)
+			if !ok {
+				continue
+			}
+			props, ok := paramsMap["properties"].(map[string]any)
+			if !ok {
+				continue
+			}
+			slugParam, ok := props["product_slug"].(map[string]any)
+			if !ok {
+				continue
+			}
+			newSlugParam := make(map[string]any)
+			for k, v := range slugParam {
+				newSlugParam[k] = v
+			}
+			newSlugParam["enum"] = slugs
+			newProps := make(map[string]any)
+			for k, v := range props {
+				newProps[k] = v
+			}
+			newProps["product_slug"] = newSlugParam
+			newParams := make(map[string]any)
+			for k, v := range paramsMap {
+				newParams[k] = v
+			}
+			newParams["properties"] = newProps
+			tools[i].Function.Parameters = newParams
+		}
+	}
+	return tools
+}
+
+func (service *AssistantService) normalizeProductSlug(ctx context.Context, slug string) string {
+	s := strings.ToLower(strings.TrimSpace(slug))
+	s = strings.ReplaceAll(s, "_", "-")
+	if s == "" {
+		return ""
+	}
+
+	if lister, ok := service.quotes.(AssistantProductLister); ok {
+		if prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{}); err == nil {
+			for _, p := range prods {
+				if strings.ToLower(p.Slug) == s {
+					return p.Slug
+				}
+			}
+		}
+	}
+
+	return normalizeProductSlug(s)
+}
+
+func (service *AssistantService) detectProductSlug(ctx context.Context, history []models.AssistantMessage, currentMessage string) string {
+	if lister, ok := service.quotes.(AssistantProductLister); ok {
+		if prods, err := lister.ListProducts(ctx, dtos.ProductListQuery{}); err == nil {
+			curLower := strings.ToLower(currentMessage)
+			for _, p := range prods {
+				if strings.Contains(curLower, strings.ToLower(p.Slug)) || (len(p.Name) >= 4 && strings.Contains(curLower, strings.ToLower(p.Name))) {
+					return p.Slug
+				}
+			}
+			for i := len(history) - 1; i >= 0; i-- {
+				text := strings.ToLower(history[i].Content)
+				for _, p := range prods {
+					if strings.Contains(text, strings.ToLower(p.Slug)) || (len(p.Name) >= 4 && strings.Contains(text, strings.ToLower(p.Name))) {
+						return p.Slug
+					}
+				}
+			}
+		}
+	}
+	return detectProductSlugFromHistory(history, currentMessage)
+}
+
 func normalizeProductSlug(slug string) string {
 	s := strings.ToLower(strings.TrimSpace(slug))
 	s = strings.ReplaceAll(s, "_", "-")
 	switch {
-	case strings.Contains(s, "health") || strings.Contains(s, "kesehatan"):
+	case strings.Contains(s, "health-guard") || s == "health" || s == "kesehatan":
 		return "health-guard-essential"
-	case strings.Contains(s, "auto") || strings.Contains(s, "kendaraan") || strings.Contains(s, "mobil"):
+	case strings.Contains(s, "auto-shield") || s == "auto" || s == "kendaraan" || s == "mobil":
 		return "auto-shield-comprehensive"
-	case strings.Contains(s, "secure") || strings.Contains(s, "life") || strings.Contains(s, "jiwa"):
+	case strings.Contains(s, "secure-life") || s == "life" || s == "jiwa":
 		return "secure-life-plus"
 	default:
 		return s
