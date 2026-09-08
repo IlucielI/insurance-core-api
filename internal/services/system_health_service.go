@@ -100,6 +100,11 @@ func (s *DefaultSystemHealthService) GetOverview(ctx context.Context) (*dtos.Sys
 		}
 	}
 
+	uptimeStr := ""
+	if !s.startedAt.IsZero() {
+		uptimeStr = time.Since(s.startedAt).String()
+	}
+
 	return &dtos.SystemHealthOverviewResponse{
 		OverallStatus:       overallStatus,
 		ActiveServicesCount: activeCount,
@@ -108,6 +113,9 @@ func (s *DefaultSystemHealthService) GetOverview(ctx context.Context) (*dtos.Sys
 		Services:            services,
 		DatabaseStats:       poolStats,
 		RecentAuditLogs:     recentAuditLogs,
+		Uptime:              uptimeStr,
+		Version:             s.cfg.Version,
+		GitHash:             s.cfg.GitHash,
 	}, nil
 }
 

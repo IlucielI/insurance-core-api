@@ -34,6 +34,9 @@ type SystemHealthOverviewResponse struct {
 	Services            []ServiceHealthItem `json:"services"`
 	DatabaseStats       DatabasePoolStats   `json:"database_stats"`
 	RecentAuditLogs     []AuditLogResponse  `json:"recent_audit_logs"`
+	Uptime              string              `json:"uptime,omitempty"`
+	Version             string              `json:"version,omitempty"`
+	GitHash             string              `json:"git_hash,omitempty"`
 }
 
 type PingServicesRequest struct {
