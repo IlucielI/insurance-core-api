@@ -133,6 +133,8 @@ func NewRouter(cfg config.Config, productRepository repositories.ProductReposito
 	api.Get("/applications", applicationController.List)
 	api.Get("/applications/:id", applicationController.Get)
 	api.Patch("/applications/:id/status", applicationController.UpdateStatus)
+	api.Post("/applications/:id/request-documents", applicationController.RequestDocuments)
+	api.Post("/applications/:id/rfi", applicationController.RequestDocuments)
 	api.Get("/applications/:id/review-checks", applicationController.ListReviewChecks)
 	api.Patch("/applications/:id/review-checks/:check_type", applicationController.UpdateReviewCheck)
 	api.Post("/assistant/chat", assistantController.Chat)

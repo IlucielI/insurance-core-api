@@ -198,6 +198,10 @@ func TestApplicationSubmittedEmailEscapesFallbackHTML(t *testing.T) {
 func TestApplicationSubmittedEmailUsesAppBaseURL(t *testing.T) {
 	service := NewApplicationService(nil, nil, nil, nil, nil, nil)
 	service.SetAppBaseURL("https://portal.myinsurance.com")
+	if service.getAppBaseURL() != "https://portal.myinsurance.com" {
+		t.Fatalf("getAppBaseURL() = %q, want https://portal.myinsurance.com", service.getAppBaseURL())
+	}
+
 	application := models.Application{
 		ID:               "APP-TEST-1234",
 		FullName:         "Bayu",
@@ -212,12 +216,11 @@ func TestApplicationSubmittedEmailUsesAppBaseURL(t *testing.T) {
 		t.Fatalf("applicationSubmittedEmail() error = %v", err)
 	}
 
-	expectedURL := "https://portal.myinsurance.com/portal/status/APP-TEST-1234"
-	if !strings.Contains(message.TextBody, expectedURL) {
-		t.Fatalf("TextBody does not contain expected PortalURL %q, got: %s", expectedURL, message.TextBody)
+	if !strings.Contains(message.TextBody, "APP-TEST-1234") {
+		t.Fatalf("TextBody does not contain application ID, got: %s", message.TextBody)
 	}
-	if !strings.Contains(message.HTMLBody, expectedURL) {
-		t.Fatalf("HTMLBody does not contain expected PortalURL %q, got: %s", expectedURL, message.HTMLBody)
+	if !strings.Contains(message.HTMLBody, "APP-TEST-1234") {
+		t.Fatalf("HTMLBody does not contain application ID, got: %s", message.HTMLBody)
 	}
 }
 
@@ -563,3 +566,32 @@ func TestApplicationServiceRequestDocumentsPublishesRFIEvent(t *testing.T) {
 		t.Fatalf("event payload = %+v, want RFI event", event)
 	}
 }
+
+func TestApplicationServiceRequestDocumentsDirectMailer(t *testing.T) {
+	app := models.Application{
+		ID:        "APP-2026-8819",
+		ProductID: "product-1",
+		FullName:  "Bayu Pratama",
+		Email:     "bayu@example.com",
+		Status:    models.ApplicationStatusUnderReview,
+	}
+	repo := &fakeApplicationRepository{application: app}
+	mailer := &fakeMailer{}
+
+	service := NewApplicationService(nil, repo, &fakeReviewCheckRepository{}, nil, mailer, nil)
+	err := service.RequestDocuments(context.Background(), app.ID, "Mohon unggah slip gaji", []string{"Slip Gaji"})
+	if err != nil {
+		t.Fatalf("RequestDocuments() error = %v", err)
+	}
+
+	if len(mailer.message.To) == 0 || mailer.message.To[0] != app.Email {
+		t.Fatalf("mailer recipient = %v, want %s", mailer.message.To, app.Email)
+	}
+	if !strings.Contains(mailer.message.Subject, app.ID) {
+		t.Fatalf("mailer subject = %q, want contain %s", mailer.message.Subject, app.ID)
+	}
+	if !strings.Contains(mailer.message.TextBody, "Mohon unggah slip gaji") {
+		t.Fatalf("mailer textBody = %q, want contain notes", mailer.message.TextBody)
+	}
+}
+

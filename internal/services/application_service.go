@@ -321,18 +321,61 @@ func (service *ApplicationService) RequestDocuments(ctx context.Context, applica
 
 	productName := service.getProductName(ctx, app)
 
+	if len(requiredDocs) == 0 {
+		requiredDocs = []string{
+			"1. Foto Ulang Fisik e-KTP (Resolusi Tinggi & Tanpa Pantulan Cahaya)",
+			"2. Slip Gaji 3 Bulan Terakhir / Rekening Koran Legalisir Bank",
+		}
+	}
+	if notes == "" {
+		notes = "Mohon bantuannya untuk mengunggah dokumen pendukung agar proses evaluasi underwriting dapat dilanjutkan."
+	}
+
+	event := dtos.ApplicationRFIRequestedEvent{
+		ApplicationID: app.ID,
+		ProductID:     app.ProductID,
+		ProductName:   productName,
+		FullName:      app.FullName,
+		Email:         app.Email,
+		Notes:         notes,
+		RequiredDocs:  requiredDocs,
+		SLADeadline:   "3 x 24 Jam",
+	}
+
 	if service.messageBus != nil {
-		if err := service.messageBus.PublishJSON(ctx, dtos.TopicApplicationRFIRequested, dtos.ApplicationRFIRequestedEvent{
-			ApplicationID: app.ID,
-			ProductID:     app.ProductID,
-			ProductName:   productName,
-			FullName:      app.FullName,
-			Email:         app.Email,
-			Notes:         notes,
-			RequiredDocs:  requiredDocs,
-			SLADeadline:   "3 x 24 Jam",
-		}); err != nil {
+		if err := service.messageBus.PublishJSON(ctx, dtos.TopicApplicationRFIRequested, event); err != nil {
 			log.Printf("[ApplicationService] warning: failed to publish %s event: %v", dtos.TopicApplicationRFIRequested, err)
+		}
+	}
+
+	if service.messageBus == nil && service.mailer != nil {
+		var textBody, htmlBody string
+		if service.emailRenderer != nil {
+			var renderErr error
+			textBody, htmlBody, renderErr = service.emailRenderer.RenderApplicationRFI(emailtemplate.ApplicationRFIData{
+				FullName:        app.FullName,
+				ProductName:     productName,
+				ApplicationID:   app.ID,
+				Notes:           notes,
+				RequiredDocs:    requiredDocs,
+				SLADeadline:     "3 x 24 Jam",
+				UploadPortalURL: fmt.Sprintf("%s/portal/rfi/%s", service.getAppBaseURL(), app.ID),
+			})
+			if renderErr != nil {
+				log.Printf("[ApplicationService] warning: failed to render RFI email template: %v", renderErr)
+			}
+		}
+		if textBody == "" {
+			textBody = fmt.Sprintf("Halo %s,\n\nMohon unggah dokumen tambahan untuk pengajuan %s (#%s):\n%s\n\nTerima kasih.", app.FullName, productName, app.ID, notes)
+		}
+		msg := ports.EmailMessage{
+			To:       []string{app.Email},
+			Subject:  fmt.Sprintf("[TINDAK LANJUT DIPERLUKAN] Permintaan Dokumen Tambahan untuk Aplikasi Polis #%s", app.ID),
+			TextBody: textBody,
+			HTMLBody: htmlBody,
+		}
+		if err := service.mailer.Send(ctx, msg); err != nil {
+			log.Printf("[ApplicationService] warning: failed to send RFI email to %s: %v", app.Email, err)
 		}
 	}
 
@@ -340,6 +383,9 @@ func (service *ApplicationService) RequestDocuments(ctx context.Context, applica
 }
 
 func validApplicationTransition(current, next models.ApplicationStatus) bool {
+	if current == next {
+		return true
+	}
 	switch current {
 	case models.ApplicationStatusDraft:
 		return next == models.ApplicationStatusSubmitted
@@ -351,6 +397,7 @@ func validApplicationTransition(current, next models.ApplicationStatus) bool {
 		return false
 	}
 }
+
 func (service *ApplicationService) UpdateStatus(ctx context.Context, id string, input dtos.UpdateApplicationStatusRequest) error {
 	if service.applications == nil {
 		return errors.New(constants.ErrApplicationServiceUnavailable)
@@ -385,6 +432,8 @@ func (service *ApplicationService) UpdateStatus(ctx context.Context, id string, 
 		service.publishApplicationApproved(ctx, application, productName, input.ReviewedBy)
 	} else if input.Status == models.ApplicationStatusRejected {
 		service.publishApplicationRejected(ctx, application, productName, input.ReviewedBy, input.RejectionReason)
+	} else if input.Status == models.ApplicationStatusUnderReview && input.RejectionReason != "" {
+		service.publishApplicationRFIRequested(ctx, application, productName, input.RejectionReason)
 	}
 
 	return nil

@@ -198,6 +198,46 @@ INSERT INTO product_pricing_rules (
     '{"annual": 1.0, "semi_annual": 1.015, "quarterly": 1.025, "monthly": 1.04}'::jsonb,
     TRUE,
     5
+),
+(
+    'pr_life_critical_illness',
+    'prod_secure_life_plus',
+    'has_critical_illness',
+    'Faktor Riwayat Penyakit Kritis',
+    'multiplier_map',
+    '{"no": 1.0, "yes": 1.30}'::jsonb,
+    TRUE,
+    8
+),
+(
+    'pr_life_hospitalization',
+    'prod_secure_life_plus',
+    'has_hospitalization_2y',
+    'Faktor Riwayat Rawat Inap (Opname)',
+    'multiplier_map',
+    '{"no": 1.0, "yes": 1.20}'::jsonb,
+    TRUE,
+    9
+),
+(
+    'pr_health_critical_illness',
+    'prod_health_guard_essential',
+    'has_critical_illness',
+    'Faktor Riwayat Penyakit Kritis',
+    'multiplier_map',
+    '{"no": 1.0, "yes": 1.30}'::jsonb,
+    TRUE,
+    8
+),
+(
+    'pr_health_hospitalization',
+    'prod_health_guard_essential',
+    'has_hospitalization_2y',
+    'Faktor Riwayat Rawat Inap (Opname)',
+    'multiplier_map',
+    '{"no": 1.0, "yes": 1.20}'::jsonb,
+    TRUE,
+    9
 )
 ON CONFLICT (id) DO UPDATE SET
     rule_code = EXCLUDED.rule_code,
@@ -211,3 +251,6 @@ ON CONFLICT (id) DO UPDATE SET
 UPDATE questions SET pricing_rule_id = 'pr_life_gender' WHERE code = 'gender';
 UPDATE questions SET pricing_rule_id = 'pr_life_occupation' WHERE code = 'occupation_class';
 UPDATE questions SET pricing_rule_id = 'pr_life_smoker' WHERE code = 'is_smoker';
+UPDATE questions SET pricing_rule_id = 'pr_life_critical_illness' WHERE code = 'has_critical_illness';
+UPDATE questions SET pricing_rule_id = 'pr_life_hospitalization' WHERE code = 'has_hospitalization_2y';
+

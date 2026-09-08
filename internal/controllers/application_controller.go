@@ -79,6 +79,36 @@ func (controller *ApplicationController) UpdateStatus(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
+func (controller *ApplicationController) RequestDocuments(ctx *fiber.Ctx) error {
+	id := strings.TrimSpace(ctx.Params("id"))
+	if id == "" {
+		return badRequest(ctx, constants.ErrApplicationNotFound)
+	}
+
+	var request dtos.RequestDocumentsRequest
+	if err := ctx.BodyParser(&request); err != nil && len(ctx.Body()) > 0 {
+		return badRequest(ctx, constants.ErrApplicationBodyInvalid)
+	}
+
+	notes := strings.TrimSpace(request.Notes)
+	if notes == "" {
+		notes = strings.TrimSpace(request.Reason)
+	}
+
+	if err := controller.service.RequestDocuments(ctx.Context(), id, notes, request.RequiredDocs); err != nil {
+		if errors.Is(err, repositories.ErrApplicationNotFound) {
+			return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": constants.ErrApplicationNotFound})
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to request documents: " + err.Error(),
+		})
+	}
+
+	return ctx.JSON(fiber.Map{
+		"message": "Permintaan dokumen tambahan berhasil dikirim dan notifikasi email telah dikirimkan ke nasabah.",
+	})
+}
+
 func (controller *ApplicationController) ListReviewChecks(ctx *fiber.Ctx) error {
 	applicationID := strings.TrimSpace(ctx.Params("id"))
 	if applicationID == "" {
