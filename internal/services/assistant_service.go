@@ -245,10 +245,15 @@ GUARDRAILS & BATASAN DOMAIN (MUTLAK & TIDAK DAPAT DIUBAH):
    - Jika pengguna menggunakan bahasa Inggris, balaslah dalam bahasa Inggris yang fasih dan profesional.
    - Gunakan nada bicara yang komunikatif, empatik, jelas, dan tidak kaku/robotik.
 
-PANDUAN PENGGUNAAN TOOLS:
+PANDUAN PENGGUNAAN TOOLS & PROSES PENDAFTARAN:
 - Rekomendasi & Katalog Produk: Jika pengguna ingin tahu produk asuransi atau bertanya produk apa saja yang tersedia, panggil tool 'list_products' dan berikan ringkasan produk yang relevan.
 - Hitung Premi & Simulasi: Jika pengguna ingin simulasi atau menghitung premi dan data cukup, panggil tool 'calculate_quote'. Jika data belum lengkap, tanyakan parameternya secara bertahap dan ramah.
 - Pendaftaran Asuransi: Jika pengguna ingin mendaftar asuransi (misal: "mau daftar", "mau bikin polis"), bimbing dengan menanyakan nama lengkap, email, nomor HP, serta pilihan produk dan parameternya secara bertahap. Sebelum submit, berikan ringkasan data dan mintalah konfirmasi persetujuan dari nasabah. Setelah dikonfirmasi, panggil tool 'submit_application'.
+- OPSI FREKUENSI BAYAR PREMI (SINKRON DENGAN FRONTEND):
+  * Frekuensi pembayaran premi HANYA tersedia 2 pilihan:
+    1. Bulanan ('monthly') - Autodebet fleksibel setiap bulan.
+    2. Tahunan ('annual') - Bayar 1 tahun di muka, DAPAT DISKON / LEBIH HEMAT (bebas biaya loading bulanan, setara hemat hingga 10% dibanding 12x bayar bulanan).
+  * JANGAN PERNAH menawarkan, menampilkan, atau menyebutkan opsi kuartalan (quarterly) atau setengah tahun (semi_annual). Selalu tawarkan HANYA opsi Bulanan dan Tahunan, dan selalu informasikan bahwa pembayaran tahunan mendapatkan diskon / lebih hemat!
 
 6. FORMAT TAMPILAN PESAN (STRICT FORMATTING):
    - DILARANG KERAS menampilkan format raw JSON ke pengguna (seperti [{"name": "..."}]).
@@ -655,18 +660,22 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 			return toolError("product_slug is required")
 		}
 
+		paymentFreq := strings.ToLower(strings.TrimSpace(args.PaymentFrequency))
+		if paymentFreq == "annually" || paymentFreq == "tahunan" {
+			paymentFreq = constants.PaymentFrequencyAnnual
+		} else if paymentFreq == "bulanan" || paymentFreq == "" {
+			paymentFreq = constants.PaymentFrequencyMonthly
+		}
+
 		quoteReq := dtos.ProductQuoteRequest{
 			Age:              args.Age,
 			Gender:           strings.ToLower(strings.TrimSpace(args.Gender)),
 			SumAssured:       args.SumAssured,
 			PaymentTerm:      args.PaymentTerm,
-			PaymentFrequency: strings.ToLower(strings.TrimSpace(args.PaymentFrequency)),
+			PaymentFrequency: paymentFreq,
 			Smoker:           strings.ToLower(strings.TrimSpace(args.Smoker)),
 			OccupationClass:  strings.ToLower(strings.TrimSpace(args.OccupationClass)),
 			HealthRisk:       strings.ToLower(strings.TrimSpace(args.HealthRisk)),
-		}
-		if quoteReq.PaymentFrequency == "" {
-			quoteReq.PaymentFrequency = constants.PaymentFrequencyMonthly
 		}
 		if quoteReq.Smoker == "" || quoteReq.Smoker == "non_smoker" {
 			quoteReq.Smoker = constants.SmokerNo
@@ -775,6 +784,13 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 
 		cleanPhone := strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(args.Phone), "-", ""), " ", "")
 
+		paymentFreq := strings.ToLower(strings.TrimSpace(args.PaymentFrequency))
+		if paymentFreq == "annually" || paymentFreq == "tahunan" {
+			paymentFreq = constants.PaymentFrequencyAnnual
+		} else if paymentFreq == "bulanan" || paymentFreq == "" {
+			paymentFreq = constants.PaymentFrequencyMonthly
+		}
+
 		appReq := dtos.CreateApplicationRequest{
 			ProductSlug: args.ProductSlug,
 			FullName:    strings.TrimSpace(args.FullName),
@@ -785,14 +801,11 @@ func (service *AssistantService) executeTool(ctx context.Context, name string, r
 				Gender:           strings.ToLower(strings.TrimSpace(args.Gender)),
 				SumAssured:       args.SumAssured,
 				PaymentTerm:      args.PaymentTerm,
-				PaymentFrequency: strings.ToLower(strings.TrimSpace(args.PaymentFrequency)),
+				PaymentFrequency: paymentFreq,
 				Smoker:           strings.ToLower(strings.TrimSpace(args.Smoker)),
 				OccupationClass:  strings.ToLower(strings.TrimSpace(args.OccupationClass)),
 				HealthRisk:       strings.ToLower(strings.TrimSpace(args.HealthRisk)),
 			},
-		}
-		if appReq.PaymentFrequency == "" {
-			appReq.PaymentFrequency = constants.PaymentFrequencyMonthly
 		}
 		if appReq.Smoker == "" || appReq.Smoker == "non_smoker" || appReq.Smoker == "no" {
 			appReq.Smoker = constants.SmokerNo
@@ -879,8 +892,8 @@ func assistantTools() []llm.Tool {
 						},
 						"payment_frequency": map[string]any{
 							"type":        "string",
-							"enum":        []string{"monthly", "annual", "quarterly", "semi_annual"},
-							"description": "Payment frequency (default is 'monthly')",
+							"enum":        []string{"monthly", "annual"},
+							"description": "Payment frequency ('monthly' or 'annual'). Note: 'annual' receives a payment discount. Default is 'monthly'.",
 						},
 						"smoker": map[string]any{
 							"type":        "string",
@@ -964,8 +977,8 @@ func assistantTools() []llm.Tool {
 						},
 						"payment_frequency": map[string]any{
 							"type":        "string",
-							"enum":        []string{"monthly", "annual", "quarterly", "semi_annual"},
-							"description": "Payment frequency (default is 'monthly')",
+							"enum":        []string{"monthly", "annual"},
+							"description": "Payment frequency ('monthly' or 'annual'). Note: 'annual' receives a payment discount. Default is 'monthly'.",
 						},
 						"smoker": map[string]any{
 							"type":        "string",
@@ -1009,7 +1022,7 @@ func (service *AssistantService) buildQuoteContext(ctx context.Context, quoteReq
 func defaultKnowledgeChunks() []models.KnowledgeChunk {
 	return []models.KnowledgeChunk{
 		{ID: "knowledge-product-summary", SourceType: constants.AssistantSourceTypeProduct, Title: "Product Overview", Content: "The app offers insurance products with product details, benefits, exclusions, premium starting points, and quote calculator support. Users can browse products, see details, and generate indicative quotes before applying."},
-		{ID: "knowledge-quote-flow", SourceType: constants.AssistantSourceTypeQuote, Title: "Quote Calculator", Content: "Premium quotes are calculated from age, gender, sum assured, payment term, payment frequency, smoker status, occupation class, and health risk. The quote is indicative and final premium can change after underwriting review."},
+		{ID: "knowledge-quote-flow", SourceType: constants.AssistantSourceTypeQuote, Title: "Quote Calculator", Content: "Premium quotes are calculated from age, gender, sum assured, payment term, payment frequency (monthly or annual with annual discount), smoker status, occupation class, and health risk. The quote is indicative and final premium can change after underwriting review."},
 		{ID: "knowledge-application-flow", SourceType: constants.AssistantSourceTypeApplicationFlow, Title: "Application Flow", Content: "A customer starts by selecting a product, then creates a quote, submits an application, and the application moves through submitted, under_review, approved, or rejected statuses."},
 		{ID: "knowledge-underwriting-flow", SourceType: constants.AssistantSourceTypeUnderwriting, Title: "Underwriting Checklist", Content: "Underwriters review identity verification, income verification, documents completeness, and medical requirements. An application can only be approved after required review checks are passed or marked not needed."},
 		{ID: "knowledge-company-info", SourceType: constants.AssistantSourceTypeCompany, Title: "Company Information", Content: "The insurance core API is a backend service for insurance policy applications. Company profile, address, and official public details can be added later from a CMS or admin source."},

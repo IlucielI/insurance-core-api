@@ -914,3 +914,55 @@ func TestAssistantChatStream_ValidationErrors(t *testing.T) {
 		t.Fatalf("expected ErrAssistantMessageRequiredError, got %v", err)
 	}
 }
+
+func TestAssistantTools_PaymentFrequencyMonthlyAndAnnualOnly(t *testing.T) {
+	tools := assistantTools()
+	for _, tool := range tools {
+		if tool.Function.Name == "calculate_quote" || tool.Function.Name == "submit_application" {
+			paramsMap, ok := tool.Function.Parameters.(map[string]any)
+			if !ok {
+				t.Fatalf("expected map[string]any parameters for tool %s", tool.Function.Name)
+			}
+			props, ok := paramsMap["properties"].(map[string]any)
+			if !ok {
+				t.Fatalf("expected properties in parameters for tool %s", tool.Function.Name)
+			}
+			freqParam, ok := props["payment_frequency"].(map[string]any)
+			if !ok {
+				t.Fatalf("expected payment_frequency param in tool %s", tool.Function.Name)
+			}
+			enums, ok := freqParam["enum"].([]string)
+			if !ok {
+				t.Fatalf("expected enum []string in payment_frequency for %s", tool.Function.Name)
+			}
+			if len(enums) != 2 || enums[0] != "monthly" || enums[1] != "annual" {
+				t.Fatalf("expected only [monthly annual] in payment_frequency enum, got: %v", enums)
+			}
+		}
+	}
+}
+
+func TestAssistantExecuteTool_NormalizesPaymentFrequency(t *testing.T) {
+	repo := &knowledgeFake{}
+	products := &fakeProductRepository{product: productFixture()}
+	productService := NewProductService(products)
+	appService := &fakeApplicationService{}
+	service := NewAssistantService(repo, nil, productService).WithApplicationService(appService)
+
+	// Test calculate_quote with "tahunan"
+	args := `{"product_slug":"secure-life-plus","age":30,"gender":"male","sum_assured":500000000,"payment_term":10,"payment_frequency":"tahunan"}`
+	res := service.executeTool(context.Background(), "calculate_quote", args)
+	if strings.Contains(res, "error") {
+		t.Fatalf("unexpected error in executeTool calculate_quote: %s", res)
+	}
+
+	// Test submit_application with "tahunan"
+	submitArgs := `{"product_slug":"secure-life-plus","full_name":"Test User","email":"test@example.com","phone":"08123456789","age":30,"gender":"male","sum_assured":500000000,"payment_term":10,"payment_frequency":"tahunan"}`
+	resApp := service.executeTool(context.Background(), "submit_application", submitArgs)
+	if strings.Contains(resApp, "error") {
+		t.Fatalf("unexpected error in executeTool submit_application: %s", resApp)
+	}
+	if appService.capturedInput.ProductQuoteRequest.PaymentFrequency != "annual" {
+		t.Fatalf("expected annual payment frequency, got: %s", appService.capturedInput.ProductQuoteRequest.PaymentFrequency)
+	}
+}
