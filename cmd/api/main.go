@@ -99,6 +99,7 @@ func main() {
 			APIKey:          cfg.LLMAPIKey,
 			CompletionModel: cfg.LLMCompletionModel,
 			EmbeddingModel:  cfg.LLMEmbeddingModel,
+			Timeout:         120 * time.Second,
 		})
 		if err != nil {
 			log.Printf("assistant disabled: %v", err)

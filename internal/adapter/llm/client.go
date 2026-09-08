@@ -94,7 +94,7 @@ func NewClient(config Config) (*Client, error) {
 
 	timeout := config.Timeout
 	if timeout == 0 {
-		timeout = 30 * time.Second
+		timeout = 120 * time.Second
 	}
 
 	return &Client{
