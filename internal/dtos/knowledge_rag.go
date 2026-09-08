@@ -11,14 +11,16 @@ type ReindexDocumentResponse struct {
 }
 
 type KnowledgeBaseMetricsResponse struct {
-	TotalDocuments      int64            `json:"total_documents"`
-	TotalChunks         int64            `json:"total_chunks"`
-	IndexedDocuments    int64            `json:"indexed_documents"`
-	SyncingDocuments    int64            `json:"syncing_documents"`
-	DraftDocuments      int64            `json:"draft_documents"`
-	AverageChunksPerDoc float64          `json:"average_chunks_per_doc"`
-	CategoryBreakdown   map[string]int64 `json:"category_breakdown"`
-	LastSyncTime        *time.Time       `json:"last_sync_time"`
+	TotalDocuments            int64            `json:"total_documents"`
+	TotalChunks               int64            `json:"total_chunks"`
+	IndexedDocuments          int64            `json:"indexed_documents"`
+	SyncingDocuments          int64            `json:"syncing_documents"`
+	DraftDocuments            int64            `json:"draft_documents"`
+	AverageChunksPerDoc       float64          `json:"average_chunks_per_doc"`
+	CategoryBreakdown         map[string]int64 `json:"category_breakdown"`
+	LastSyncTime              *time.Time       `json:"last_sync_time"`
+	AverageRetrievalLatencyMs float64          `json:"average_retrieval_latency_ms"`
+	GroundingAccuracyPercent  float64          `json:"grounding_accuracy_percent"`
 }
 
 type SimulateChatRequest struct {
