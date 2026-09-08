@@ -33,6 +33,8 @@ type Client struct {
 
 func NewClient(config Config) (*Client, error) {
 	endpoint := strings.TrimSpace(config.Endpoint)
+	endpoint = strings.TrimPrefix(endpoint, "http://")
+	endpoint = strings.TrimPrefix(endpoint, "https://")
 	if endpoint == "" {
 		return nil, errors.New("Endpoint is required")
 	}

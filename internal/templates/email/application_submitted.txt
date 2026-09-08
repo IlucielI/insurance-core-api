@@ -14,8 +14,5 @@ RINCIAN PENGAJUAN:
 STATUS UNDERWRITING:
 95% pengajuan otomatis diproses dalam hitungan menit oleh AI Risk Engine. Jika berkas Anda memerlukan verifikasi dokumen tambahan (RFI), kami akan mengirimkan instruksi resmi dalam waktu 1x24 jam kerja.
 
-Pantau status pengajuan Anda:
-{{.PortalURL}}
-
 Layanan Nasabah: 1500-888 | support@bayuinsurance.co.id
 PT Bayu Insurance Digital Indonesia • Berizin & Diawasi OJK

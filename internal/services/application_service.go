@@ -112,6 +112,7 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 	}
 
 	var reviewChecks []models.ApplicationReviewCheck
+	var answers []models.ApplicationAnswer
 	if len(questions) > 0 && len(input.Answers) > 0 {
 		if err := validations.ValidateAnswers(questions, input.Answers); err != nil {
 			return models.Application{}, err
@@ -119,8 +120,22 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 		questionnaireService := NewQuestionnaireService(service.questionnaires, service.products)
 		reviewChecks = questionnaireService.EvaluateUnderwritingReviewChecks(id, questions, input.Answers)
 
-		answers := make([]models.ApplicationAnswer, 0, len(input.Answers))
+		validQuestionsMap := make(map[string]string, len(questions)*2)
+		for _, q := range questions {
+			validQuestionsMap[q.ID] = q.ID
+			validQuestionsMap[q.Code] = q.ID
+		}
+
+		answers = make([]models.ApplicationAnswer, 0, len(input.Answers))
 		for _, a := range input.Answers {
+			targetQID, exists := validQuestionsMap[strings.TrimSpace(a.QuestionID)]
+			if !exists {
+				targetQID, exists = validQuestionsMap[strings.TrimSpace(a.Code)]
+			}
+			if !exists {
+				continue
+			}
+
 			ansID, err := applicationID()
 			if err != nil {
 				return models.Application{}, err
@@ -128,14 +143,11 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 			answers = append(answers, models.ApplicationAnswer{
 				ID:            ansID,
 				ApplicationID: id,
-				QuestionID:    a.QuestionID,
+				QuestionID:    targetQID,
 				Code:          a.Code,
 				AnswerValue:   a.Value,
 				CreatedAt:     time.Now().UTC(),
 			})
-		}
-		if err := service.questionnaires.SaveAnswers(ctx, answers); err != nil {
-			return models.Application{}, err
 		}
 	}
 	if len(reviewChecks) == 0 {
@@ -160,6 +172,12 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 
 	if err := service.applications.Create(ctx, &application); err != nil {
 		return models.Application{}, err
+	}
+
+	if len(answers) > 0 && service.questionnaires != nil {
+		if err := service.questionnaires.SaveAnswers(ctx, answers); err != nil {
+			return models.Application{}, err
+		}
 	}
 	service.publishApplicationSubmitted(ctx, application, product.Name)
 	if service.messageBus == nil && service.mailer != nil {

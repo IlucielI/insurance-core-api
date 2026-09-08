@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bayuanugerah/insurance-core-api/internal/config"
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
 	"github.com/bayuanugerah/insurance-core-api/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -86,30 +87,49 @@ func TestSystemHealthService(t *testing.T) {
 		cache := new(MockCache)
 		cache.On("Ping", mock.Anything).Return(nil)
 
-		svc := NewSystemHealthService(nil, cache, auditRepo, "v1.2.0", "9a4f2b1", time.Now().UTC())
+		svc := NewSystemHealthService(nil, cache, auditRepo, config.Config{
+			HTTPPort:    "8080",
+			Version:     "v1.2.0",
+			GitHash:     "9a4f2b1",
+			DatabaseURL: "postgres://insurance:insurance@172.17.0.1:5432/insurance_core?sslmode=disable",
+			RedisHost:   "172.17.0.1",
+			RedisPort:   6379,
+			SMTPHost:    "172.17.0.1",
+			SMTPPort:    1025,
+		}, time.Now().UTC())
 
 		res, err := svc.GetOverview(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, dtos.ServiceHealthOnline, res.OverallStatus)
-		assert.Equal(t, 5, res.ActiveServicesCount)
-		assert.Equal(t, 5, res.TotalServicesCount)
+		assert.Equal(t, 4, res.ActiveServicesCount)
+		assert.Equal(t, 4, res.TotalServicesCount)
 		assert.Greater(t, res.AvgLatencyMs, 0.0)
 		assert.Len(t, res.RecentAuditLogs, 1)
 		assert.Equal(t, 50, res.DatabaseStats.MaxOpenConnections)
 	})
 
 	t.Run("PingServices returns single service by ID", func(t *testing.T) {
-		svc := NewSystemHealthService(nil, nil, nil, "v1.2.0", "9a4f2b1", time.Now().UTC())
+		svc := NewSystemHealthService(nil, nil, nil, config.Config{
+			HTTPPort:    "8080",
+			DatabaseURL: "postgres://insurance:insurance@172.17.0.1:5432/insurance_core?sslmode=disable",
+			RedisHost:   "172.17.0.1",
+			RedisPort:   6379,
+			SMTPHost:    "172.17.0.1",
+			SMTPPort:    1025,
+		}, time.Now().UTC())
 
 		services, err := svc.PingServices(ctx, "service_postgres")
 		require.NoError(t, err)
 		assert.Len(t, services, 1)
 		assert.Equal(t, "service_postgres", services[0].ID)
 		assert.Equal(t, "PostgreSQL 16 & pgvector DB", services[0].Name)
+		assert.Equal(t, "172.17.0.1:5432/insurance_core", services[0].Endpoint)
 	})
 
 	t.Run("PingRoutes returns route latency probes", func(t *testing.T) {
-		svc := NewSystemHealthService(nil, nil, nil, "v1.2.0", "9a4f2b1", time.Now().UTC())
+		svc := NewSystemHealthService(nil, nil, nil, config.Config{
+			HTTPPort: "8080",
+		}, time.Now().UTC())
 
 		routes, err := svc.PingRoutes(ctx)
 		require.NoError(t, err)
