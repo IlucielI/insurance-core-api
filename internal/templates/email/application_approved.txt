@@ -15,11 +15,5 @@ e-Polis_Resmi_BayuInsurance_{{.PolicyNumber}}.pdf (Dilengkapi e-Materai Peruri &
 MASA PERTIMBANGAN BEBAS (FREE LOOK PERIOD):
 Anda memiliki hak mempelajari ketentuan polis selama 14 hari kalender sejak email ini diterima. Bila tidak sesuai, Anda berhak membatalkan dengan jaminan pengembalian premi 100%.
 
-Unduh Dokumen e-Polis:
-{{.PolicyDownloadURL}}
-
-Kelola Polis Digital:
-{{.PortalURL}}
-
 Layanan Klaim & Darurat 24/7: 1500-888 | support@bayuinsurance.co.id
 PT Bayu Insurance Digital Indonesia • Berizin & Diawasi OJK
