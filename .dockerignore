@@ -2,4 +2,7 @@
 bin
 coverage.out
 .env
+.env.*
+.env*.local
 .tmp
+
