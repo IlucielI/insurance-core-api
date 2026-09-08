@@ -187,6 +187,7 @@ func TestProductServiceCreateProductQuoteValidatesProductLimits(t *testing.T) {
 		{name: "sum assured too high", input: withQuoteInput(func(input *dtos.CreateProductQuoteInput) { input.SumAssured = 2_000_000_001 }), want: constants.QuoteSumAssuredOutOfRangeError},
 		{name: "payment term too low", input: withQuoteInput(func(input *dtos.CreateProductQuoteInput) { input.PaymentTerm = 4 }), want: constants.QuotePaymentTermOutOfRangeError},
 		{name: "payment term too high", input: withQuoteInput(func(input *dtos.CreateProductQuoteInput) { input.PaymentTerm = 31 }), want: constants.QuotePaymentTermOutOfRangeError},
+		{name: "age outside pricing rules brackets", input: withQuoteInput(func(input *dtos.CreateProductQuoteInput) { input.Age = 99 }), want: constants.QuoteAgeOutOfRangeError},
 	}
 
 	service := NewProductService(&fakeProductRepository{product: productFixture()})

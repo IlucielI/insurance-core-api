@@ -1,12 +1,14 @@
-FROM insurance-core-api-base:latest AS builder
+ARG BASE_IMAGE=nbsbayu/insurance-core-api-base:latest
+FROM --platform=$BUILDPLATFORM ${BASE_IMAGE} AS builder
 
 ARG APP_VERSION=0.1.0
 ARG GIT_HASH=dev
+ARG TARGETARCH
 
 WORKDIR /src
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} go build \
     -ldflags="-s -w -X github.com/bayuanugerah/insurance-core-api/internal/config.Version=${APP_VERSION} -X github.com/bayuanugerah/insurance-core-api/internal/config.GitHash=${GIT_HASH}" \
     -o /out/api ./cmd/api
 

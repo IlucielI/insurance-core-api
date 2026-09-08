@@ -114,6 +114,48 @@ func (service *ApplicationService) Create(ctx context.Context, slug string, inpu
 	var reviewChecks []models.ApplicationReviewCheck
 	var answers []models.ApplicationAnswer
 	if len(questions) > 0 && len(input.Answers) > 0 {
+		// Populate common fields into answers if missing from answers array
+		answerCodes := make(map[string]bool, len(input.Answers))
+		for _, a := range input.Answers {
+			answerCodes[strings.TrimSpace(a.Code)] = true
+		}
+		if !answerCodes["occupation_class"] && input.OccupationClass != "" {
+			input.Answers = append(input.Answers, dtos.ApplicationAnswerInput{
+				Code:  "occupation_class",
+				Value: input.OccupationClass,
+			})
+		}
+		if !answerCodes["is_smoker"] && input.Smoker != "" {
+			input.Answers = append(input.Answers, dtos.ApplicationAnswerInput{
+				Code:  "is_smoker",
+				Value: input.Smoker,
+			})
+		}
+		if !answerCodes["gender"] && input.Gender != "" {
+			input.Answers = append(input.Answers, dtos.ApplicationAnswerInput{
+				Code:  "gender",
+				Value: input.Gender,
+			})
+		}
+		if !answerCodes["full_name"] && input.FullName != "" {
+			input.Answers = append(input.Answers, dtos.ApplicationAnswerInput{
+				Code:  "full_name",
+				Value: input.FullName,
+			})
+		}
+		if !answerCodes["email"] && input.Email != "" {
+			input.Answers = append(input.Answers, dtos.ApplicationAnswerInput{
+				Code:  "email",
+				Value: input.Email,
+			})
+		}
+		if !answerCodes["phone"] && input.Phone != "" {
+			input.Answers = append(input.Answers, dtos.ApplicationAnswerInput{
+				Code:  "phone",
+				Value: input.Phone,
+			})
+		}
+
 		if err := validations.ValidateAnswers(questions, input.Answers); err != nil {
 			return models.Application{}, err
 		}

@@ -109,7 +109,7 @@ INSERT INTO questions (
     'text',
     'Contoh: 081234567890',
     5,
-    '{"required": true, "min_length": 7, "max_length": 32, "pattern": "^[0-9+ ]{7,32}$"}'::jsonb,
+    '{"required": true, "min_length": 7, "max_length": 32, "pattern": "^[0-9+\\- ]{7,32}$"}'::jsonb,
     '[]'::jsonb,
     NULL,
     NULL,

@@ -93,8 +93,8 @@ func TestValidateProductQuoteRequest(t *testing.T) {
 		update  func(*dtos.ProductQuoteRequest)
 		wantErr string
 	}{
-		{name: "age", update: func(request *dtos.ProductQuoteRequest) { request.Age = 17 }, wantErr: constants.ErrQuoteAgeInvalid},
-		{name: "gender", update: func(request *dtos.ProductQuoteRequest) { request.Gender = "" }, wantErr: constants.ErrQuoteGenderInvalid},
+		{name: "age", update: func(request *dtos.ProductQuoteRequest) { request.Age = -1 }, wantErr: constants.ErrQuoteAgeInvalid},
+		{name: "gender", update: func(request *dtos.ProductQuoteRequest) { request.Gender = "other" }, wantErr: constants.ErrQuoteGenderInvalid},
 		{name: "sum assured", update: func(request *dtos.ProductQuoteRequest) { request.SumAssured = 0 }, wantErr: constants.ErrQuoteSumAssuredInvalid},
 		{name: "payment term", update: func(request *dtos.ProductQuoteRequest) { request.PaymentTerm = 0 }, wantErr: constants.ErrQuotePaymentTermInvalid},
 		{name: "frequency", update: func(request *dtos.ProductQuoteRequest) { request.PaymentFrequency = "weekly" }, wantErr: constants.ErrQuotePaymentFrequencyInvalid},
@@ -171,7 +171,7 @@ func TestValidateApplicationRequest(t *testing.T) {
 		{name: "full name", update: func(request *dtos.CreateApplicationRequest) { request.FullName = "x" }, wantErr: constants.ErrApplicationFullNameInvalid},
 		{name: "email", update: func(request *dtos.CreateApplicationRequest) { request.Email = "invalid" }, wantErr: constants.ErrApplicationEmailInvalid},
 		{name: "phone", update: func(request *dtos.CreateApplicationRequest) { request.Phone = "123" }, wantErr: constants.ErrApplicationPhoneInvalid},
-		{name: "quote", update: func(request *dtos.CreateApplicationRequest) { request.Age = 61 }, wantErr: constants.ErrQuoteAgeInvalid},
+		{name: "quote", update: func(request *dtos.CreateApplicationRequest) { request.Age = -1 }, wantErr: constants.ErrQuoteAgeInvalid},
 	}
 
 	for _, tt := range tests {

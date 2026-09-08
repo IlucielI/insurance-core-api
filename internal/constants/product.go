@@ -10,8 +10,14 @@ const (
 	MaxProductSearchLength      = 100
 	DefaultApplicationListLimit = 20
 	MaxApplicationListLimit     = 50
-	MinQuoteAge                 = 18
+	MinQuoteAge                 = 0
 	MaxQuoteAge                 = 60
+)
+
+const (
+	CategoryLife    = "life"
+	CategoryHealth  = "health"
+	CategoryVehicle = "vehicle"
 )
 
 const (

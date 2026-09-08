@@ -1023,3 +1023,434 @@ func TestAssistantExecuteTool_ProductAndSumAssuredHandling(t *testing.T) {
 		t.Fatalf("expected detected product to be health-guard-essential, got: %s", detected)
 	}
 }
+
+func TestAssistantExecuteTool_SubmitApplication_HealthProduct_WithMedicalHistory(t *testing.T) {
+	healthProd := productFixture()
+	healthProd.Slug = "health-guard-essential"
+	healthProd.Category = models.ProductCategoryHealth
+
+	products := &fakeProductRepository{product: healthProd}
+	productService := NewProductService(products)
+	appService := &fakeApplicationService{
+		createdApp: models.Application{ID: "app-health-001", FullName: "Ahmad Yani", Premium: 450000},
+	}
+
+	service := NewAssistantService(&knowledgeFake{}, nil, productService).WithApplicationService(appService)
+
+	args := `{
+		"product_slug": "health-guard-essential",
+		"full_name": "Ahmad Yani",
+		"email": "ahmad@example.com",
+		"phone": "08123456789",
+		"age": 40,
+		"gender": "male",
+		"sum_assured": 100000000,
+		"payment_term": 5,
+		"payment_frequency": "monthly",
+		"smoker": "no",
+		"has_critical_illness": "yes",
+		"critical_illness_details": "Diabetes Tipe 2 terkontrol",
+		"has_hospitalization": "yes",
+		"hospitalization_details": "Operasi Usus Buntu di RS Siloam",
+		"has_family_history": "no",
+		"beneficiary_name": "Siti Rahma",
+		"beneficiary_relationship": "Istri"
+	}`
+
+	res := service.executeTool(context.Background(), "submit_application", args, "health-guard-essential")
+	if strings.Contains(res, "error") {
+		t.Fatalf("expected successful submission, got: %s", res)
+	}
+
+	if appService.capturedSlug != "health-guard-essential" {
+		t.Fatalf("expected slug health-guard-essential, got: %s", appService.capturedSlug)
+	}
+
+	// Verify answers map
+	answerMap := make(map[string]any)
+	for _, ans := range appService.capturedInput.Answers {
+		answerMap[ans.Code] = ans.Value
+	}
+
+	if answerMap["is_smoker"] != "no" {
+		t.Errorf("expected is_smoker no, got: %v", answerMap["is_smoker"])
+	}
+	if answerMap["has_critical_illness"] != "yes" {
+		t.Errorf("expected has_critical_illness yes, got: %v", answerMap["has_critical_illness"])
+	}
+	if answerMap["critical_illness_details"] != "Diabetes Tipe 2 terkontrol" {
+		t.Errorf("expected critical_illness_details, got: %v", answerMap["critical_illness_details"])
+	}
+	if answerMap["has_hospitalization_2y"] != "yes" {
+		t.Errorf("expected has_hospitalization_2y yes, got: %v", answerMap["has_hospitalization_2y"])
+	}
+	if answerMap["hospitalization_details"] != "Operasi Usus Buntu di RS Siloam" {
+		t.Errorf("expected hospitalization_details, got: %v", answerMap["hospitalization_details"])
+	}
+	if answerMap["has_family_history"] != "no" {
+		t.Errorf("expected has_family_history no, got: %v", answerMap["has_family_history"])
+	}
+	if answerMap["beneficiary_name"] != "Siti Rahma" {
+		t.Errorf("expected beneficiary_name Siti Rahma, got: %v", answerMap["beneficiary_name"])
+	}
+	if answerMap["beneficiary_relationship"] != "Istri" {
+		t.Errorf("expected beneficiary_relationship Istri, got: %v", answerMap["beneficiary_relationship"])
+	}
+	if answerMap["agree_truth_declaration"] != true || answerMap["agree_policy_terms"] != true {
+		t.Errorf("expected legal declarations to be true, got: %v, %v", answerMap["agree_truth_declaration"], answerMap["agree_policy_terms"])
+	}
+}
+
+func TestAssistantExecuteTool_SubmitApplication_VehicleProduct_WithPlateAndUsage(t *testing.T) {
+	vehicleProd := productFixture()
+	vehicleProd.Slug = "auto-shield-comprehensive"
+	vehicleProd.Category = models.ProductCategoryVehicle
+
+	products := &fakeProductRepository{product: vehicleProd}
+	productService := NewProductService(products)
+	appService := &fakeApplicationService{
+		createdApp: models.Application{ID: "app-veh-001", FullName: "Bambang Wijaya", Premium: 1500000},
+	}
+
+	service := NewAssistantService(&knowledgeFake{}, nil, productService).WithApplicationService(appService)
+
+	args := `{
+		"product_slug": "auto-shield-comprehensive",
+		"full_name": "Bambang Wijaya",
+		"email": "bambang@example.com",
+		"phone": "08198765432",
+		"age": 35,
+		"gender": "male",
+		"sum_assured": 150000000,
+		"payment_term": 3,
+		"payment_frequency": "annual",
+		"vehicle_plate": "B 9999 XYZ",
+		"vehicle_usage": "high",
+		"beneficiary_name": "Budi",
+		"beneficiary_relationship": "Anak"
+	}`
+
+	res := service.executeTool(context.Background(), "submit_application", args, "auto-shield-comprehensive")
+	if strings.Contains(res, "error") {
+		t.Fatalf("expected successful submission, got: %s", res)
+	}
+
+	if appService.capturedSlug != "auto-shield-comprehensive" {
+		t.Fatalf("expected slug auto-shield-comprehensive, got: %s", appService.capturedSlug)
+	}
+
+	// Verify vehicle fields
+	if appService.capturedInput.Smoker != constants.SmokerNo {
+		t.Errorf("expected smoker to be forced to non-smoker for vehicle, got: %v", appService.capturedInput.Smoker)
+	}
+	if appService.capturedInput.OccupationClass != "high" {
+		t.Errorf("expected occupation_class to be mapped from vehicle_usage high, got: %v", appService.capturedInput.OccupationClass)
+	}
+
+	answerMap := make(map[string]any)
+	for _, ans := range appService.capturedInput.Answers {
+		answerMap[ans.Code] = ans.Value
+	}
+
+	if answerMap["vehicle_plate"] != "B 9999 XYZ" {
+		t.Errorf("expected vehicle_plate B 9999 XYZ, got: %v", answerMap["vehicle_plate"])
+	}
+	if answerMap["occupation_class"] != "high" {
+		t.Errorf("expected occupation_class high, got: %v", answerMap["occupation_class"])
+	}
+	if answerMap["beneficiary_name"] != "Budi" {
+		t.Errorf("expected beneficiary_name Budi, got: %v", answerMap["beneficiary_name"])
+	}
+	if answerMap["agree_truth_declaration"] != true || answerMap["agree_policy_terms"] != true {
+		t.Errorf("expected legal declarations to be true, got: %v, %v", answerMap["agree_truth_declaration"], answerMap["agree_policy_terms"])
+	}
+}
+
+func TestAssistantDynamicSupportForNewProducts(t *testing.T) {
+	ctx := context.Background()
+
+	newProduct := productFixture()
+	newProduct.ID = "prod-custom-99"
+	newProduct.Slug = "prime-family-protection"
+	newProduct.Name = "Prime Family Protection"
+	newProduct.Category = models.ProductCategoryLife
+	newProduct.MinSumAssured = 50_000_000
+	newProduct.MaxSumAssured = 1_000_000_000
+	newProduct.MinPaymentTerm = 1
+	newProduct.MaxPaymentTerm = 20
+
+	repo := &fakeProductRepository{
+		products: []models.Product{newProduct},
+		product:  newProduct,
+	}
+	productService := NewProductService(repo)
+	appService := &fakeApplicationService{}
+	service := NewAssistantService(&knowledgeFake{}, nil, productService).WithApplicationService(appService)
+
+	// 1. Verify getAssistantTools dynamically includes the new product slug in enum
+	tools := service.getAssistantTools(ctx)
+	foundSlugInEnum := false
+	for _, tool := range tools {
+		if tool.Function.Name == "calculate_quote" {
+			params := tool.Function.Parameters.(map[string]any)
+			props := params["properties"].(map[string]any)
+			slugProp := props["product_slug"].(map[string]any)
+			enums := slugProp["enum"].([]string)
+			for _, enumVal := range enums {
+				if enumVal == "prime-family-protection" {
+					foundSlugInEnum = true
+					break
+				}
+			}
+		}
+	}
+	if !foundSlugInEnum {
+		t.Fatalf("expected getAssistantTools to include 'prime-family-protection' in enum")
+	}
+
+	// 2. Verify detectProductSlug detects the new product from message
+	detected := service.detectProductSlug(ctx, nil, "saya mau daftar asuransi Prime Family Protection dong")
+	if detected != "prime-family-protection" {
+		t.Fatalf("expected detected slug 'prime-family-protection', got: %s", detected)
+	}
+
+	// 3. Verify normalizeProductSlug preserves the new product slug
+	normalized := service.normalizeProductSlug(ctx, "prime-family-protection")
+	if normalized != "prime-family-protection" {
+		t.Fatalf("expected normalized slug 'prime-family-protection', got: %s", normalized)
+	}
+
+	// 4. Verify executeTool calculate_quote works with the new product
+	calcArgs := `{"product_slug":"prime-family-protection","age":35,"gender":"male","sum_assured":200000000,"payment_term":10,"payment_frequency":"monthly"}`
+	resCalc := service.executeTool(ctx, "calculate_quote", calcArgs)
+	if strings.Contains(resCalc, "error") {
+		t.Fatalf("expected calculate_quote to succeed for new product, got: %s", resCalc)
+	}
+
+	// 5. Verify executeTool submit_application works with the new product
+	submitArgs := `{"product_slug":"prime-family-protection","full_name":"Budi Santoso","email":"budi@example.com","phone":"08123456789","age":35,"gender":"male","sum_assured":200000000,"payment_term":10,"payment_frequency":"monthly","nik":"3201234567890123"}`
+	resSubmit := service.executeTool(ctx, "submit_application", submitArgs)
+	if strings.Contains(resSubmit, "error") {
+		t.Fatalf("expected submit_application to succeed for new product, got: %s", resSubmit)
+	}
+	if appService.capturedSlug != "prime-family-protection" {
+		t.Fatalf("expected appService captured slug 'prime-family-protection', got: %s", appService.capturedSlug)
+	}
+}
+
+func TestAssistantDynamicSupportForNewVehicleProduct(t *testing.T) {
+	ctx := context.Background()
+
+	newVehicle := productFixture()
+	newVehicle.ID = "prod-custom-veh-88"
+	newVehicle.Slug = "motor-super-shield"
+	newVehicle.Name = "Motor Super Shield"
+	newVehicle.Category = models.ProductCategoryVehicle
+	newVehicle.MinSumAssured = 30_000_000
+	newVehicle.MaxSumAssured = 500_000_000
+	newVehicle.MinPaymentTerm = 1
+	newVehicle.MaxPaymentTerm = 5
+
+	repo := &fakeProductRepository{
+		products: []models.Product{newVehicle},
+		product:  newVehicle,
+	}
+	productService := NewProductService(repo)
+	appService := &fakeApplicationService{}
+	service := NewAssistantService(&knowledgeFake{}, nil, productService).WithApplicationService(appService)
+
+	// 1. Verify detectProductSlug detects the new vehicle product
+	detected := service.detectProductSlug(ctx, nil, "saya mau asuransi motor super shield")
+	if detected != "motor-super-shield" {
+		t.Fatalf("expected detected slug 'motor-super-shield', got: %s", detected)
+	}
+
+	// 2. Submit application for new vehicle product
+	submitArgs := `{"product_slug":"motor-super-shield","full_name":"Doni Pratama","email":"doni@example.com","phone":"08123456789","age":28,"gender":"male","sum_assured":100000000,"payment_term":3,"payment_frequency":"annual","vehicle_plate":"B 5555 XYZ","vehicle_usage":"high"}`
+	resSubmit := service.executeTool(ctx, "submit_application", submitArgs)
+	if strings.Contains(resSubmit, "error") {
+		t.Fatalf("expected submit_application to succeed for new vehicle product, got: %s", resSubmit)
+	}
+	if appService.capturedSlug != "motor-super-shield" {
+		t.Fatalf("expected appService captured slug 'motor-super-shield', got: %s", appService.capturedSlug)
+	}
+
+	// Verify auto-fill of vehicle fields and safe medical defaults
+	if appService.capturedInput.Smoker != constants.SmokerNo {
+		t.Errorf("expected smoker to be forced to non-smoker for vehicle, got: %v", appService.capturedInput.Smoker)
+	}
+
+	answerMap := make(map[string]any)
+	for _, ans := range appService.capturedInput.Answers {
+		answerMap[ans.Code] = ans.Value
+	}
+	if answerMap["vehicle_plate"] != "B 5555 XYZ" {
+		t.Errorf("expected vehicle_plate B 5555 XYZ, got: %v", answerMap["vehicle_plate"])
+	}
+}
+
+func TestAssistantSessionContextLockMultiTurn(t *testing.T) {
+	ctx := context.Background()
+
+	prodLifeSyariah := models.Product{
+		ID:             "prod-life-syariah",
+		Slug:           "life-syariah-murni",
+		Name:           "Perlindungan Jiwa Syariah Murni",
+		Category:       models.ProductCategoryLife,
+		MinSumAssured:  50_000_000,
+		MaxSumAssured:  1_000_000_000,
+		MinPaymentTerm: 5,
+		MaxPaymentTerm: 20,
+	}
+
+	prodVehicleTest := models.Product{
+		ID:             "prod-veh-test",
+		Slug:           "perlindungan-jiwa-syariah-murni-test",
+		Name:           "Perlindungan Jiwa Syariah Murni Test",
+		Category:       models.ProductCategoryVehicle,
+		MinSumAssured:  75_000_000,
+		MaxSumAssured:  1_500_000_000,
+		MinPaymentTerm: 1,
+		MaxPaymentTerm: 5,
+	}
+
+	prodAutoShield := models.Product{
+		ID:             "prod-auto-shield",
+		Slug:           "auto-shield-comprehensive",
+		Name:           "Auto Shield Comprehensive",
+		Category:       models.ProductCategoryVehicle,
+		MinSumAssured:  75_000_000,
+		MaxSumAssured:  1_500_000_000,
+		MinPaymentTerm: 1,
+		MaxPaymentTerm: 5,
+	}
+
+	repo := &fakeProductRepository{
+		products: []models.Product{prodLifeSyariah, prodVehicleTest, prodAutoShield},
+	}
+	productService := NewProductService(repo)
+	service := NewAssistantService(&knowledgeFake{}, nil, productService)
+
+	// Turn 1: User explicitly chooses 'Perlindungan Jiwa Syariah Murni Test'
+	turn1Msg := "daftar produk Perlindungan Jiwa Syariah Murni Test"
+	slugTurn1 := service.detectProductSlug(ctx, nil, turn1Msg)
+	if slugTurn1 != "perlindungan-jiwa-syariah-murni-test" {
+		t.Fatalf("Turn 1 expected 'perlindungan-jiwa-syariah-murni-test', got: %s", slugTurn1)
+	}
+
+	// Turn 1 Assistant response is added to history
+	history := []models.AssistantMessage{
+		{
+			Role:    "user",
+			Content: turn1Msg,
+		},
+		{
+			Role:    "assistant",
+			Content: "Baik, saya bantu pendaftaran Perlindungan Jiwa Syariah Murni Test. Silakan masukkan data diri: nama lengkap, email, nomor HP, usia, dan jenis kelamin.",
+		},
+	}
+
+	// Turn 2: User answers personal details without mentioning product name
+	turn2Msg := "nama aca. aca@example.com. 089832943284324. 40. wanita"
+	slugTurn2 := service.detectProductSlug(ctx, history, turn2Msg)
+	if slugTurn2 != "perlindungan-jiwa-syariah-murni-test" {
+		t.Fatalf("Turn 2 (Session Context Lock) expected locked slug 'perlindungan-jiwa-syariah-murni-test', got: %s", slugTurn2)
+	}
+
+	// Turn 2 Assistant response is added to history
+	history = append(history,
+		models.AssistantMessage{Role: "user", Content: turn2Msg},
+		models.AssistantMessage{Role: "assistant", Content: "Terima kasih Bu Aca. Untuk asuransi kendaraan Perlindungan Jiwa Syariah Murni Test, silakan berikan nomor plat polisi dan tujuan penggunaan kendaraan."},
+	)
+
+	// Turn 3: User answers vehicle plate details without mentioning product name
+	turn3Msg := "plat nomor B 1234 ABC, santai pribadi"
+	slugTurn3 := service.detectProductSlug(ctx, history, turn3Msg)
+	if slugTurn3 != "perlindungan-jiwa-syariah-murni-test" {
+		t.Fatalf("Turn 3 (Session Context Lock) expected locked slug 'perlindungan-jiwa-syariah-murni-test', got: %s", slugTurn3)
+	}
+
+	// Turn 3 Assistant response is added to history
+	history = append(history,
+		models.AssistantMessage{Role: "user", Content: turn3Msg},
+		models.AssistantMessage{Role: "assistant", Content: "Data kendaraan tercatat. Berapa nilai pertanggungan yang diinginkan?"},
+	)
+
+	// Turn 4: User explicitly switches product to 'Auto Shield Comprehensive'
+	turn4Msg := "eh maaf saya mau ganti ke Auto Shield Comprehensive aja dong"
+	slugTurn4 := service.detectProductSlug(ctx, history, turn4Msg)
+	if slugTurn4 != "auto-shield-comprehensive" {
+		t.Fatalf("Turn 4 expected switched slug 'auto-shield-comprehensive', got: %s", slugTurn4)
+	}
+
+	// Turn 4 Assistant response is added to history
+	history = append(history,
+		models.AssistantMessage{Role: "user", Content: turn4Msg},
+		models.AssistantMessage{Role: "assistant", Content: "Baik, produk dialihkan ke Auto Shield Comprehensive. Berapa nilai pertanggungan yang diinginkan?"},
+	)
+
+	// Turn 5: User continues under new product without mentioning name
+	turn5Msg := "UP 150 juta tenor 3 tahun bayar tahunan"
+	slugTurn5 := service.detectProductSlug(ctx, history, turn5Msg)
+	if slugTurn5 != "auto-shield-comprehensive" {
+		t.Fatalf("Turn 5 (Session Context Lock) expected locked slug 'auto-shield-comprehensive', got: %s", slugTurn5)
+	}
+}
+
+func TestAssistantSessionContextLockFromToolCalls(t *testing.T) {
+	ctx := context.Background()
+
+	prodVehicleTest := models.Product{
+		ID:             "prod-veh-test",
+		Slug:           "perlindungan-jiwa-syariah-murni-test",
+		Name:           "Perlindungan Jiwa Syariah Murni Test",
+		Category:       models.ProductCategoryVehicle,
+		MinSumAssured:  75_000_000,
+		MaxSumAssured:  1_500_000_000,
+		MinPaymentTerm: 1,
+		MaxPaymentTerm: 5,
+	}
+
+	repo := &fakeProductRepository{
+		products: []models.Product{prodVehicleTest},
+	}
+	productService := NewProductService(repo)
+	service := NewAssistantService(&knowledgeFake{}, nil, productService)
+
+	// History contains an assistant message that executed a tool call with product_slug
+	history := []models.AssistantMessage{
+		{
+			Role:    "user",
+			Content: "hitung premi dong",
+		},
+		{
+			Role:    "assistant",
+			Content: "",
+			ToolCalls: []llm.ToolCall{
+				{
+					ID:   "call_123",
+					Type: "function",
+					Function: llm.ToolCallFunction{
+						Name:      "calculate_quote",
+						Arguments: `{"product_slug":"perlindungan-jiwa-syariah-murni-test","age":40,"gender":"female","sum_assured":100000000}`,
+					},
+				},
+			},
+		},
+		{
+			Role:    "tool",
+			Content: `{"indicative_premium": 250000}`,
+		},
+		{
+			Role:    "assistant",
+			Content: "Hasil simulasi premi Anda adalah Rp 250.000 / bulan. Apakah ingin melanjutkan pendaftaran?",
+		},
+	}
+
+	// User replies with generic confirmation
+	currentMsg := "ya setuju, lanjutkan pendaftaran"
+	lockedSlug := service.detectProductSlug(ctx, history, currentMsg)
+	if lockedSlug != "perlindungan-jiwa-syariah-murni-test" {
+		t.Fatalf("expected session context lock from tool calls to yield 'perlindungan-jiwa-syariah-murni-test', got: %s", lockedSlug)
+	}
+}

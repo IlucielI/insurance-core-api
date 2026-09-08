@@ -205,6 +205,16 @@ func applicationError(ctx *fiber.Ctx, err error, fallback string) error {
 	if constants.IsQuoteValidationError(err) {
 		return badRequest(ctx, err.Error())
 	}
+
+	// Questionnaire validation errors or input validation errors
+	errStr := err.Error()
+	if strings.Contains(errStr, "wajib diisi") ||
+		strings.Contains(errStr, "tidak memenuhi format") ||
+		strings.Contains(errStr, "minimal") ||
+		strings.Contains(errStr, "maksimal") {
+		return badRequest(ctx, errStr)
+	}
+
 	return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 		"error": fallback,
 	})

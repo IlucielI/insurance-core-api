@@ -340,7 +340,16 @@ func buildQuoteBreakdown(product models.Product, input dtos.CreateProductQuoteIn
 	frequencyLoading := findRuleFactor(rules.FrequencyLoading, input.PaymentFrequency)
 	termFactor := calculateTermFactor(product.MinPaymentTerm, input.PaymentTerm)
 
-	if !validFactor(baseRate) || !validFactor(ageFactor) || !validFactor(genderFactor) || !validFactor(smokerFactor) || !validFactor(occupationFactor) || !validFactor(healthFactor) || !validFactor(frequencyLoading) || !validFactor(termFactor) {
+	if product.Category == constants.CategoryVehicle {
+		genderFactor = 1.0
+		smokerFactor = 1.0
+		healthFactor = 1.0
+	}
+
+	if !validFactor(ageFactor) {
+		return dtos.ProductQuoteBreakdown{}, constants.QuoteAgeOutOfRangeError
+	}
+	if !validFactor(baseRate) || !validFactor(genderFactor) || !validFactor(smokerFactor) || !validFactor(occupationFactor) || !validFactor(healthFactor) || !validFactor(frequencyLoading) || !validFactor(termFactor) {
 		return dtos.ProductQuoteBreakdown{}, constants.QuotePricingRulesInvalidError
 	}
 
@@ -432,8 +441,15 @@ func (service *ProductService) calculateDynamicQuote(
 		case "frequency_loading":
 			frequencyLoading = parseFactorFloat(rule.Factors, input.PaymentFrequency)
 		case "multiplier_map":
+			ruleCodeLower := strings.ToLower(rule.RuleCode)
+			if product.Category == constants.CategoryVehicle && (strings.Contains(ruleCodeLower, "gender") || strings.Contains(ruleCodeLower, "smoker") || strings.Contains(ruleCodeLower, "health") || strings.Contains(ruleCodeLower, "illness")) {
+				continue
+			}
 			val := findAnswerForRule(rule, input)
 			factor := parseMultiplierFactor(rule.Factors, val)
+			if factor <= 0 {
+				factor = 1.0
+			}
 			dynamicMultiplier *= factor
 
 			factorsBreakdown = append(factorsBreakdown, dtos.ProductQuoteFactorItem{
@@ -444,7 +460,11 @@ func (service *ProductService) calculateDynamicQuote(
 		}
 	}
 
-	if !validFactor(baseRate) || !validFactor(ageFactor) || !validFactor(termFactor) || !validFactor(frequencyLoading) || !validFactor(dynamicMultiplier) {
+	if !validFactor(ageFactor) {
+		return dtos.ProductQuote{}, constants.QuoteAgeOutOfRangeError
+	}
+
+	if !validFactor(baseRate) || !validFactor(termFactor) || !validFactor(frequencyLoading) || !validFactor(dynamicMultiplier) {
 		return dtos.ProductQuote{}, constants.QuotePricingRulesInvalidError
 	}
 
@@ -517,17 +537,23 @@ func parseFactorFloat(factors map[string]any, key string) float64 {
 }
 
 func parseBracketFactor(factors map[string]any, age int) float64 {
+	var list []any
 	if raw, ok := factors["brackets"]; ok {
-		if list, ok := raw.([]any); ok {
-			for _, item := range list {
-				if m, ok := item.(map[string]any); ok {
-					minAge := int(parseFactorFloat(m, "min_age"))
-					maxAge := int(parseFactorFloat(m, "max_age"))
-					factor := parseFactorFloat(m, "factor")
-					if age >= minAge && age <= maxAge {
-						return factor
-					}
-				}
+		if l, ok := raw.([]any); ok {
+			list = l
+		}
+	} else if raw, ok := factors["age_factors"]; ok {
+		if l, ok := raw.([]any); ok {
+			list = l
+		}
+	}
+	for _, item := range list {
+		if m, ok := item.(map[string]any); ok {
+			minAge := int(parseFactorFloat(m, "min_age"))
+			maxAge := int(parseFactorFloat(m, "max_age"))
+			factor := parseFactorFloat(m, "factor")
+			if age >= minAge && age <= maxAge {
+				return factor
 			}
 		}
 	}
