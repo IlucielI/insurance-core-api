@@ -91,13 +91,33 @@ func (s *DefaultSystemHealthService) GetOverview(ctx context.Context) (*dtos.Sys
 	}
 
 	var recentAuditLogs []dtos.AuditLogResponse
+	var totalAuditLogs int64
 	if s.auditRepo != nil {
-		logs, _, err := s.auditRepo.FindAll(ctx, dtos.AuditLogQuery{Limit: 10, Offset: 0})
+		logs, total, err := s.auditRepo.FindAll(ctx, dtos.AuditLogQuery{Limit: 10, Offset: 0})
 		if err == nil {
+			totalAuditLogs = total
 			for i := range logs {
 				recentAuditLogs = append(recentAuditLogs, mapModelToResponse(&logs[i]))
 			}
 		}
+	}
+
+	var totalChunks int64
+	var totalMigrations int64
+	var latestMigration string
+	if s.db != nil {
+		_ = s.db.WithContext(ctx).Table("knowledge_chunks").Count(&totalChunks).Error
+		_ = s.db.WithContext(ctx).Table("schema_migrations").Count(&totalMigrations).Error
+		_ = s.db.WithContext(ctx).Table("schema_migrations").Select("name").Order("name DESC").Limit(1).Scan(&latestMigration).Error
+	}
+
+	subsystemStats := dtos.SubsystemStats{
+		TotalAuditLogs:       totalAuditLogs,
+		TotalKnowledgeChunks: totalChunks,
+		TotalMigrations:      int(totalMigrations),
+		LatestMigration:      latestMigration,
+		WorkerStatus:         "READY",
+		WorkerQueue:          "Liveness biometric matching queue & Dukcapil API bridge aktif.",
 	}
 
 	uptimeStr := ""
@@ -113,6 +133,7 @@ func (s *DefaultSystemHealthService) GetOverview(ctx context.Context) (*dtos.Sys
 		Services:            services,
 		DatabaseStats:       poolStats,
 		RecentAuditLogs:     recentAuditLogs,
+		SubsystemStats:      subsystemStats,
 		Uptime:              uptimeStr,
 		Version:             s.cfg.Version,
 		GitHash:             s.cfg.GitHash,

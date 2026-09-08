@@ -26,6 +26,15 @@ type DatabasePoolStats struct {
 	MaxOpenConnections int `json:"max_open_connections"`
 }
 
+type SubsystemStats struct {
+	TotalAuditLogs       int64  `json:"total_audit_logs"`
+	TotalKnowledgeChunks int64  `json:"total_knowledge_chunks"`
+	TotalMigrations      int    `json:"total_migrations"`
+	LatestMigration      string `json:"latest_migration"`
+	WorkerStatus         string `json:"worker_status"`
+	WorkerQueue          string `json:"worker_queue"`
+}
+
 type SystemHealthOverviewResponse struct {
 	OverallStatus       ServiceHealthStatus `json:"overall_status"`
 	ActiveServicesCount int                 `json:"active_services_count"`
@@ -34,6 +43,7 @@ type SystemHealthOverviewResponse struct {
 	Services            []ServiceHealthItem `json:"services"`
 	DatabaseStats       DatabasePoolStats   `json:"database_stats"`
 	RecentAuditLogs     []AuditLogResponse  `json:"recent_audit_logs"`
+	SubsystemStats      SubsystemStats      `json:"subsystem_stats"`
 	Uptime              string              `json:"uptime,omitempty"`
 	Version             string              `json:"version,omitempty"`
 	GitHash             string              `json:"git_hash,omitempty"`
