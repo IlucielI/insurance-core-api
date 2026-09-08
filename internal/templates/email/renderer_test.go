@@ -80,6 +80,9 @@ func TestRendererAllTemplates(t *testing.T) {
 		if !strings.Contains(html, "Jaminan Pengembalian Dana") {
 			t.Errorf("expected Refund guarantee in html")
 		}
+		if strings.Contains(html, "Opsi Solusi Proteksi Alternatif") || strings.Contains(text, "SOLUSI & KONSULTASI ALTERNATIF") {
+			t.Errorf("expected alternative protection options to be removed from rejection email")
+		}
 	})
 
 	t.Run("ApplicationRFI", func(t *testing.T) {

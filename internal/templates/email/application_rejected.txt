@@ -14,9 +14,5 @@ DASAR PERTIMBANGAN PENILAIAN:
 JAMINAN PENGEMBALIAN DANA (REFUND 100%):
 Apabila terdapat dana premi atau deposit yang telah terdebet sebesar {{.RefundAmountFormatted}}, dana akan dikembalikan secara utuh ke rekening asal Anda dalam 2-3 hari kerja tanpa potongan administrasi.
 
-SOLUSI & KONSULTASI ALTERNATIF:
-Anda dapat berkonsultasi mengenai produk proteksi mikro alternatif atau mengajukan evaluasi ulang setelah periode cooling-off 6 bulan:
-{{.ConsultationURL}}
-
 Layanan Konsumen & Bantuan: 1500-888 | care@bayuinsurance.co.id
 PT Bayu Insurance Digital Indonesia • Berizin & Diawasi OJK
