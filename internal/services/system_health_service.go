@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"net"
 	"net/url"
@@ -107,9 +108,15 @@ func (s *DefaultSystemHealthService) GetOverview(ctx context.Context) (*dtos.Sys
 	var totalMigrations int64
 	var latestMigration string
 	if s.db != nil {
-		_ = s.db.WithContext(ctx).Table("knowledge_chunks").Count(&totalChunks).Error
-		_ = s.db.WithContext(ctx).Table("schema_migrations").Count(&totalMigrations).Error
-		_ = s.db.WithContext(ctx).Table("schema_migrations").Select("name").Order("name DESC").Limit(1).Scan(&latestMigration).Error
+		if err := s.db.WithContext(ctx).Table("knowledge_chunks").Count(&totalChunks).Error; err != nil {
+			log.Printf("[SystemHealthService] warning: count knowledge_chunks: %v", err)
+		}
+		if err := s.db.WithContext(ctx).Table("schema_migrations").Count(&totalMigrations).Error; err != nil {
+			log.Printf("[SystemHealthService] warning: count schema_migrations: %v", err)
+		}
+		if err := s.db.WithContext(ctx).Table("schema_migrations").Select("name").Order("name DESC").Limit(1).Scan(&latestMigration).Error; err != nil {
+			log.Printf("[SystemHealthService] warning: get latest migration: %v", err)
+		}
 	}
 
 	subsystemStats := dtos.SubsystemStats{
@@ -365,7 +372,9 @@ func (s *DefaultSystemHealthService) measureSMTPHealth(ctx context.Context, endp
 		// In test environments or isolated sandboxes, retain baseline online probe
 		return 28.0, dtos.ServiceHealthOnline
 	}
-	_ = conn.Close()
+	if err := conn.Close(); err != nil {
+		log.Printf("[SystemHealthService] warning: close probe connection: %v", err)
+	}
 
 	elapsed := float64(time.Since(start).Microseconds()) / 1000.0
 	if elapsed <= 0 {
@@ -375,12 +384,18 @@ func (s *DefaultSystemHealthService) measureSMTPHealth(ctx context.Context, endp
 }
 
 func (s *DefaultSystemHealthService) measurePostgresLatency(ctx context.Context) float64 {
-	lat, _ := s.measurePostgresHealth(ctx)
+	lat, status := s.measurePostgresHealth(ctx)
+	if status != dtos.ServiceHealthOnline {
+		return 0.0
+	}
 	return lat
 }
 
 func (s *DefaultSystemHealthService) measureRedisLatency(ctx context.Context) float64 {
-	lat, _ := s.measureRedisHealth(ctx)
+	lat, status := s.measureRedisHealth(ctx)
+	if status != dtos.ServiceHealthOnline {
+		return 0.0
+	}
 	return lat
 }
 
