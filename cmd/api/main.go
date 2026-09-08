@@ -88,7 +88,7 @@ func main() {
 	knowledgeMetricsRepository := repositories.NewPostgresKnowledgeMetricsRepository(postgres.DB())
 	auditLogRepository := repositories.NewPostgresAuditLogRepository(postgres.DB())
 	auditLogService := services.NewAuditLogService(auditLogRepository)
-	systemHealthService := services.NewSystemHealthService(postgres.DB(), redisClient, auditLogRepository, cfg.Version, cfg.GitHash, time.Now().UTC())
+	systemHealthService := services.NewSystemHealthService(postgres.DB(), redisClient, auditLogRepository, cfg, time.Now().UTC())
 	notificationRepository := repositories.NewPostgresNotificationRepository(postgres.DB())
 	notificationService := services.NewNotificationService(notificationRepository)
 

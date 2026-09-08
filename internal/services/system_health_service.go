@@ -2,9 +2,13 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"net/url"
+	"strings"
 	"time"
 
+	"github.com/bayuanugerah/insurance-core-api/internal/config"
 	"github.com/bayuanugerah/insurance-core-api/internal/dtos"
 	"github.com/bayuanugerah/insurance-core-api/internal/ports"
 	"github.com/bayuanugerah/insurance-core-api/internal/repositories"
@@ -21,8 +25,7 @@ type DefaultSystemHealthService struct {
 	db        *gorm.DB
 	cache     ports.Cache
 	auditRepo repositories.AuditLogRepository
-	version   string
-	gitHash   string
+	cfg       config.Config
 	startedAt time.Time
 }
 
@@ -30,16 +33,14 @@ func NewSystemHealthService(
 	db *gorm.DB,
 	cache ports.Cache,
 	auditRepo repositories.AuditLogRepository,
-	version string,
-	gitHash string,
+	cfg config.Config,
 	startedAt time.Time,
 ) *DefaultSystemHealthService {
 	return &DefaultSystemHealthService{
 		db:        db,
 		cache:     cache,
 		auditRepo: auditRepo,
-		version:   version,
-		gitHash:   gitHash,
+		cfg:       cfg,
 		startedAt: startedAt,
 	}
 }
@@ -117,12 +118,50 @@ func (s *DefaultSystemHealthService) PingServices(ctx context.Context, serviceID
 	postgresLatency := s.measurePostgresLatency(ctx)
 	redisLatency := s.measureRedisLatency(ctx)
 
+	coreApiPort := s.cfg.HTTPPort
+	if coreApiPort == "" {
+		coreApiPort = "8080"
+	}
+	coreApiEndpoint := fmt.Sprintf("http://localhost:%s/health", coreApiPort)
+
+	postgresEndpoint := "172.17.0.1:5432/insurance_core"
+	if s.cfg.DatabaseURL != "" {
+		if parsed, err := url.Parse(s.cfg.DatabaseURL); err == nil && parsed.Host != "" {
+			dbName := strings.TrimPrefix(parsed.Path, "/")
+			if dbName != "" {
+				postgresEndpoint = fmt.Sprintf("%s/%s", parsed.Host, dbName)
+			} else {
+				postgresEndpoint = parsed.Host
+			}
+		}
+	}
+
+	redisHost := s.cfg.RedisHost
+	if redisHost == "" {
+		redisHost = "172.17.0.1"
+	}
+	redisPort := s.cfg.RedisPort
+	if redisPort == 0 {
+		redisPort = 6379
+	}
+	redisEndpoint := fmt.Sprintf("%s:%d/cache", redisHost, redisPort)
+
+	smtpHost := s.cfg.SMTPHost
+	if smtpHost == "" {
+		smtpHost = "172.17.0.1"
+	}
+	smtpPort := s.cfg.SMTPPort
+	if smtpPort == 0 {
+		smtpPort = 1025
+	}
+	smtpEndpoint := fmt.Sprintf("%s:%d", smtpHost, smtpPort)
+
 	allServices := []dtos.ServiceHealthItem{
 		{
 			ID:               "service_core_api",
 			Name:             "Core API Backend (Go Fiber)",
 			Type:             "Core Microservice",
-			Endpoint:         "http://localhost:8080/health",
+			Endpoint:         coreApiEndpoint,
 			Status:           dtos.ServiceHealthOnline,
 			LatencyMs:        coreApiLatency,
 			UptimePercentage: 99.98,
@@ -132,7 +171,7 @@ func (s *DefaultSystemHealthService) PingServices(ctx context.Context, serviceID
 			ID:               "service_postgres",
 			Name:             "PostgreSQL 16 & pgvector DB",
 			Type:             "Primary Relational Database",
-			Endpoint:         "localhost:5432/insurance_db",
+			Endpoint:         postgresEndpoint,
 			Status:           dtos.ServiceHealthOnline,
 			LatencyMs:        postgresLatency,
 			UptimePercentage: 99.99,
@@ -142,18 +181,17 @@ func (s *DefaultSystemHealthService) PingServices(ctx context.Context, serviceID
 			ID:               "service_redis",
 			Name:             "Redis Distributed Cache",
 			Type:             "Cache & Rate Limiting Engine",
-			Endpoint:         "localhost:6379/cache",
+			Endpoint:         redisEndpoint,
 			Status:           dtos.ServiceHealthOnline,
 			LatencyMs:        redisLatency,
 			UptimePercentage: 100.0,
 			LastChecked:      now,
 		},
-
 		{
 			ID:               "service_smtp",
 			Name:             "SMTP Relay & e-Policy Dispatcher",
 			Type:             "Electronic Policy Delivery",
-			Endpoint:         "smtp.bayu-insurance.co.id:587",
+			Endpoint:         smtpEndpoint,
 			Status:           dtos.ServiceHealthOnline,
 			LatencyMs:        28.0,
 			UptimePercentage: 99.92,
