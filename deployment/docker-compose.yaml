@@ -43,6 +43,11 @@ services:
     ports:
       - "1025:1025"
       - "1080:1080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:1080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
 
   nats:
