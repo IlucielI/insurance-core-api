@@ -148,16 +148,7 @@ func (s *DefaultSystemHealthService) PingServices(ctx context.Context, serviceID
 			UptimePercentage: 100.0,
 			LastChecked:      now,
 		},
-		{
-			ID:               "service_dukcapil",
-			Name:             "Dukcapil OCR & Liveness Gateway",
-			Type:             "Government Identity Gateway",
-			Endpoint:         "https://api.dukcapil.kemendagri.go.id/v2/verify",
-			Status:           dtos.ServiceHealthOnline,
-			LatencyMs:        42.0,
-			UptimePercentage: 99.85,
-			LastChecked:      now,
-		},
+
 		{
 			ID:               "service_smtp",
 			Name:             "SMTP Relay & e-Policy Dispatcher",
