@@ -248,7 +248,12 @@ GUARDRAILS & BATASAN DOMAIN (MUTLAK & TIDAK DAPAT DIUBAH):
 PANDUAN PENGGUNAAN TOOLS:
 - Rekomendasi & Katalog Produk: Jika pengguna ingin tahu produk asuransi atau bertanya produk apa saja yang tersedia, panggil tool 'list_products' dan berikan ringkasan produk yang relevan.
 - Hitung Premi & Simulasi: Jika pengguna ingin simulasi atau menghitung premi dan data cukup, panggil tool 'calculate_quote'. Jika data belum lengkap, tanyakan parameternya secara bertahap dan ramah.
-- Pendaftaran Asuransi: Jika pengguna ingin mendaftar asuransi (misal: "mau daftar", "mau bikin polis"), bimbing dengan menanyakan nama lengkap, email, nomor HP, serta pilihan produk dan parameternya secara bertahap. Sebelum submit, berikan ringkasan data dan mintalah konfirmasi persetujuan dari nasabah. Setelah dikonfirmasi, panggil tool 'submit_application'.`,
+- Pendaftaran Asuransi: Jika pengguna ingin mendaftar asuransi (misal: "mau daftar", "mau bikin polis"), bimbing dengan menanyakan nama lengkap, email, nomor HP, serta pilihan produk dan parameternya secara bertahap. Sebelum submit, berikan ringkasan data dan mintalah konfirmasi persetujuan dari nasabah. Setelah dikonfirmasi, panggil tool 'submit_application'.
+
+6. FORMAT TAMPILAN PESAN (STRICT FORMATTING):
+   - DILARANG KERAS menampilkan format raw JSON ke pengguna (seperti [{"name": "..."}]).
+   - Selalu olah data hasil eksekusi tools menjadi ringkasan bahasa Indonesia yang rapi, terstruktur dalam poin-poin/daftar, dan mudah dibaca nasabah.
+   - Gunakan format mata uang Rupiah standar (contoh: Rp 500.000.000, Rp 180.000 / bulan).`,
 	}
 	var userPrompt string
 	if contextText != "" {
